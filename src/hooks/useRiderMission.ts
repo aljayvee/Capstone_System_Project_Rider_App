@@ -4,7 +4,7 @@
  * Zero business logic in UI components per separation-of-concerns rules.
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Alert } from "react-native";
 import {
   StatusStep,
@@ -13,6 +13,7 @@ import {
   ChatMessage,
   Errand,
   MergedErrand,
+  RiderProfile,
 } from "../types/rider";
 import {
   riderCurrentErrand,
@@ -21,6 +22,8 @@ import {
   merchants,
   riderProfile,
 } from "../data/mockData";
+import { useRiderAuth } from "../context/RiderAuthContext";
+import { riderApiService } from "../config/apiConfig";
 
 export interface UseRiderMissionReturn {
   // State
@@ -47,7 +50,7 @@ export interface UseRiderMissionReturn {
   isDelivered: boolean;
   errand: MergedErrand;
   completedToday: number;
-  riderProfile: typeof riderProfile;
+  riderProfile: RiderProfile;
   riderEarnings: typeof riderEarnings;
   deliveredErrands: Errand[];
   merchants: typeof merchants;
@@ -70,6 +73,8 @@ export interface UseRiderMissionReturn {
 }
 
 export function useRiderMission(): UseRiderMissionReturn {
+  const { rider, token } = useRiderAuth();
+
   // ─── Core State ────────────────────────────────────────────────────────────
   const [isOffline, setIsOffline] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<StatusStep>("Traveling");
@@ -83,17 +88,102 @@ export function useRiderMission(): UseRiderMissionReturn {
   const [showWaybill, setShowWaybill] = useState(false);
   const [showDRChat, setShowDRChat] = useState(false);
   const [drMessages, setDrMessages] = useState<ChatMessage[]>([]);
-  const [paymentMode, setPaymentMode] = useState<string>(riderCurrentErrand.paymentMode);
+  const [paymentMode, setPaymentMode] = useState<string>("Cash on Delivery");
   const [unreadDR, setUnreadDR] = useState(false);
   const [collectedAmount, setCollectedAmount] = useState<string>("");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Live profile & errand state fetched from errand_system_db via API
+  const [liveProfile, setLiveProfile] = useState<RiderProfile | null>(null);
+  const [dbActiveErrand, setDbActiveErrand] = useState<Errand | null>(null);
+
+  useEffect(() => {
+    if (rider && rider.id) {
+      riderApiService.fetchRiderProfile(rider.id, token || undefined).then((prof) => {
+        if (prof) {
+          const initials = (prof.name || rider.name || "Rider")
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
+            .substring(0, 2);
+
+          setLiveProfile({
+            id: String(prof.id || rider.id),
+            name: prof.name || (prof.firstName ? `${prof.firstName} ${prof.lastName || ""}`.trim() : rider.name),
+            initials: initials || "R",
+            riderId: `RDR-${String(prof.id || rider.id).padStart(3, "0")}`,
+            phone: prof.phone || rider.phone || "",
+            email: prof.email || `${prof.username || rider.username}@sugo.ph`,
+            vehicleType: prof.vehicle || "Motorcycle",
+            plateNumber: "ABC-1234",
+            rating: 4.8,
+            totalTrips: 24,
+            joinDate: prof.createdAt ? new Date(prof.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Active",
+            status: prof.status === "Inactive" ? "Inactive" : "Active",
+          });
+        }
+      });
+
+      riderApiService.fetchActiveErrand(rider.id, token || undefined).then((active) => {
+        if (active) {
+          setDbActiveErrand(active);
+          setIsMissionAccepted(true);
+        }
+      });
+    }
+  }, [rider, token]);
+
+  const activeProfile: RiderProfile = useMemo(() => {
+    if (liveProfile) return liveProfile;
+    if (rider) {
+      const initials = (rider.name || "Rider")
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .toUpperCase()
+        .substring(0, 2);
+      return {
+        id: String(rider.id),
+        name: rider.name || "Rider",
+        initials: initials || "R",
+        riderId: `RDR-${String(rider.id).padStart(3, "0")}`,
+        phone: rider.phone || "",
+        email: `${rider.username || "rider"}@sugo.ph`,
+        vehicleType: rider.vehicle || "Motorcycle",
+        plateNumber: "ABC-1234",
+        rating: 4.8,
+        totalTrips: 12,
+        joinDate: "Active",
+        status: "Active",
+      };
+    }
+    return riderProfile;
+  }, [liveProfile, rider]);
 
   // ─── Computed Values ───────────────────────────────────────────────────────
   const stepIndex = STATUS_STEPS.indexOf(currentStatus);
   const isDelivered = currentStatus === "Delivered";
 
   const errand: MergedErrand = useMemo(() => {
+    if (dbActiveErrand) {
+      return {
+        ...dbActiveErrand,
+        type: dbActiveErrand.type || "Pabili",
+        customer: dbActiveErrand.customerName || dbActiveErrand.customer || "Customer",
+        customerPhone: dbActiveErrand.customerPhone || "09170000000",
+        address: dbActiveErrand.deliveryAddress || dbActiveErrand.address || "Tacurong City",
+        landmark: dbActiveErrand.landmark || "",
+        paymentMode: (dbActiveErrand.paymentMethod || dbActiveErrand.paymentMode || "Cash on Delivery") as any,
+        status: (dbActiveErrand.status || "Assigned") as any,
+        amount: dbActiveErrand.totalCost || dbActiveErrand.amount || 0,
+        serviceFee: dbActiveErrand.deliveryFee || dbActiveErrand.serviceFee || 70,
+        createdAt: dbActiveErrand.createdAt || "Now",
+        updatedAt: dbActiveErrand.updatedAt || "Now",
+        distance: dbActiveErrand.distance || "2.5 km",
+      };
+    }
     if (activeMissions && activeMissions.length > 0) {
       return {
         ...activeMissions[0],
@@ -112,7 +202,7 @@ export function useRiderMission(): UseRiderMissionReturn {
       };
     }
     return riderCurrentErrand as MergedErrand;
-  }, [activeMissions]);
+  }, [dbActiveErrand, activeMissions]);
 
   const completedToday = useMemo(
     () => errands.filter((e) => e.status === "Delivered" && e.riderId === 1).length,
@@ -237,7 +327,7 @@ export function useRiderMission(): UseRiderMissionReturn {
     isDelivered,
     errand,
     completedToday,
-    riderProfile,
+    riderProfile: activeProfile,
     riderEarnings,
     deliveredErrands,
     merchants,

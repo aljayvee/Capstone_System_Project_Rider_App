@@ -9,38 +9,34 @@ import { Errand, Merchant, RiderEarnings, RiderProfile, Conversation } from "../
 // ─── Rider Profile ───────────────────────────────────────────────────────────
 
 export const riderProfile: RiderProfile = {
-  id: "3",
-  name: "Al-Dhen Musali",
-  initials: "AM",
-  riderId: "RDR-001",
-  phone: "09391234567",
-  email: "ad.musali@company.ph",
+  id: "0",
+  name: "",
+  initials: "",
+  riderId: "",
+  phone: "",
+  email: "",
   vehicleType: "Motorcycle",
-  plateNumber: "ABC-1234",
-  rating: 4.8,
-  totalTrips: 248,
-  joinDate: "January 15, 2024",
+  plateNumber: "",
+  rating: 5.0,
+  totalTrips: 0,
+  joinDate: "",
   status: "Active",
 };
 
-// ─── Current Errand (fallback when no mission is actively dispatched) ────────
-
 export const riderCurrentErrand: Errand = {
-  id: "SGO-002",
-  type: "Padala",
-  customer: "Jiane Gamboa",
-  customerPhone: "09501234567",
-  address: "Maharlika Highway, Brgy Calean",
-  landmark: "Near SM Sultan Kudarat",
-  paymentMode: "GCash",
-  status: "Assigned",
-  riderId: 1,
-  riderName: "Al-Dhen Musali",
-  amount: 120,
-  serviceFee: 35,
-  createdAt: "10:30 AM",
-  updatedAt: "10:45 AM",
-  distance: "1.8 km",
+  id: "",
+  type: "Pabili",
+  customer: "",
+  customerPhone: "",
+  address: "",
+  landmark: "",
+  paymentMode: "Cash on Delivery",
+  status: "Pending",
+  amount: 0,
+  serviceFee: 0,
+  createdAt: "",
+  updatedAt: "",
+  distance: "",
 };
 
 // ─── Rider Earnings ──────────────────────────────────────────────────────────

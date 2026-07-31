@@ -1,4 +1,41 @@
-export const API_BASE_URL = "http://192.168.8.138:5000/api";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
+
+declare const process: { env: { [key: string]: string | undefined } };
+
+const getDynamicHostIp = (): string | null => {
+  try {
+    const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest?.debuggerHost || (Constants as any).manifest2?.extra?.expoGo?.developer?.tool;
+    if (hostUri) {
+      const ip = hostUri.split(":")[0];
+      if (ip && ip !== "localhost" && ip !== "127.0.0.1") {
+        return `http://${ip}:5000/api`;
+      }
+    }
+  } catch (e) {
+    // Ignore error
+  }
+  return null;
+};
+
+const rawUrl =
+  (typeof process !== "undefined" && process.env && process.env.EXPO_PUBLIC_API_BASE_URL) ||
+  getDynamicHostIp() ||
+  (Platform.OS === "android" ? "http://10.0.2.2:5000/api" : "http://localhost:5000/api");
+
+export const API_BASE_URL = rawUrl.replace(/\/+$/, "");
+
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 10000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 
 export interface Errand {
   id: string;
@@ -18,41 +55,86 @@ export interface Errand {
 }
 
 export const riderApiService = {
-  async getAssignedErrands(riderId: number): Promise<Errand[]> {
+  async fetchRiderProfile(riderId: number, token?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/errands?riderId=${riderId}`);
-      if (!res.ok) throw new Error("Failed to fetch errands");
-      return await res.json();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetchWithTimeout(`${API_BASE_URL}/riders/profile/${riderId}`, {
+        method: "GET",
+        headers,
+      }, 5000);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.user || data.rider || data;
     } catch (err) {
-      console.warn("Backend API offline, using initial mockup feed", err);
-      return [
-        {
-          id: "ERR-1002",
-          category: "Groceries & Supermarkets",
-          description: "Buy fresh milk, bread, and fruits from KCC Mall",
-          pickupAddress: "KCC Mall, Gensan Drive, Tacurong City",
-          deliveryAddress: "Barangay Poblacion, House #142",
-          estimatedCost: 350,
-          deliveryFee: 65,
-          tip: 20,
-          totalCost: 435,
-          status: "ASSIGNED",
-          customerId: 101,
-          riderId: 3,
-          customerName: "Maria Santos",
-          customerPhone: "09181112233",
-        },
-      ];
+      console.warn("Fetch rider profile error:", err);
+      return null;
     }
   },
 
-  async updateErrandStatus(errandId: string, status: string): Promise<boolean> {
+  async getAssignedErrands(riderId: number, token?: string): Promise<Errand[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/errands/${errandId}/status`, {
+      const active = await this.fetchActiveErrand(riderId, token);
+      return active ? [active] : [];
+    } catch (err) {
+      return [];
+    }
+  },
+
+  async fetchActiveErrand(riderId: number, token?: string): Promise<Errand | null> {
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetchWithTimeout(`${API_BASE_URL}/orders/pabili/rider/${riderId}/active`, {
+        method: "GET",
+        headers,
+      }, 5000);
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error("Failed to fetch active errand");
+      }
+      const data = await res.json();
+      return data.order || null;
+    } catch (err) {
+      console.warn("Error fetching active errand from errand_system_db:", err);
+      return null;
+    }
+  },
+
+  async fetchStorePinpoints(orderId: string, token?: string): Promise<{latitude: number, longitude: number, storeName: string}[]> {
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetchWithTimeout(`${API_BASE_URL}/orders/pabili/${orderId}/pinpoints`, {
+        method: "GET",
+        headers,
+      }, 5000);
+      if (!res.ok) throw new Error("Failed to fetch store pinpoints");
+      const data = await res.json();
+      return data.pinpoints || [];
+    } catch (err) {
+      console.warn("Error fetching store pinpoints:", err);
+      return [];
+    }
+  },
+
+  async updateErrandStatus(orderId: string, status: string, amountPaid?: number, token?: string): Promise<boolean> {
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const body: any = { status };
+      if (amountPaid !== undefined) {
+        body.amountPaid = amountPaid;
+      }
+      const res = await fetchWithTimeout(`${API_BASE_URL}/orders/pabili/${orderId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
+        headers,
+        body: JSON.stringify(body),
+      }, 5000);
       return res.ok;
     } catch (err) {
       console.warn("Failed to update status on server", err);

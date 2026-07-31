@@ -1,20 +1,22 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
-import { AlertCircle } from "lucide-react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from "react-native";
+import { AlertCircle, ShieldAlert } from "lucide-react-native";
 import { useRiderAuth } from "../../context/RiderAuthContext";
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from "../../config/theme";
 
 export const LoginScreen = () => {
   const { login } = useRiderAuth();
-  const [username, setUsername] = useState("rider01");
-  const [password, setPassword] = useState("password123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showRestrictedModal, setShowRestrictedModal] = useState(false);
+  const [restrictedMessage, setRestrictedMessage] = useState<string | null>(null);
 
   const handleLogin = async () => {
     setErrorMessage(null);
     if (!username.trim() || !password.trim()) {
-      setErrorMessage("Please enter both Rider Username and Password.");
+      setErrorMessage("Please enter both Username and Password.");
       return;
     }
 
@@ -22,21 +24,20 @@ export const LoginScreen = () => {
     try {
       await login(username.trim(), password.trim());
     } catch (err: any) {
-      setErrorMessage(err?.message || "Invalid username or password");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async () => {
-    setUsername("rider01");
-    setPassword("password123");
-    setErrorMessage(null);
-    setIsLoading(true);
-    try {
-      await login("rider01", "password123");
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Quick login failed");
+      const msg = err?.message || "Invalid username or password";
+      if (
+        msg.includes("Access denied") ||
+        msg.includes("permitted") ||
+        msg.includes("restricted") ||
+        msg.includes("Only Rider")
+      ) {
+        setRestrictedMessage(
+          "Notice for Owner & Dispatcher Accounts:\n\nThis application is strictly reserved for active Rider accounts. Please use the Web Management Portal for Owner and Dispatcher operations."
+        );
+        setShowRestrictedModal(true);
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +62,7 @@ export const LoginScreen = () => {
           </View>
         ) : null}
 
-        <Text style={styles.inputLabel}>RIDER USERNAME / ID</Text>
+        <Text style={styles.inputLabel}>USERNAME</Text>
         <TextInput
           style={styles.input}
           value={username}
@@ -69,7 +70,7 @@ export const LoginScreen = () => {
             setUsername(val);
             if (errorMessage) setErrorMessage(null);
           }}
-          placeholder="e.g. rider01 or RDR-001"
+          placeholder="Enter your username"
           placeholderTextColor={Colors.textLight}
           autoCapitalize="none"
         />
@@ -82,7 +83,7 @@ export const LoginScreen = () => {
             setPassword(val);
             if (errorMessage) setErrorMessage(null);
           }}
-          placeholder="••••••••"
+          placeholder="Enter your password"
           placeholderTextColor={Colors.textLight}
           secureTextEntry
         />
@@ -99,15 +100,38 @@ export const LoginScreen = () => {
             <Text style={styles.loginBtnText}>SIGN IN TO ON-DUTY RIDER</Text>
           )}
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.demoQuickBtn}
-          onPress={handleQuickLogin}
-          disabled={isLoading}
-        >
-          <Text style={styles.demoQuickText}>Quick Login as Al-Dhen Musali (RDR-001)</Text>
-        </TouchableOpacity>
       </View>
+
+      {/* Access Restriction Modal for Owner and Dispatcher Accounts */}
+      <Modal
+        visible={showRestrictedModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRestrictedModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconBadge}>
+              <ShieldAlert size={36} color={Colors.primary} />
+            </View>
+
+            <Text style={styles.modalTitle}>Access Restricted</Text>
+            <Text style={styles.modalSubtitle}>Rider Portal Access Only</Text>
+
+            <Text style={styles.modalBodyText}>
+              {restrictedMessage}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setShowRestrictedModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalCloseBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -228,5 +252,69 @@ const styles = StyleSheet.create({
     color: Colors.blue,
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.bold,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: Colors.bgWhite,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xxl,
+    alignItems: "center",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+  },
+  modalIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primaryLight || "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  modalTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: FontWeights.black,
+    color: Colors.textDark,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.bold,
+    color: Colors.primary,
+    letterSpacing: 1,
+    marginTop: Spacing.xxs,
+    marginBottom: Spacing.md,
+    textTransform: "uppercase",
+  },
+  modalBodyText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textMedium,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.xxl,
+  },
+  modalCloseBtn: {
+    width: "100%",
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
+    alignItems: "center",
+  },
+  modalCloseBtnText: {
+    color: Colors.textWhite,
+    fontSize: FontSizes.md,
+    fontWeight: FontWeights.extrabold,
+    letterSpacing: 0.5,
   },
 });

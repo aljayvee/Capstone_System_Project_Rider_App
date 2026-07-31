@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_BASE_URL } from "../config/apiConfig";
+import { API_BASE_URL, fetchWithTimeout } from "../config/apiConfig";
 
 export interface RiderUser {
   id: number;
   username: string;
   name: string;
   phone: string;
+  role?: string;
   isOnline: boolean;
   vehicle: string;
   avatarUrl?: string;
@@ -45,9 +46,14 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (storedSession) {
           const session: AuthSession = JSON.parse(storedSession);
           if (session && session.user && session.token) {
-            setRider(session.user);
-            setToken(session.token);
-            setIsOnline(session.user.isOnline ?? true);
+            const userRole = String(session.user.role || "").toUpperCase();
+            if (userRole && userRole !== "RIDER") {
+              await AsyncStorage.removeItem(STORAGE_KEY);
+            } else {
+              setRider(session.user);
+              setToken(session.token);
+              setIsOnline(session.user.isOnline ?? true);
+            }
           }
         }
       } catch (err) {
@@ -61,14 +67,33 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const login = async (username: string, password?: string) => {
+    let riderUser: RiderUser;
+    let sessionToken: string;
+
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      let res = await fetchWithTimeout(`${API_BASE_URL}/riders/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ username, password }),
-      });
+      }, 10000);
+
+      if (!res.ok && res.status === 404) {
+        res = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        }, 10000);
+      }
+
+      if (!res.ok && res.status === 404) {
+        res = await fetchWithTimeout(`${API_BASE_URL.replace(/\/api$/, "")}/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        }, 10000);
+      }
 
       if (!res.ok) {
         let errorMsg = "Invalid username or password";
@@ -78,34 +103,56 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             errorMsg = errorData.error;
           }
         } catch (_) {
-          // fallback to default errorMsg
+          // fallback
         }
         throw new Error(errorMsg);
       }
 
-      const userData = await res.json();
-      const riderUser: RiderUser = {
-        id: userData.id ?? 3,
-        username: userData.username || username,
-        name: userData.name || (userData.firstName ? `${userData.firstName} ${userData.lastName || ""}`.trim() : "Al-Dhen Musali"),
-        phone: userData.phone || "09391234567",
-        isOnline: true,
-        vehicle: userData.vehicle || "Motorcycle (ABC-1234)",
-        avatarUrl: userData.avatarUrl,
+      const responseData = await res.json();
+      const userPayload = responseData.user || responseData.rider || responseData;
+
+      if (!responseData.token) {
+        throw new Error("Server did not return a valid authentication JWT token.");
+      }
+
+      const userRole = String(userPayload.role || "").toUpperCase();
+      if (userRole && userRole !== "RIDER") {
+        throw new Error("Access denied: Only Rider accounts are permitted to access the Rider Mobile App. Owner and Dispatcher accounts are restricted.");
+      }
+
+      const fullName = userPayload.name || 
+        (userPayload.firstName ? `${userPayload.firstName} ${userPayload.lastName || ""}`.trim() : userPayload.username);
+
+      riderUser = {
+        id: userPayload.id,
+        username: userPayload.username || username,
+        name: fullName,
+        phone: userPayload.phone || "",
+        role: userPayload.role || "RIDER",
+        isOnline: userPayload.status ? userPayload.status === "Active" : true,
+        vehicle: userPayload.vehicle || "Motorcycle",
+        avatarUrl: userPayload.avatarUrl,
       };
-
-      const sessionToken = userData.token || `rider-jwt-${userData.id || Date.now()}`;
-      const session: AuthSession = { user: riderUser, token: sessionToken };
-
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-
-      setRider(riderUser);
-      setToken(sessionToken);
-      setIsOnline(true);
-    } catch (err) {
-      console.error("Login error:", err);
-      throw err;
+      sessionToken = responseData.token;
+    } catch (err: any) {
+      if (err?.message === "Invalid username or password" || err?.message?.includes("token") || err?.message?.includes("Access denied")) {
+        throw err;
+      }
+      if (err?.name === "AbortError") {
+        throw new Error("Connection timed out while contacting authentication server.");
+      }
+      if (err?.message?.includes("Network request failed")) {
+        throw new Error(`Unable to connect to server at ${API_BASE_URL}. Ensure backend server is running and reachable.`);
+      }
+      throw new Error(err?.message || "Unable to connect to authentication server. Please check your network.");
     }
+
+    const session: AuthSession = { user: riderUser, token: sessionToken };
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+
+    setRider(riderUser);
+    setToken(sessionToken);
+    setIsOnline(true);
   };
 
   const logout = async () => {
