@@ -6,7 +6,12 @@ import { riderApiService } from '../config/apiConfig';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // shouldShowAlert was split in two when iOS 14 separated the transient
+    // banner from the persistent Notification Centre entry. A rider needs the
+    // banner while riding AND the list entry to find an assignment they rode
+    // past, so both are on.
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),

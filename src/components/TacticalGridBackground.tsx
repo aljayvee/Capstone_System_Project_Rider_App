@@ -9,9 +9,9 @@ export const TacticalGridBackground = () => {
   const accentHeight = Math.max(260, height * 0.36);
 
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {/* Base Clean White Canvas */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#FFFFFF' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF' }]} />
 
       {/* Top Dynamic Curved Fleet Accent Container (Similar to Customer App with Rider Fleet Styling) */}
       <View style={[styles.topAccentContainer, { height: accentHeight }]}>
@@ -23,7 +23,7 @@ export const TacticalGridBackground = () => {
         />
 
         {/* Layer 2: Vector Fleet Wave & Dispatch Route Arcs */}
-        <Svg width={width} height={accentHeight} style={StyleSheet.absoluteFillObject}>
+        <Svg width={width} height={accentHeight} style={StyleSheet.absoluteFill}>
           <Defs>
             <SvgGradient id="waveFill" x1="0%" y1="0%" x2="100%" y2="100%">
               <Stop offset="0%" stopColor="#DC2626" stopOpacity="0.08" />
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   primaryGradientAccent: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderBottomLeftRadius: 140,
     borderBottomRightRadius: 80,
   },
