@@ -76,12 +76,32 @@ export async function downscale(uri: string): Promise<{ uri: string; base64: str
  *    machine-rendered text. ML Kit handles it perfectly, for free, and the image
  *    never has to leave the phone to be read.
  */
-export async function readOnDevice(uri: string): Promise<string> {
-  const result = await TextRecognition.recognize(uri);
-  return result?.text ?? '';
+/**
+ * Returns null when the reader itself is unavailable — which is NOT the same as
+ * reading a blank photo.
+ *
+ * The distinction is load-bearing. This had no error handling, so if the native
+ * module failed the exception escaped captureAndUpload as a raw native error and
+ * every receipt capture died at the counter. Worse, treating that failure as an
+ * empty read would have told riders their perfectly sharp photo was "too blurry"
+ * — the exact bug that already stranded them once at sari-sari stores.
+ *
+ * A dead reader must therefore mean "I cannot judge this", not "this is bad".
+ * The gate below skips, the photo uploads, and Cloud Vision decides on the
+ * server as it already does for every receipt.
+ */
+export async function readOnDevice(uri: string): Promise<string | null> {
+  try {
+    const result = await TextRecognition.recognize(uri);
+    return result?.text ?? '';
+  } catch {
+    return null;
+  }
 }
 
-export function isLegible(text: string): boolean {
+/** Null (reader unavailable) is never illegible — there was no reading to judge. */
+export function isLegible(text: string | null): boolean {
+  if (text === null) return true;
   return text.replace(/\s/g, '').length >= MIN_LEGIBLE_CHARACTERS;
 }
 
@@ -128,8 +148,10 @@ export async function captureAndUpload(
       mimeType: 'image/jpeg',
       fileSize: Math.round((base64.length * 3) / 4),
       pinpointId: pinpointId ?? null,
-      // Only sent for transfers; the server reads receipts itself.
-      deviceText: kind === 'TRANSFER' ? deviceText : undefined,
+      // Only sent for transfers; the server reads receipts itself. Null means
+      // the phone could not read it at all, so there is nothing to send and the
+      // server falls back to Cloud Vision.
+      deviceText: kind === 'TRANSFER' ? (deviceText ?? undefined) : undefined,
       // The rider's own figure, and the only one available for a shop that
       // prints nothing.
       declaredTotal: kind === 'NO_RECEIPT' ? declaredTotal : undefined,
