@@ -50,7 +50,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:render": "jest",
+    "test:all": "vitest run && jest"
   },
   "private": true
 }
