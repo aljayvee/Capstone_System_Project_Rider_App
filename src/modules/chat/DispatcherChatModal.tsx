@@ -10,8 +10,10 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
+import { MessageSquare } from 'lucide-react-native';
 import { Colors, FontWeights, BorderRadius } from '../../config/theme';
 import { ChatMessage } from '../../types/rider';
+import { formatErrandId } from '../../utils/formatErrandId';
 
 export interface DispatcherChatModalProps {
   visible: boolean;
@@ -57,9 +59,12 @@ export function DispatcherChatModal({
         >
           {/* Header */}
           <View style={styles.header}>
-            <View>
-              <Text style={styles.headerTitle}>💬 Dispatcher</Text>
-              <Text style={styles.headerSubtitle}>Re: {errandId} – {errandType}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MessageSquare size={18} color={Colors.textWhite} />
+              <View>
+                <Text style={styles.headerTitle}>Dispatcher</Text>
+                <Text style={styles.headerSubtitle}>Re: Errand #{formatErrandId(errandId)} – {errandType}</Text>
+              </View>
             </View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeButtonText}>✕</Text>

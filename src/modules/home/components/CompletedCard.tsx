@@ -4,27 +4,28 @@ import { CheckCircle } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
 
 import { Errand, MergedErrand } from '../../../types/rider';
+import { formatEarnings } from '../../../utils/earnings';
 
 interface CompletedCardProps {
-  errand?: MergedErrand | Errand;
-  serviceFee?: number;
+  errand: MergedErrand | Errand;
+  riderFirstName?: string;
   onAcceptNext: () => void;
 }
 
-export function CompletedCard({ errand, serviceFee: propFee, onAcceptNext }: CompletedCardProps) {
-  const serviceFee = errand ? errand.serviceFee : propFee ?? 75;
+export function CompletedCard({ errand, riderFirstName, onAcceptNext }: CompletedCardProps) {
+  const earnings = formatEarnings(errand);
+  const greetingName = riderFirstName?.trim() || 'there';
 
   return (
-
     <View style={styles.container}>
       <View style={styles.iconContainer}>
         <CheckCircle size={32} color={Colors.primary} />
       </View>
       <Text style={styles.title}>Errand Completed!</Text>
-      <Text style={styles.subtitle}>Great job, Al-Dhen! Payment collected.</Text>
-      
+      <Text style={styles.subtitle}>Great job, {greetingName}! Payment collected.</Text>
+
       <View style={styles.earningsBox}>
-        <Text style={styles.earningsValue}>₱{serviceFee}</Text>
+        <Text style={styles.earningsValue}>{earnings}</Text>
         <Text style={styles.earningsLabel}>EARNINGS FROM THIS TRIP</Text>
       </View>
 

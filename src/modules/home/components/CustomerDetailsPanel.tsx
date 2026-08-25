@@ -6,41 +6,30 @@ import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../
 import { Errand, MergedErrand } from '../../../types/rider';
 
 interface CustomerDetailsPanelProps {
-  errand?: MergedErrand | Errand;
-  customer?: string;
-  customerPhone?: string;
-  address?: string;
-  landmark?: string;
+  errand: MergedErrand | Errand;
 }
 
-export function CustomerDetailsPanel({ errand, customer: propCust, customerPhone: propPhone, address: propAddr, landmark: propLandmark }: CustomerDetailsPanelProps) {
-  const customer = errand ? errand.customer : propCust ?? "";
-  const customerPhone = errand ? errand.customerPhone : propPhone ?? "";
-  const address = errand ? errand.address : propAddr ?? "";
-  const landmark = errand ? errand.landmark : propLandmark ?? "";
+export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
+  const { customer, customerPhone, address } = errand;
 
   const handleCall = () => {
-    Linking.openURL(`tel:${customerPhone}`);
+    if (customerPhone) Linking.openURL(`tel:${customerPhone}`);
   };
-
 
   return (
     <View style={styles.container}>
       <View style={styles.topRow}>
         <View>
           <Text style={styles.name}>{customer}</Text>
-          <Text style={styles.phone}>{customerPhone}</Text>
+          <Text style={styles.phone}>{customerPhone || 'No phone on file'}</Text>
         </View>
-        <TouchableOpacity style={styles.callButton} onPress={handleCall}>
+        <TouchableOpacity style={styles.callButton} onPress={handleCall} disabled={!customerPhone}>
           <Phone size={16} color={Colors.greenDark} />
         </TouchableOpacity>
       </View>
       <View style={styles.addressRow}>
         <MapPin size={14} color={Colors.textLight} style={styles.mapPin} />
-        <View>
-          <Text style={styles.address}>{address}</Text>
-          <Text style={styles.landmark}>📍 {landmark}</Text>
-        </View>
+        <Text style={styles.address}>{address}</Text>
       </View>
     </View>
   );
@@ -84,10 +73,6 @@ const styles = StyleSheet.create({
   },
   address: {
     color: Colors.textMedium,
-    fontSize: FontSizes.sm,
-  },
-  landmark: {
-    color: Colors.textLight,
     fontSize: FontSizes.sm,
   },
 });

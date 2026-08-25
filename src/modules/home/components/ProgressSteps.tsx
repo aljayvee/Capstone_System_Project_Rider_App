@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Navigation, Package, CheckCircle, Bike } from 'lucide-react-native';
+import { Navigation, Package, CheckCircle, Bike, type LucideIcon } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
 import { StatusStep, STATUS_STEPS, STEP_META } from '../../../types/rider';
 
@@ -9,11 +9,21 @@ interface ProgressStepsProps {
   stepIndex: number;
 }
 
-const icons: Record<string, any> = {
+/**
+ * Keyed by StatusStep, not by string.
+ *
+ * This was `Record<string, any>` and still carried the pre-merge keys
+ * "Purchased" and "In Route" after the five steps became four. `icons.Delivering`
+ * was therefore undefined and rendering <Icon /> threw, taking down the whole
+ * home screen for any active errand — invisible to tsc because `string` accepts
+ * any key, and invisible to the suite because nothing renders a component.
+ *
+ * Typed against StatusStep, the next status change fails the build instead.
+ */
+const icons: Record<StatusStep, LucideIcon> = {
   Traveling: Navigation,
   "At Store": Package,
-  Purchased: CheckCircle,
-  "En Route": Bike,
+  Delivering: Bike,
   Delivered: CheckCircle,
 };
 

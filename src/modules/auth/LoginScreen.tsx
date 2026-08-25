@@ -1,108 +1,385 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from "react-native";
-import { AlertCircle, ShieldAlert } from "lucide-react-native";
-import { useRiderAuth } from "../../context/RiderAuthContext";
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from "../../config/theme";
+import React, { useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  useWindowDimensions,
+  Animated,
+  StatusBar,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  User,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldAlert,
+  AlertCircle,
+  Bike,
+  ArrowRight,
+  MailCheck,
+} from 'lucide-react-native';
+import { useRiderAuth } from '../../context/RiderAuthContext';
+import { TacticalGridBackground } from '../../components/TacticalGridBackground';
+import { FontSizes, FontWeights, Spacing, BorderRadius } from '../../config/theme';
 
 export const LoginScreen = () => {
-  const { login } = useRiderAuth();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const { login, pendingChallenge, verifyLoginOtp, resendLoginOtp, cancelChallenge } = useRiderAuth();
+  const { height: screenHeight } = useWindowDimensions();
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Field Focus States for Glowing Crimson Borders
+  const [userFocused, setUserFocused] = useState(false);
+  const [passFocused, setPassFocused] = useState(false);
+
+  // Error States
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // Access Restriction Modal for Non-Rider Accounts
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
   const [restrictedMessage, setRestrictedMessage] = useState<string | null>(null);
 
+  // First-login email verification (see PendingChallenge in RiderAuthContext)
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+
+  // Micro-interaction Shake Animations
+  const shakeUsername = useRef(new Animated.Value(0)).current;
+  const shakePassword = useRef(new Animated.Value(0)).current;
+
+  const isSmallScreen = screenHeight < 680;
+
+  const triggerShake = (animValue: Animated.Value) => {
+    animValue.setValue(0);
+    Animated.sequence([
+      Animated.timing(animValue, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(animValue, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(animValue, { toValue: -8, duration: 50, useNativeDriver: true }),
+      Animated.timing(animValue, { toValue: 8, duration: 50, useNativeDriver: true }),
+      Animated.timing(animValue, { toValue: -4, duration: 50, useNativeDriver: true }),
+      Animated.timing(animValue, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
+
   const handleLogin = async () => {
-    setErrorMessage(null);
-    if (!username.trim() || !password.trim()) {
-      setErrorMessage("Please enter both Username and Password.");
-      return;
+    let hasError = false;
+    setUsernameError(null);
+    setPasswordError(null);
+    setApiError(null);
+
+    if (!username.trim()) {
+      setUsernameError('Username required!');
+      triggerShake(shakeUsername);
+      hasError = true;
     }
+
+    if (!password.trim()) {
+      setPasswordError('Password required!');
+      triggerShake(shakePassword);
+      hasError = true;
+    }
+
+    if (hasError) return;
 
     setIsLoading(true);
     try {
       await login(username.trim(), password.trim());
     } catch (err: any) {
-      const msg = err?.message || "Invalid username or password";
+      const msg = err?.message || 'Invalid username or password';
       if (
-        msg.includes("Access denied") ||
-        msg.includes("permitted") ||
-        msg.includes("restricted") ||
-        msg.includes("Only Rider")
+        msg.includes('Access denied') ||
+        msg.includes('permitted') ||
+        msg.includes('restricted') ||
+        msg.includes('Only Rider')
       ) {
         setRestrictedMessage(
-          "Notice for Owner & Dispatcher Accounts:\n\nThis application is strictly reserved for active Rider accounts. Please use the Web Management Portal for Owner and Dispatcher operations."
+          'Notice for Owner & Dispatcher Accounts:\n\nThis mobile application is strictly reserved for active Rider accounts. Please access the Web Management Portal for Owner and Dispatcher fleet operations.'
         );
         setShowRestrictedModal(true);
       } else {
-        setErrorMessage(msg);
+        setApiError(msg);
+        triggerShake(shakeUsername);
+        triggerShake(shakePassword);
       }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleVerifyOtp = async () => {
+    const code = otpCode.trim();
+    if (code.length !== 6) {
+      setOtpError('Enter the 6-digit code from your email.');
+      return;
+    }
+
+    setOtpError(null);
+    setIsVerifying(true);
+    try {
+      await verifyLoginOtp(code);
+    } catch (err: any) {
+      setOtpError(err?.message || 'Incorrect verification code.');
+      setOtpCode('');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setOtpError(null);
+    setIsResending(true);
+    try {
+      await resendLoginOtp();
+      setOtpCode('');
+    } catch (err: any) {
+      setOtpError(err?.message || 'Could not send a new code.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleCancelChallenge = () => {
+    setOtpCode('');
+    setOtpError(null);
+    setPassword('');
+    cancelChallenge();
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={styles.headerBox}>
-        <View style={styles.avatarBadge}>
-          <Text style={styles.avatarText}>RDR</Text>
-        </View>
-        <Text style={styles.appName}>SUGO EXPRESS</Text>
-        <Text style={styles.portalTitle}>Rider Delivery Portal</Text>
-        <Text style={styles.tagline}>Tacurong City Logistics Fleet</Text>
-      </View>
+    <View style={styles.rootContainer}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <View style={styles.card}>
-        {errorMessage ? (
-          <View style={styles.errorBanner}>
-            <AlertCircle size={FontSizes.lg} color={Colors.primaryDark} />
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        ) : null}
+      {/* Clean White Tactical Vector Grid Background */}
+      <TacticalGridBackground />
 
-        <Text style={styles.inputLabel}>USERNAME</Text>
-        <TextInput
-          style={styles.input}
-          value={username}
-          onChangeText={(val) => {
-            setUsername(val);
-            if (errorMessage) setErrorMessage(null);
-          }}
-          placeholder="Enter your username"
-          placeholderTextColor={Colors.textLight}
-          autoCapitalize="none"
-        />
-
-        <Text style={[styles.inputLabel, { marginTop: Spacing.lg }]}>PASSWORD</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={(val) => {
-            setPassword(val);
-            if (errorMessage) setErrorMessage(null);
-          }}
-          placeholder="Enter your password"
-          placeholderTextColor={Colors.textLight}
-          secureTextEntry
-        />
-
-        <TouchableOpacity
-          style={[styles.loginBtn, isLoading && styles.loginBtnDisabled]}
-          onPress={handleLogin}
-          disabled={isLoading}
-          activeOpacity={0.8}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.scrollContainer,
+            {
+              paddingVertical: isSmallScreen ? Spacing.lg : Spacing.xxl,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {isLoading ? (
-            <ActivityIndicator color={Colors.textWhite} size="small" />
-          ) : (
-            <Text style={styles.loginBtnText}>SIGN IN TO ON-DUTY RIDER</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* TOP BRAND HERO SECTION */}
+          <View style={[styles.heroHeader, { marginBottom: isSmallScreen ? Spacing.xl : Spacing.xxxl }]}>
+            {/* Illuminated Primary Track Icon Badge (from Customer App) */}
+            <View style={styles.logoOuterGlow}>
+              <LinearGradient
+                colors={['#EF4444', '#DC2626', '#991B1B']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.logoBadge,
+                  {
+                    width: isSmallScreen ? 68 : 80,
+                    height: isSmallScreen ? 68 : 80,
+                    borderRadius: isSmallScreen ? 34 : 40,
+                  },
+                ]}
+              >
+                <Bike
+                  size={isSmallScreen ? 34 : 42}
+                  color="#FFFFFF"
+                  strokeWidth={2.3}
+                />
+              </LinearGradient>
+            </View>
 
-      {/* Access Restriction Modal for Owner and Dispatcher Accounts */}
+            {/* Brand Pill */}
+            <View style={styles.brandPill}>
+              <Bike size={14} color="#DC2626" strokeWidth={2.4} />
+              <Text style={styles.brandPillText}>SUGO EXPRESS</Text>
+            </View>
+
+            {/* Portal Title & Subtitle */}
+            <Text style={[styles.portalTitle, isSmallScreen && { fontSize: FontSizes.xl }]}>
+              Rider Portal
+            </Text>
+            <Text style={styles.portalSubtitle}>
+              Tacurong City Fleet Operations
+            </Text>
+          </View>
+
+          {/* CLEAN SEAMLESS FORM CONTAINER (NO CARD) */}
+          <View style={styles.formContainer}>
+            {/* API / Auth Error Banner */}
+            {apiError ? (
+              <View style={styles.errorBanner}>
+                <AlertCircle size={18} color="#DC2626" strokeWidth={2.2} />
+                <Text style={styles.errorBannerText}>{apiError}</Text>
+              </View>
+            ) : null}
+
+            {/* USERNAME INPUT CONTAINER */}
+            <View style={styles.fieldBlock}>
+              <View style={styles.labelRow}>
+                <Text style={styles.fieldLabel}>USERNAME</Text>
+                {usernameError ? (
+                  <View style={styles.inlineErrorBadge}>
+                    <AlertCircle size={12} color="#DC2626" strokeWidth={2.2} />
+                    <Text style={styles.inlineErrorText}>{usernameError}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <Animated.View style={{ transform: [{ translateX: shakeUsername }] }}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    userFocused && styles.inputWrapperFocused,
+                    usernameError ? styles.inputWrapperError : null,
+                  ]}
+                >
+                  <View style={[styles.inputIconBox, userFocused && styles.inputIconBoxFocused]}>
+                    <User
+                      size={18}
+                      color={usernameError ? '#DC2626' : userFocused ? '#DC2626' : '#64748B'}
+                      strokeWidth={2.2}
+                    />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    value={username}
+                    onChangeText={(val) => {
+                      setUsername(val);
+                      if (usernameError) setUsernameError(null);
+                      if (apiError) setApiError(null);
+                    }}
+                    onFocus={() => {
+                      setUserFocused(true);
+                      scrollViewRef.current?.scrollTo({ y: 70, animated: true });
+                    }}
+                    onBlur={() => setUserFocused(false)}
+                    placeholder="Enter your username"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    testID="username-input"
+                  />
+                </View>
+              </Animated.View>
+            </View>
+
+            {/* PASSWORD INPUT CONTAINER */}
+            <View style={[styles.fieldBlock, { marginTop: Spacing.lg }]}>
+              <View style={styles.labelRow}>
+                <Text style={styles.fieldLabel}>PASSWORD</Text>
+                {passwordError ? (
+                  <View style={styles.inlineErrorBadge}>
+                    <AlertCircle size={12} color="#DC2626" strokeWidth={2.2} />
+                    <Text style={styles.inlineErrorText}>{passwordError}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <Animated.View style={{ transform: [{ translateX: shakePassword }] }}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    passFocused && styles.inputWrapperFocused,
+                    passwordError ? styles.inputWrapperError : null,
+                  ]}
+                >
+                  <View style={[styles.inputIconBox, passFocused && styles.inputIconBoxFocused]}>
+                    <Lock
+                      size={18}
+                      color={passwordError ? '#DC2626' : passFocused ? '#DC2626' : '#64748B'}
+                      strokeWidth={2.2}
+                    />
+                  </View>
+                  <TextInput
+                    style={styles.textInput}
+                    value={password}
+                    onChangeText={(val) => {
+                      setPassword(val);
+                      if (passwordError) setPasswordError(null);
+                      if (apiError) setApiError(null);
+                    }}
+                    onFocus={() => {
+                      setPassFocused(true);
+                      scrollViewRef.current?.scrollTo({ y: 130, animated: true });
+                    }}
+                    onBlur={() => setPassFocused(false)}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#94A3B8"
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    testID="password-input"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeToggleButton}
+                    onPress={() => setShowPassword((prev) => !prev)}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    activeOpacity={0.7}
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={19} color="#DC2626" strokeWidth={2.2} />
+                    ) : (
+                      <Eye size={19} color="#64748B" strokeWidth={2.2} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            </View>
+
+            {/* HIGH-IMPACT ERGONOMIC SIGN IN BUTTON */}
+            <TouchableOpacity
+              style={[styles.loginButtonContainer, isLoading && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+              activeOpacity={0.88}
+              testID="rider-login-submit"
+            >
+              <LinearGradient
+                colors={['#EF4444', '#DC2626', '#B91C1C']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.loginButtonGradient}
+              >
+                {isLoading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={styles.loginButtonText}>SIGNING IN...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.loginBtnContent}>
+                    <Text style={styles.loginButtonText}>SIGN IN</Text>
+                    <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* ACCESS RESTRICTION MODAL (OWNER / DISPATCHER ACCOUNTS) */}
       <Modal
         visible={showRestrictedModal}
         transparent
@@ -112,7 +389,7 @@ export const LoginScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalIconBadge}>
-              <ShieldAlert size={36} color={Colors.primary} />
+              <ShieldAlert size={36} color="#DC2626" strokeWidth={2.2} />
             </View>
 
             <Text style={styles.modalTitle}>Access Restricted</Text>
@@ -125,194 +402,468 @@ export const LoginScreen = () => {
             <TouchableOpacity
               style={styles.modalCloseBtn}
               onPress={() => setShowRestrictedModal(false)}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
-              <Text style={styles.modalCloseBtnText}>Close</Text>
+              <Text style={styles.modalCloseBtnText}>Acknowledge & Close</Text>
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* FIRST-LOGIN EMAIL VERIFICATION (one-time, on a newly created account) */}
+      <Modal
+        visible={!!pendingChallenge}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelChallenge}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.otpIconBadge}>
+                <MailCheck size={36} color="#047857" strokeWidth={2.2} />
+              </View>
+
+              {/* Only the seeded web admin can ever be in PROFILE_SETUP, and an
+                  OWNER is turned away by the rider role check before a challenge
+                  is issued — so this branch is a safety net, not a real flow. */}
+              {pendingChallenge?.step === 'PROFILE_SETUP' ? (
+                <>
+                  <Text style={styles.modalTitle}>Setup Required</Text>
+                  <Text style={styles.otpSubtitle}>Finish on the web portal</Text>
+                  <Text style={styles.modalBodyText}>
+                    This account still needs to be set up by an administrator on the Sugo Web
+                    Management Portal before it can be used here.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.modalTitle}>Verify Your Email</Text>
+                  <Text style={styles.otpSubtitle}>One-time account check</Text>
+                  <Text style={styles.modalBodyText}>
+                    We sent a 6-digit code to{' '}
+                    <Text style={styles.otpEmail}>
+                      {pendingChallenge?.maskedEmail || 'your registered email'}
+                    </Text>
+                    . Enter it below to finish signing in.
+                  </Text>
+
+                  <TextInput
+                    style={styles.otpInput}
+                    value={otpCode}
+                    onChangeText={(text) => {
+                      setOtpCode(text.replace(/\D/g, '').slice(0, 6));
+                      if (otpError) setOtpError(null);
+                    }}
+                    placeholder="000000"
+                    placeholderTextColor="#CBD5E1"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    textContentType="oneTimeCode"
+                    autoComplete="sms-otp"
+                    autoFocus
+                    editable={!isVerifying}
+                  />
+
+                  {otpError ? (
+                    <View style={styles.otpErrorRow}>
+                      <AlertCircle size={14} color="#DC2626" />
+                      <Text style={styles.otpErrorText}>{otpError}</Text>
+                    </View>
+                  ) : null}
+
+                  <TouchableOpacity
+                    style={[styles.otpVerifyBtn, isVerifying && styles.otpBtnDisabled]}
+                    onPress={handleVerifyOtp}
+                    disabled={isVerifying}
+                    activeOpacity={0.85}
+                  >
+                    {isVerifying ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text style={styles.modalCloseBtnText}>Verify & Sign In</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleResendOtp}
+                    disabled={isResending || isVerifying}
+                    activeOpacity={0.7}
+                    style={styles.otpResendBtn}
+                  >
+                    <Text style={styles.otpResendText}>
+                      {isResending ? 'Sending...' : 'Resend code'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              <TouchableOpacity onPress={handleCancelChallenge} activeOpacity={0.7}>
+                <Text style={styles.otpCancelText}>Use a different account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  rootContainer: {
     flex: 1,
-    backgroundColor: Colors.bgLight,
-    justifyContent: "center",
-    padding: Spacing.xxl,
+    backgroundColor: '#FFFFFF',
   },
-  headerBox: {
-    alignItems: "center",
-    marginBottom: Spacing.xxxl,
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl + Spacing.xs,
   },
-  avatarBadge: {
-    width: Spacing.huge * 2,
-    height: Spacing.huge * 2,
-    borderRadius: BorderRadius.xl,
-    backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: Spacing.md,
-    elevation: 4,
+  heroHeader: {
+    alignItems: 'center',
   },
-  avatarText: {
-    color: Colors.textWhite,
-    fontSize: FontSizes.xxl,
-    fontWeight: FontWeights.black,
+  logoOuterGlow: {
+    padding: 3,
+    borderRadius: 50,
+    backgroundColor: 'rgba(220, 38, 38, 0.15)',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+    marginBottom: Spacing.md,
   },
-  appName: {
-    fontSize: FontSizes.base,
+  logoBadge: {
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  brandPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.xs,
+  },
+  brandPillText: {
+    color: '#DC2626',
+    fontSize: FontSizes.xs,
     fontWeight: FontWeights.extrabold,
-    color: Colors.primary,
     letterSpacing: 1.5,
+    marginLeft: Spacing.xs,
   },
   portalTitle: {
     fontSize: FontSizes.xxl,
     fontWeight: FontWeights.black,
-    color: Colors.textDark,
+    color: '#0F172A',
+    letterSpacing: 0.3,
     marginTop: Spacing.xxs,
   },
-  tagline: {
+  portalSubtitle: {
     fontSize: FontSizes.sm,
-    color: Colors.textGray,
+    color: '#64748B',
+    fontWeight: FontWeights.medium,
     marginTop: Spacing.xxs,
+    letterSpacing: 0.2,
+  },
+  formContainer: {
+    width: '100%',
   },
   errorBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.primaryLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: '#FCA5A5',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  errorText: {
-    color: Colors.primaryDark,
-    fontSize: FontSizes.base,
+  errorBannerText: {
+    color: '#B91C1C',
+    fontSize: FontSizes.sm,
     fontWeight: FontWeights.semibold,
     marginLeft: Spacing.md,
     flex: 1,
   },
-  card: {
-    backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xxl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: Colors.textDark,
-    shadowOpacity: 0.05,
-    shadowRadius: Spacing.huge - Spacing.xxl,
-    elevation: 2,
+  fieldBlock: {
+    width: '100%',
   },
-  inputLabel: {
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: Spacing.xs + 2,
+    marginBottom: Spacing.xs,
+  },
+  fieldLabel: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.extrabold,
-    color: Colors.textMedium,
-    marginBottom: Spacing.sm,
+    color: '#334155',
+    letterSpacing: 0.8,
   },
-  input: {
-    backgroundColor: Colors.bgLight,
+  inlineErrorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  inlineErrorText: {
+    color: '#DC2626',
+    fontSize: FontSizes.xxs,
+    fontWeight: FontWeights.bold,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    height: 54, // Ergonomic 54px touch target
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  inputWrapperFocused: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FFFBFB',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  inputWrapperError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  inputIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg + Spacing.xxs,
-    paddingVertical: Spacing.lg,
+    borderColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  inputIconBoxFocused: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA',
+  },
+  textInput: {
+    flex: 1,
+    color: '#0F172A',
     fontSize: FontSizes.md,
-    color: Colors.textDark,
+    fontWeight: FontWeights.medium,
+    paddingVertical: 0,
   },
-  loginBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.lg + Spacing.xxs,
-    alignItems: "center",
+  eyeToggleButton: {
+    padding: Spacing.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginButtonContainer: {
     marginTop: Spacing.xxl,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  loginBtnDisabled: {
+  loginButtonDisabled: {
     opacity: 0.6,
   },
-  loginBtnText: {
-    color: Colors.textWhite,
+  loginButtonGradient: {
+    height: 54, // Ergonomic 54px touch target
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  loginBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
     fontWeight: FontWeights.black,
     fontSize: FontSizes.md,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    marginRight: Spacing.sm,
   },
-  demoQuickBtn: {
-    marginTop: Spacing.lg + Spacing.xxs,
-    paddingVertical: Spacing.md,
-    alignItems: "center",
-  },
-  demoQuickText: {
-    color: Colors.blue,
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.bold,
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: Spacing.xl,
   },
   modalContent: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.xl,
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.xxl,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: Spacing.xxl,
-    alignItems: "center",
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
+    alignItems: 'center',
+    elevation: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
   },
   modalIconBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primaryLight || "#FEE2E2",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: Spacing.lg,
   },
   modalTitle: {
     fontSize: FontSizes.xl,
     fontWeight: FontWeights.black,
-    color: Colors.textDark,
-    textAlign: "center",
+    color: '#0F172A',
+    textAlign: 'center',
   },
   modalSubtitle: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold,
-    color: Colors.primary,
-    letterSpacing: 1,
+    color: '#DC2626',
+    letterSpacing: 1.2,
     marginTop: Spacing.xxs,
     marginBottom: Spacing.md,
-    textTransform: "uppercase",
+    textTransform: 'uppercase',
   },
   modalBodyText: {
     fontSize: FontSizes.sm,
-    color: Colors.textMedium,
-    textAlign: "center",
-    lineHeight: 20,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 22,
     marginBottom: Spacing.xxl,
   },
   modalCloseBtn: {
-    width: "100%",
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
+    width: '100%',
+    backgroundColor: '#DC2626',
+    borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.lg,
-    alignItems: "center",
+    alignItems: 'center',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  otpIconBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#D1FAE5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  otpSubtitle: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.bold,
+    color: '#047857',
+    letterSpacing: 1.2,
+    marginTop: Spacing.xxs,
+    marginBottom: Spacing.md,
+    textTransform: 'uppercase',
+  },
+  otpEmail: {
+    fontWeight: FontWeights.extrabold,
+    color: '#0F172A',
+  },
+  otpInput: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.lg,
+    textAlign: 'center',
+    fontSize: 28,
+    fontWeight: FontWeights.black,
+    letterSpacing: 12,
+    color: '#0F172A',
+    marginBottom: Spacing.md,
+  },
+  otpErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  otpErrorText: {
+    color: '#DC2626',
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.semibold,
+    flexShrink: 1,
+  },
+  otpVerifyBtn: {
+    width: '100%',
+    backgroundColor: '#047857',
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  otpBtnDisabled: {
+    opacity: 0.6,
+  },
+  otpResendBtn: {
+    paddingVertical: Spacing.md,
+  },
+  otpResendText: {
+    color: '#047857',
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.bold,
+  },
+  otpCancelText: {
+    color: '#64748B',
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.semibold,
+    marginTop: Spacing.xs,
   },
   modalCloseBtnText: {
-    color: Colors.textWhite,
+    color: '#FFFFFF',
     fontSize: FontSizes.md,
     fontWeight: FontWeights.extrabold,
     letterSpacing: 0.5,

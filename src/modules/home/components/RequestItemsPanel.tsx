@@ -3,35 +3,31 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ClipboardList, Camera } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
 import { StatusStep, Errand, MergedErrand } from '../../../types/rider';
+import { requestSections, type RequestSection } from '../../../services/requestSections';
 
 interface RequestItemsPanelProps {
   errand?: MergedErrand | Errand;
-  payload?: { name: string; items: string[] }[];
-  details?: string;
   currentStatus: StatusStep;
   completedSubtasks: Record<number, boolean>;
   uploadingSubtask: number | null;
-  onStartUpload?: (index: number, sectionName: string) => void;
-  onUpload?: (index: number, sectionName: string) => void;
+  onUpload?: (section: RequestSection, index: number) => void;
+  /** The shop printed nothing — see the no-receipt path in proofCapture. */
+  onNoReceipt?: (section: RequestSection, index: number) => void;
 }
 
 export function RequestItemsPanel({
   errand,
-  payload: propPayload,
-  details: propDetails,
   currentStatus,
   completedSubtasks,
   uploadingSubtask,
-  onStartUpload,
-  onUpload
+  onUpload,
+  onNoReceipt,
 }: RequestItemsPanelProps) {
-  const payload = errand ? errand.payload : propPayload;
-  const details = errand ? errand.details : propDetails;
-  const handleUpload = onUpload || onStartUpload || (() => {});
+  const sections = requestSections(errand);
+  if (sections.length === 0) return null;
 
-  if (!payload && !details) return null;
-
-
+  // The receipt is filed when the shopping is done, so the button only appears
+  // once the rider is at the store. Before that there is nothing to photograph.
   const isAtStore = currentStatus === 'At Store';
 
   return (
@@ -41,70 +37,57 @@ export function RequestItemsPanel({
         <Text style={styles.headerTitle}>Request Items & Instructions</Text>
       </View>
       <View style={styles.content}>
-        {payload ? (
-          payload.map((cat, idx) => {
-            const isCompleted = completedSubtasks[idx];
-            const isUploading = uploadingSubtask === idx;
-            
-            return (
-              <View key={idx} style={styles.itemBox}>
-                <Text style={styles.itemText}>📌 {cat.name}</Text>
-                {cat.items.map((item, itemIdx) => (
-                  <Text key={itemIdx} style={styles.itemText}>• {item}</Text>
-                ))}
-                {isAtStore && (
-                  <TouchableOpacity
-                    disabled={isCompleted || isUploading}
-                    onPress={() => handleUpload(idx, cat.name)}
+        {sections.map((section, idx) => {
+          const isCompleted = completedSubtasks[idx];
+          const isUploading = uploadingSubtask === idx;
+
+          return (
+            <View key={idx} style={styles.itemBox}>
+              {section.title && <Text style={styles.itemTitle}>{section.title}</Text>}
+              {section.lines.map((line, lineIdx) => (
+                <Text key={lineIdx} style={styles.itemText}>
+                  {section.title ? `• ${line}` : line}
+                </Text>
+              ))}
+
+              {isAtStore && (
+                <TouchableOpacity
+                  disabled={isCompleted || isUploading}
+                  onPress={() => onUpload?.(section, idx)}
+                  style={[
+                    styles.uploadButton,
+                    isCompleted ? styles.uploadSuccess : styles.uploadPending,
+                    { opacity: isUploading ? 0.6 : 1 },
+                  ]}
+                >
+                  <Camera size={14} color={isCompleted ? Colors.greenDark : Colors.amberDark} />
+                  <Text
                     style={[
-                      styles.uploadButton,
-                      isCompleted ? styles.uploadSuccess : styles.uploadPending,
-                      { opacity: isUploading ? 0.6 : 1 }
+                      styles.uploadText,
+                      { color: isCompleted ? Colors.greenDark : Colors.amberDark },
                     ]}
                   >
-                    <Camera size={14} color={isCompleted ? Colors.greenDark : Colors.amberDark} />
-                    <Text style={[styles.uploadText, { color: isCompleted ? Colors.greenDark : Colors.amberDark }]}>
-                      {isCompleted ? '✓ Verified' : isUploading ? 'Uploading...' : 'Upload Photo'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })
-        ) : (
-          details?.split(' | ').map((section, idx) => {
-            const isCompleted = completedSubtasks[idx];
-            const isUploading = uploadingSubtask === idx;
-            const formatted = section
-              .replace(/; /g, '\n')
-              .replace(/\(Pabili\) /, '🛒 Pabili:\n')
-              .replace(/\(Padala\) /, '📦 Padala:\n')
-              .replace(/\(Bills\) /, '💳 Bills:\n');
+                    {isCompleted ? 'Receipt saved' : isUploading ? 'Reading…' : 'Photograph receipt'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-            return (
-              <View key={idx} style={styles.itemBox}>
-                <Text style={styles.itemText}>{formatted}</Text>
-                {isAtStore && (
-                  <TouchableOpacity
-                    disabled={isCompleted || isUploading}
-                    onPress={() => handleUpload(idx, formatted.split(':')[0])}
-
-                    style={[
-                      styles.uploadButton,
-                      isCompleted ? styles.uploadSuccess : styles.uploadPending,
-                      { opacity: isUploading ? 0.6 : 1 }
-                    ]}
-                  >
-                    <Camera size={14} color={isCompleted ? Colors.greenDark : Colors.amberDark} />
-                    <Text style={[styles.uploadText, { color: isCompleted ? Colors.greenDark : Colors.amberDark }]}>
-                      {isCompleted ? '✓ Verified' : isUploading ? 'Uploading...' : 'Upload Photo'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })
-        )}
+              {/* A sari-sari store or a market stall prints nothing. Without this
+                  the rider photographed the goods, was told the sharp photo was
+                  "too blurry to read", and could not finish the errand at all. */}
+              {isAtStore && !isCompleted && (
+                <TouchableOpacity
+                  disabled={isUploading}
+                  onPress={() => onNoReceipt?.(section, idx)}
+                  style={styles.noReceiptButton}
+                  testID={`no-receipt-${idx}`}
+                >
+                  <Text style={styles.noReceiptText}>This shop gives no receipt</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -123,53 +106,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   headerTitle: {
-    color: Colors.amberDark,
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: FontWeights.bold as any,
+    color: Colors.amberDark,
   },
-  content: {
-    gap: Spacing.md,
-  },
+  content: { gap: Spacing.sm },
   itemBox: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
     backgroundColor: Colors.bgWhite,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.borderYellow,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    gap: 2,
   },
-  itemText: {
-    color: '#451A03',
+  itemTitle: {
     fontSize: FontSizes.base,
+    fontWeight: FontWeights.bold as any,
+    color: Colors.textDark,
     marginBottom: 2,
   },
+  itemText: {
+    fontSize: FontSizes.base,
+    color: Colors.textDark,
+  },
   uploadButton: {
-    marginTop: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderStyle: 'dashed',
-  },
-  uploadSuccess: {
-    backgroundColor: Colors.greenLight,
-    borderColor: Colors.greenMedium,
   },
   uploadPending: {
-    backgroundColor: Colors.amberLight,
-    borderColor: Colors.amber,
+    backgroundColor: Colors.amberBg,
+    borderColor: Colors.borderYellow,
+  },
+  uploadSuccess: {
+    backgroundColor: Colors.greenBg,
+    borderColor: Colors.greenDark,
+  },
+  noReceiptButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  noReceiptText: {
+    fontSize: FontSizes.xs,
+    fontWeight: FontWeights.semibold as any,
+    color: Colors.textMedium,
+    textDecorationLine: 'underline',
   },
   uploadText: {
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.bold as any,
+    fontWeight: FontWeights.semibold as any,
   },
 });

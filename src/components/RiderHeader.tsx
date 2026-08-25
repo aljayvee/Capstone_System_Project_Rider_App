@@ -1,18 +1,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Bell, LogOut } from 'lucide-react-native';
+import { Bike } from 'lucide-react-native';
 import { Colors, FontWeights } from '../config/theme';
+import { useRiderAuth } from '../context/RiderAuthContext';
+import { NotificationBell } from './NotificationBell';
 
 import { UseRiderMissionReturn } from '../hooks/useRiderMission';
 
 export interface RiderHeaderProps {
   mission?: UseRiderMissionReturn;
   isOffline?: boolean;
-  onToggleOffline?: () => void;
-  unreadCount?: number;
-  onBellPress?: () => void;
-  onLogout?: () => void;
   riderName?: string;
   riderId?: string;
   initials?: string;
@@ -21,22 +19,17 @@ export interface RiderHeaderProps {
 export function RiderHeader({
   mission,
   isOffline: propIsOffline,
-  onToggleOffline: propOnToggleOffline,
-  unreadCount: propUnreadCount = 0,
-  onBellPress: propOnBellPress = () => {},
-  onLogout: propOnLogout = () => {},
   riderName: propRiderName,
   riderId: propRiderId,
   initials: propInitials,
 }: RiderHeaderProps) {
-  const isOffline = mission ? mission.isOffline : propIsOffline ?? false;
-  const onToggleOffline = mission ? mission.toggleOffline : propOnToggleOffline ?? (() => {});
-  const unreadCount = mission ? (mission.unreadDR ? 1 : 0) : propUnreadCount;
-  const onBellPress = propOnBellPress;
-  const onLogout = propOnLogout;
-  const riderName = mission ? mission.riderProfile.name : propRiderName ?? "Al-Dhen Musali";
-  const riderId = mission ? mission.riderProfile.riderId : propRiderId ?? "RDR-001";
-  const initials = mission ? mission.riderProfile.initials : propInitials ?? "AM";
+  const { isOnline } = useRiderAuth();
+  
+  // Real connectivity and duty status
+  const isOffline = mission ? !isOnline : propIsOffline ?? false;
+  const riderName = mission ? mission.riderProfile?.name ?? '' : propRiderName ?? '';
+  const riderId = mission ? mission.riderProfile?.riderId ?? '' : propRiderId ?? '';
+  const initials = mission ? mission.riderProfile?.initials ?? '?' : propInitials ?? '?';
 
   return (
     <LinearGradient
@@ -47,25 +40,17 @@ export function RiderHeader({
     >
       <View style={styles.topRow}>
         <View style={styles.brandContainer}>
-          <View style={styles.logoBox} />
+          <View style={styles.logoBox}>
+            <Bike size={20} color={Colors.primary} strokeWidth={2.4} />
+          </View>
           <View>
-            <Text style={styles.companyName}>Company Name</Text>
-            <Text style={styles.dutyStatus}>On Duty</Text>
+            <Text style={styles.companyName}>Sugo Express</Text>
+            <Text style={styles.dutyStatus}>{isOffline ? 'Off Duty' : 'On Duty'}</Text>
           </View>
         </View>
         
         <View style={styles.actionButtons}>
-          <TouchableOpacity onPress={onBellPress} style={styles.iconButton}>
-            <Bell size={18} color={Colors.textWhite} />
-            {unreadCount > 0 && (
-              <View style={styles.badgeContainer}>
-                <Text style={styles.badgeText}>{unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onLogout} style={styles.iconButton}>
-            <LogOut size={18} color={Colors.textWhite} />
-          </TouchableOpacity>
+          <NotificationBell />
         </View>
       </View>
 
@@ -73,22 +58,28 @@ export function RiderHeader({
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
-        <View>
+        <View style={styles.riderMetaColumn}>
           <Text style={styles.riderName}>{riderName}</Text>
           <Text style={styles.riderIdText}>{riderId}</Text>
-          <View style={styles.statusToggleContainer}>
-            <TouchableOpacity 
-              onPress={onToggleOffline}
+          
+          {/* Non-Clickable Live Location Indicator */}
+          <View style={styles.statusIndicatorContainer}>
+            <View
               style={[
-                styles.statusToggleButton,
-                { backgroundColor: isOffline ? Colors.offlineBg : Colors.green }
+                styles.liveIndicatorBadge,
+                { backgroundColor: isOffline ? 'rgba(55, 65, 81, 0.7)' : 'rgba(22, 101, 52, 0.55)' }
               ]}
             >
-              <View style={styles.pulseDot} />
-              <Text style={styles.statusToggleText}>
+              <View
+                style={[
+                  styles.pulseDot,
+                  { backgroundColor: isOffline ? '#9CA3AF' : '#4ADE80' }
+                ]}
+              />
+              <Text style={styles.liveIndicatorText}>
                 {isOffline ? 'OFFLINE' : 'LIVE'}
               </Text>
-            </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -118,6 +109,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 12,
     backgroundColor: Colors.bgWhite,
+    justifyContent: 'center',
+    alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -145,22 +138,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.whiteOverlay,
     position: 'relative',
   },
-  badgeContainer: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.notifYellow,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    color: Colors.notifYellowText,
-    fontSize: 9,
-    fontWeight: FontWeights.extrabold,
-  },
   riderInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -186,6 +163,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: FontWeights.extrabold,
   },
+  riderMetaColumn: {
+    flex: 1,
+  },
   riderName: {
     color: Colors.textWhite,
     fontSize: 16,
@@ -195,31 +175,33 @@ const styles = StyleSheet.create({
     color: Colors.whiteOverlayText,
     fontSize: 13,
   },
-  statusToggleContainer: {
+  statusIndicatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    gap: 8,
+    marginTop: 4,
   },
-  statusToggleButton: {
+  liveIndicatorBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   pulseDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.bgWhite,
   },
-  statusToggleText: {
+  liveIndicatorText: {
     color: Colors.textWhite,
     fontSize: 10,
-    fontWeight: FontWeights.extrabold,
+    fontWeight: FontWeights.black,
+    letterSpacing: 0.8,
   },
 });
 
 export default RiderHeader;
-

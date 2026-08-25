@@ -10,12 +10,14 @@
       "supportsTablet": true
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.astrowarden.RiderMobileApp",
-      "usesCleartextTraffic": true,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -40,7 +42,22 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow RiderMobileApp to use your location."
         }
+      ],
+      "expo-secure-store",
+      "expo-task-manager",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
       ]
-    ]
+    ],
+    "owner": "astrowarden",
+    "extra": {
+      "eas": {
+        "projectId": "275be8ea-14b0-4ac6-90dc-168df39618a1"
+      }
+    }
   }
 }

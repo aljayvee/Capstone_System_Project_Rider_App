@@ -1,27 +1,35 @@
 import React from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, View, Text } from 'react-native';
-import { useRiderMission } from '../../hooks/useRiderMission';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View, Text } from 'react-native';
+import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights } from '../../config/theme';
+import { formatErrandId } from '../../utils/formatErrandId';
+import { formatEarnings } from '../../utils/earnings';
 
 export default function TasksScreen() {
-  const { deliveredErrands } = useRiderMission();
+  const { deliveredErrands, phase } = useRiderMissionContext();
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.headerTitle}>Today's Task History</Text>
-        
+        <Text style={styles.headerTitle}>Task History</Text>
+
+        {phase === 'loading' ? (
+          <ActivityIndicator size="large" color={Colors.primary} style={styles.loadingIndicator} />
+        ) : deliveredErrands.length === 0 ? (
+          <Text style={styles.emptyText}>No delivered errands yet.</Text>
+        ) : null}
+
         {deliveredErrands.map(errand => (
           <View key={errand.id} style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
-                <Text style={styles.errandId}>{errand.id}</Text>
+                <Text style={styles.errandId}>Errand #{formatErrandId(errand.id)}</Text>
                 <View style={styles.statusBadge}>
                   <Text style={styles.statusText}>Delivered</Text>
                 </View>
               </View>
               <View style={styles.cardHeaderRight}>
-                <Text style={styles.amount}>₱{errand.serviceFee}</Text>
+                <Text style={styles.amount}>{formatEarnings(errand)}</Text>
                 <Text style={styles.typeText}>{errand.type}</Text>
               </View>
             </View>
@@ -50,6 +58,15 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: FontWeights.bold,
     color: Colors.textDark,
+  },
+  loadingIndicator: {
+    marginTop: Spacing.huge,
+  },
+  emptyText: {
+    color: Colors.textLight,
+    fontSize: FontSizes.base,
+    textAlign: 'center',
+    marginTop: Spacing.huge,
   },
   card: {
     backgroundColor: Colors.bgWhite,

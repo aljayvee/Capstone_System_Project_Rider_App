@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'rea
 import { X } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
 import { MergedErrand } from '../../../types/rider';
+import { formatErrandId } from '../../../utils/formatErrandId';
 
 interface WaybillModalProps {
   visible: boolean;
@@ -29,7 +30,7 @@ export function WaybillModal({ visible, errand, onClose }: WaybillModalProps) {
 
           <View style={styles.card}>
             <View style={styles.idBox}>
-              <Text style={styles.errandId}>{errand.id}</Text>
+              <Text style={styles.errandId}>Errand #{formatErrandId(errand.id)}</Text>
             </View>
 
             <View style={styles.infoSection}>
@@ -45,7 +46,7 @@ export function WaybillModal({ visible, errand, onClose }: WaybillModalProps) {
               <View style={styles.feeBox}>
                 <View style={styles.feeRow}>
                   <Text style={styles.feeText}>Service Fee</Text>
-                  <Text style={styles.feeAmount}>₱{errand.serviceFee}</Text>
+                  <Text style={styles.feeAmount}>₱{(errand.riderEarnings?.deliveryFee ?? 0).toFixed(2)}</Text>
                 </View>
                 <View style={[styles.feeRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>TOTAL TO COLLECT</Text>

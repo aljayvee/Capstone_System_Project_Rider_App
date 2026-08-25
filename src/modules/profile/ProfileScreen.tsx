@@ -1,27 +1,34 @@
 import React from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Star, LogOut } from 'lucide-react-native';
+import { LogOut } from 'lucide-react-native';
 import { useRiderMission } from '../../hooks/useRiderMission';
 import { useRiderAuth } from '../../context/RiderAuthContext';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights } from '../../config/theme';
 
 export default function ProfileScreen() {
-  const { riderProfile } = useRiderMission();
+  const { riderProfile, phase } = useRiderMission();
   const { logout } = useRiderAuth();
 
+  if (phase === 'loading' || !riderProfile) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centerState]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
   const infoRows = [
-    { label: "Phone Number", value: riderProfile.phone },
-    { label: "Email", value: riderProfile.email },
+    { label: "Phone Number", value: riderProfile.phone || '—' },
+    { label: "Email", value: riderProfile.email || '—' },
     { label: "Status", value: riderProfile.status },
-    { label: "Total Trips (All Time)", value: riderProfile.totalTrips.toString() },
     { label: "Join Date", value: riderProfile.joinDate },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
+
         <LinearGradient
           colors={[Colors.primaryGradientStart, Colors.primaryGradientEnd]}
           style={styles.profileCard}
@@ -33,18 +40,6 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.name}>{riderProfile.name}</Text>
           <Text style={styles.riderId}>Rider ID: {riderProfile.riderId}</Text>
-          
-          <View style={styles.ratingRow}>
-            {[1, 2, 3, 4, 5].map((s) => (
-              <Star 
-                key={s} 
-                size={14} 
-                color={Colors.notifYellow} 
-                fill={s <= 4 ? Colors.notifYellow : "transparent"} 
-              />
-            ))}
-            <Text style={styles.ratingText}>{riderProfile.rating}</Text>
-          </View>
         </LinearGradient>
 
         <View style={styles.infoContainer}>
@@ -74,6 +69,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.xl,
     gap: Spacing.xl,
+  },
+  centerState: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   profileCard: {
     borderRadius: BorderRadius.xl,
