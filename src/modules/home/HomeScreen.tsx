@@ -22,11 +22,11 @@ import {
 } from './components';
 import FloatingChatButton from '../chat/FloatingChatButton';
 import DispatcherChatModal from '../chat/DispatcherChatModal';
-import { Package, ChevronRight, Map, FileText, Layers, MapPin } from 'lucide-react-native';
+import { Package, ChevronRight, Map, FileText, Layers, MapPin, Info, Camera } from 'lucide-react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights } from '../../config/theme';
 import { STEP_META } from '../../types/rider';
 import { formatErrandId } from '../../utils/formatErrandId';
-import { requestSections } from '../../services/requestSections';
+import { errandGate, nextAction } from '../../services/errandGate';
 import ReceiptCaptureScreen from '../../screens/ReceiptCaptureScreen';
 
 export default function HomeScreen() {
@@ -64,19 +64,19 @@ export default function HomeScreen() {
   // Selected display errand when multiple queued errands exist
   const displayErrand = (activeMissions && activeMissions[selectedMissionIndex]) || errand;
 
-  // The rider may leave a store once every section of the list has a receipt
-  // filed against it. Counted off the SAME array the panel renders its upload
-  // buttons from — see requestSections. Counting the flat `details` string here
-  // while the panel drew one button per store made this permanently unsatisfiable
-  // on any errand whose item count differed from its store count.
-  const sections = requestSections(displayErrand);
-
   // The id a receipt is filed under must be a real errand. `displayErrand` can
   // fall back to the merged card, whose id is every underlying id joined with
   // " + " for display — a string no endpoint can resolve.
   const captureErrandId = activeMissions?.[selectedMissionIndex]?.id ?? null;
-  const completedCount = sections.filter((_, idx) => completedSubtasks[idx]).length;
-  const isActionable = currentStatus === "At Store" ? completedCount === sections.length : true;
+  // One rule, shared with the map screen. Two screens computing "can the rider
+  // move on?" separately is how the last one of these bugs happened.
+  const gate = errandGate(displayErrand, currentStatus, completedSubtasks, {
+    handoverCaptured: mission.handoverCaptured,
+    paymentMode,
+    collectedAmount,
+  });
+  const isActionable = gate.canAdvance;
+  const whatIsNext = nextAction(currentStatus, { handoverCaptured: mission.handoverCaptured });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -275,22 +275,37 @@ export default function HomeScreen() {
               )}
 
               {!isDelivered && selectedMissionIndex === 0 && (
-                <TouchableOpacity
-                  style={[styles.actionBtn, !isActionable && styles.actionBtnDisabled]}
-                  disabled={!isActionable}
-                  onPress={advanceStatus}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !isActionable }}
-                  accessibilityLabel={STEP_META[currentStatus].action}
-                  accessibilityHint={
-                    isActionable
-                      ? undefined
-                      : `File a receipt for each of the ${sections.length} stops first`
-                  }
-                >
-                  <Text style={styles.actionBtnText}>{STEP_META[currentStatus].action}</Text>
-                  <ChevronRight size={18} color={Colors.textWhite} />
-                </TouchableOpacity>
+                <View style={styles.actionBlock}>
+                  {/* Says what is missing next to the button, rather than
+                      leaving a greyed rectangle to explain itself. A disabled
+                      control gives no feedback on tap and cannot show a tooltip
+                      on a touch screen, so the reason has to live outside it. */}
+                  {!isActionable && gate.blockedReason && (
+                    <View style={styles.blockedNote} testID="blocked-reason">
+                      <Info size={14} color={Colors.warning} />
+                      <Text style={styles.blockedText}>{gate.blockedReason}</Text>
+                    </View>
+                  )}
+                  {isActionable && whatIsNext && (
+                    <View style={styles.nextNote} testID="next-action">
+                      <Camera size={14} color={Colors.info} />
+                      <Text style={styles.nextText}>{whatIsNext}</Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, !isActionable && styles.actionBtnDisabled]}
+                    disabled={!isActionable}
+                    onPress={advanceStatus}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !isActionable }}
+                    accessibilityLabel={STEP_META[currentStatus].action}
+                    accessibilityHint={gate.blockedReason ?? undefined}
+                  >
+                    <Text style={styles.actionBtnText}>{STEP_META[currentStatus].action}</Text>
+                    <ChevronRight size={18} color={Colors.onPrimary} />
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           </View>
@@ -347,6 +362,42 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  actionBlock: {
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  blockedNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.warningSubtle,
+    borderColor: Colors.warningBorder,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  blockedText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semibold as any,
+    color: Colors.warning,
+  },
+  nextNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.infoSubtle,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  nextText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semibold as any,
+    color: Colors.info,
+  },
   handoverBtn: {
     alignItems: 'center',
     justifyContent: 'center',
