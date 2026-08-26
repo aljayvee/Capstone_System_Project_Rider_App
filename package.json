@@ -53,7 +53,8 @@
     "web": "expo start --web",
     "test": "vitest run",
     "test:render": "jest",
-    "test:all": "vitest run && jest"
+    "test:all": "vitest run && jest",
+    "audit:ui": "node scripts/uiAudit.mjs"
   },
   "private": true
 }
