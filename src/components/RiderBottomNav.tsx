@@ -116,6 +116,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 72,
     paddingVertical: 2,
+    minHeight: 48,
   },
   iconContainer: {
     width: 44,

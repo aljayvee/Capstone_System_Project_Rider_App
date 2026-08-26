@@ -1,6 +1,6 @@
 
 RIDER APP — UI ACCESSIBILITY BASELINE
-Generated 2026-08-26T02:21:16.377Z
+Generated 2026-08-26T03:08:44.650Z
 Standards: WCAG 2.2 AA (1.4.3, 1.4.11, 2.5.8) · Material Design 3 · Apple HIG
 
 ──────────────────────────────────────────────────────────────────────────────
@@ -42,17 +42,21 @@ stylesheet. Treat 1a as the real measure.
 ──────────────────────────────────────────────────────────────────────────────
 2. TOUCH TARGETS  — estimated from stylesheets, not a layout pass
 ──────────────────────────────────────────────────────────────────────────────
-30 measured · 29 below MD3's 48dp · 0 below WCAG's 24px floor
+34 measured · 33 below MD3's 48dp · 0 below WCAG's 24px floor
 
   height  std  style                          where
 ✗   24dp ~ wcag  tabItem                        components/RiderBottomNav.tsx
 ✗   28dp ~ wcag  eyeToggleButton                modules/auth/LoginScreen.tsx
 ✗   28dp ~ wcag  closeButton                    modules/chat/DispatcherChatModal.tsx
 ✗   28dp ~ wcag  shortBtn                       modules/home/components/CashCollectionInput.tsx
+✗   28dp ~ wcag  noReceiptButton                modules/home/components/RequestItemsPanel.tsx
 ✗   28dp ~ wcag  closeIcon                      modules/home/components/UploadModal.tsx
 ✗   28dp ~ wcag  detailsBtn                     modules/home/HomeScreen.tsx
 ✗   28dp ~ wcag  detailsBtn                     modules/home/HomeScreen.tsx
+✗   30dp ~ wcag  multiErrandTab                 modules/home/HomeScreen.tsx
 ✗   32dp ~ wcag  skipBtn                        components/BackgroundLocationModal.tsx
+✗   32dp ~ wcag  uploadButton                   modules/home/components/RequestItemsPanel.tsx
+✗   32dp   wcag  backButton                     screens/LiveErrandMapScreen.tsx
 ✗   36dp ~ wcag  allowBtn                       components/BackgroundLocationModal.tsx
 ✗   36dp ~ wcag  otpResendBtn                   modules/auth/LoginScreen.tsx
 ✗   36dp ~ wcag  sendButton                     modules/chat/DispatcherChatModal.tsx
@@ -61,23 +65,19 @@ stylesheet. Treat 1a as the real measure.
 ✗   36dp ~ wcag  declineButton                  modules/home/components/NewTaskCard.tsx
 ✗   36dp ~ wcag  closeButton                    modules/home/components/WaybillModal.tsx
 ✗   36dp ~ wcag  retryBtn                       modules/home/HomeScreen.tsx
-✗   36dp ~ wcag  handoverBtn                    modules/home/HomeScreen.tsx
-✗   36dp ~ wcag  primaryBtn                     screens/ReceiptCaptureScreen.tsx
-✗   36dp ~ wcag  secondaryBtn                   screens/ReceiptCaptureScreen.tsx
-✗   36dp ~ wcag  primaryBtn                     screens/ReceiptCaptureScreen.tsx
-  … 10 more (use --json)
+  … 14 more (use --json)
 
   ~ = estimated as paddingVertical*2 + content; confirm by hand before quoting.
 
 ──────────────────────────────────────────────────────────────────────────────
 3. ACCESSIBILITY LABELLING
 ──────────────────────────────────────────────────────────────────────────────
-2 of 44 controls carry any accessibility prop (5%).
-42 controls report nothing to a screen reader.
+4 of 44 controls carry any accessibility prop (9%).
+40 controls report nothing to a screen reader.
 
-    6  modules/auth/LoginScreen.tsx
     6  modules/home/HomeScreen.tsx
     6  screens/ReceiptCaptureScreen.tsx
+    5  modules/auth/LoginScreen.tsx
     3  components/NotificationBell.tsx
     2  components/BackgroundLocationModal.tsx
     2  modules/chat/DispatcherChatModal.tsx
@@ -128,8 +128,8 @@ allowFontScaling considered in 0 file(s) — OS text scaling is otherwise untest
 SUMMARY
 ──────────────────────────────────────────────────────────────────────────────
   palette pairs failing       11 / 36  (5 of them rendered)
-  targets below 48dp          29 / 30
-  controls with no a11y prop  42 / 44
+  targets below 48dp          33 / 34
+  controls with no a11y prop  40 / 44
   success-only interruptions  5 / 10
   hardcoded hex values        169
 

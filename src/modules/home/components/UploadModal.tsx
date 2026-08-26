@@ -19,7 +19,11 @@ export function UploadModal({ visible, progress, onClose }: UploadModalProps) {
               {progress < 100 ? "Uploading Receipt..." : "Upload Complete"}
             </Text>
             {progress === 100 && (
-              <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
+              <TouchableOpacity
+            style={styles.closeIcon}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close">
                 <X size={18} color={Colors.textGray} />
               </TouchableOpacity>
             )}
@@ -50,7 +54,11 @@ export function UploadModal({ visible, progress, onClose }: UploadModalProps) {
           </View>
 
           {progress === 100 ? (
-            <TouchableOpacity style={styles.continueButton} onPress={onClose}>
+            <TouchableOpacity
+            style={styles.continueButton}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Continue to delivery">
               <Text style={styles.continueText}>Continue to Delivery</Text>
             </TouchableOpacity>
           ) : (
@@ -96,6 +104,10 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     backgroundColor: Colors.bgLight,
     borderRadius: BorderRadius.full,
+    minHeight: 48,
+    minWidth: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   imageBox: {
     aspectRatio: 3/4,

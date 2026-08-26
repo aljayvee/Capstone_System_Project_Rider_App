@@ -182,3 +182,25 @@ export interface DeclineLog {
 export interface MergedErrand extends Omit<Errand, "type"> {
   type: string; // Can be combined e.g. "Pabili & Padala"
 }
+
+// ─── Non-blocking feedback ───────────────────────────────────────────────────
+
+/**
+ * A message shown without stopping the rider.
+ *
+ * Replaces the Alert.alert dialogs that fired on SUCCESS. A modal costs a tap,
+ * and a rider dismissing one is a rider taking a hand off the handlebars to be
+ * told something that already happened. Failures and real questions keep their
+ * dialogs — those need to interrupt.
+ */
+export type BannerTone = "success" | "info" | "warning";
+
+export interface RiderBanner {
+  /** Distinct per showing, so a repeat of the same text still re-animates. */
+  id: number;
+  tone: BannerTone;
+  text: string;
+}
+
+/** Long enough to read at a glance, short enough not to sit over the screen. */
+export const BANNER_DURATION_MS = 4000;

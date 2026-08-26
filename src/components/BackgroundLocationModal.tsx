@@ -60,6 +60,9 @@ export default function BackgroundLocationModal({
           <TouchableOpacity
             testID="bg-location-allow-btn"
             style={styles.allowBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Allow background location"
+            accessibilityHint="Lets the dispatcher see where you are while the app is closed"
             onPress={onAllow}
           >
             <Text style={styles.allowBtnText}>Allow Background Location</Text>
@@ -68,6 +71,9 @@ export default function BackgroundLocationModal({
           <TouchableOpacity
             testID="bg-location-skip-btn"
             style={styles.skipBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Not now"
+            accessibilityHint="You can turn background location on later in Settings"
             onPress={onSkip}
           >
             <Text style={styles.skipBtnText}>Not Now</Text>
@@ -127,6 +133,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     marginTop: Spacing.md,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   allowBtnText: {
     color: Colors.textWhite,
@@ -138,6 +146,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     alignItems: 'center',
     marginTop: Spacing.sm,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   skipBtnText: {
     color: Colors.textGray,

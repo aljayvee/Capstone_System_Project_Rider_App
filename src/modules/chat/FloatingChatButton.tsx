@@ -22,6 +22,8 @@ export function FloatingChatButton({
   return (
     <TouchableOpacity
       style={styles.container}
+      accessibilityRole="button"
+      accessibilityLabel={unread ? 'Message the dispatcher, you have unread messages' : 'Message the dispatcher'}
       onPress={onPress}
       activeOpacity={0.8}
     >

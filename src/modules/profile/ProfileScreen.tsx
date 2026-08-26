@@ -51,7 +51,11 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.signOutBtn} onPress={logout}>
+        <TouchableOpacity
+          style={styles.signOutBtn}
+          onPress={logout}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out">
           <LogOut size={16} color={Colors.primary} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
@@ -155,6 +159,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
+    minHeight: 48,
   },
   signOutText: {
     color: Colors.primary,

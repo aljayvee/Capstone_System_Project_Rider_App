@@ -66,7 +66,11 @@ export function DispatcherChatModal({
                 <Text style={styles.headerSubtitle}>Re: Errand #{formatErrandId(errandId)} – {errandType}</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close the chat">
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -120,7 +124,11 @@ export function DispatcherChatModal({
               onSubmitEditing={handleSend}
               returnKeyType="send"
             />
-            <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+            <TouchableOpacity
+            style={styles.sendButton}
+            onPress={handleSend}
+            accessibilityRole="button"
+            accessibilityLabel="Send this message">
               <Text style={styles.sendButtonText}>Send</Text>
             </TouchableOpacity>
           </View>
@@ -166,6 +174,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     paddingVertical: 4,
     paddingHorizontal: 10,
+    minHeight: 48,
+    minWidth: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   closeButtonText: {
     color: Colors.textWhite,
@@ -253,6 +265,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 48,
+    minWidth: 48,
   },
   sendButtonText: {
     color: Colors.textWhite,

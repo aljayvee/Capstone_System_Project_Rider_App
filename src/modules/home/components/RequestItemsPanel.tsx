@@ -59,6 +59,17 @@ export function RequestItemsPanel({
                     isCompleted ? styles.uploadSuccess : styles.uploadPending,
                     { opacity: isUploading ? 0.6 : 1 },
                   ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isCompleted || isUploading, busy: isUploading }}
+                  // Carries the store name: on a three-stop errand a screen
+                  // reader would otherwise read three identical buttons.
+                  accessibilityLabel={
+                    isCompleted
+                      ? `Receipt saved for ${section.title ?? 'this stop'}`
+                      : isUploading
+                        ? 'Reading the receipt'
+                        : `Photograph the receipt for ${section.title ?? 'this stop'}`
+                  }
                 >
                   <Camera size={14} color={isCompleted ? Colors.greenDark : Colors.amberDark} />
                   <Text
@@ -80,6 +91,9 @@ export function RequestItemsPanel({
                   disabled={isUploading}
                   onPress={() => onNoReceipt?.(section, idx)}
                   style={styles.noReceiptButton}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isUploading }}
+                  accessibilityLabel={`This shop gives no receipt — photograph the goods for ${section.title ?? 'this stop'} instead`}
                   testID={`no-receipt-${idx}`}
                 >
                   <Text style={styles.noReceiptText}>This shop gives no receipt</Text>
@@ -141,6 +155,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
+    minHeight: 48,
   },
   uploadPending: {
     backgroundColor: Colors.amberBg,
@@ -155,6 +170,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: Spacing.xs,
     paddingVertical: Spacing.xs,
+    minHeight: 48,
   },
   noReceiptText: {
     fontSize: FontSizes.xs,

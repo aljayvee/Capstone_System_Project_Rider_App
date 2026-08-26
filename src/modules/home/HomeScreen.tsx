@@ -5,6 +5,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import type { AuthedStackParamList } from '../../navigation/AuthedNavigator';
 import RiderHeader from '../../components/RiderHeader';
+import { StatusBanner } from '../../components/StatusBanner';
 import {
   OfflineCard,
   WaitingCard,
@@ -80,6 +81,9 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <RiderHeader mission={mission} />
+      {/* Outside the ScrollView: a confirmation the rider has scrolled past is
+          a confirmation they never saw. */}
+      <StatusBanner banner={mission.banner} onDismiss={mission.dismissBanner} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {isOffline ? (
           <OfflineCard setShowWaybill={setShowWaybill} />
@@ -90,7 +94,12 @@ export default function HomeScreen() {
         ) : phase === "error" ? (
           <View style={styles.centerState}>
             <Text style={styles.errorText}>{errorMessage}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={refresh}>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={refresh}
+              accessibilityRole="button"
+              accessibilityLabel="Try loading your errand again"
+            >
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -122,6 +131,13 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     key={m.id || idx}
                     onPress={() => setSelectedMissionIndex(idx)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: selectedMissionIndex === idx }}
+                    accessibilityLabel={
+                      idx === 0
+                        ? `Active errand ${formatErrandId(m.id)}`
+                        : `Queued errand ${idx}, ${formatErrandId(m.id)}`
+                    }
                     style={[
                       styles.multiErrandTab,
                       selectedMissionIndex === idx ? styles.multiErrandTabActive : styles.multiErrandTabInactive,
@@ -151,11 +167,18 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={styles.detailsBtn}
                   onPress={() => navigation.navigate('LiveErrandMap')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open the live map"
                 >
                   <Map size={12} color={Colors.textWhite} />
                   <Text style={styles.detailsBtnText}>Live Map</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.detailsBtn} onPress={() => setShowWaybill(true)}>
+                <TouchableOpacity
+                  style={styles.detailsBtn}
+                  onPress={() => setShowWaybill(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Show customer details"
+                >
                   <FileText size={12} color={Colors.textWhite} />
                   <Text style={styles.detailsBtnText}>Customer Details</Text>
                 </TouchableOpacity>
@@ -237,6 +260,13 @@ export default function HomeScreen() {
                   onPress={mission.openHandoverCapture}
                   disabled={mission.handoverCaptured}
                   testID="handover-photo"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: mission.handoverCaptured }}
+                  accessibilityLabel={
+                    mission.handoverCaptured
+                      ? "Handover photo already taken"
+                      : "Take the handover photo"
+                  }
                 >
                   <Text style={styles.handoverText}>
                     {mission.handoverCaptured ? "Handover photo taken ✓" : "Take handover photo"}
@@ -249,6 +279,14 @@ export default function HomeScreen() {
                   style={[styles.actionBtn, !isActionable && styles.actionBtnDisabled]}
                   disabled={!isActionable}
                   onPress={advanceStatus}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !isActionable }}
+                  accessibilityLabel={STEP_META[currentStatus].action}
+                  accessibilityHint={
+                    isActionable
+                      ? undefined
+                      : `File a receipt for each of the ${sections.length} stops first`
+                  }
                 >
                   <Text style={styles.actionBtnText}>{STEP_META[currentStatus].action}</Text>
                   <ChevronRight size={18} color={Colors.textWhite} />
@@ -318,6 +356,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.bgWhite,
+    minHeight: 48,
   },
   handoverBtnDone: {
     borderColor: Colors.greenDark,
@@ -389,6 +428,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   retryBtnText: {
     color: Colors.textWhite,
@@ -419,6 +461,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 5,
     borderRadius: BorderRadius.full,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   multiErrandTabActive: {
     backgroundColor: '#1E3A5F',
@@ -476,6 +521,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.whiteOverlay,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   detailsBtnText: {
     color: Colors.textWhite,
@@ -533,6 +580,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     gap: Spacing.md,
     marginTop: Spacing.md,
+    minHeight: 48,
   },
   actionBtnDisabled: {
     backgroundColor: Colors.textLight,

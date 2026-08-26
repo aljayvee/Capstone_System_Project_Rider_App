@@ -21,7 +21,11 @@ export function OfflineCard({ onViewRequests, setShowWaybill }: OfflineCardProps
       </View>
       <Text style={styles.title}>You're Offline</Text>
       <Text style={styles.description}>Connection lost. Use your cached files to complete the delivery.</Text>
-      <TouchableOpacity style={styles.button} onPress={handlePress}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={handlePress}
+        accessibilityRole="button"
+        accessibilityLabel="View the customer's requests, saved on this phone">
         <Text style={styles.buttonText}>View Customer Requests</Text>
       </TouchableOpacity>
     </View>
@@ -70,6 +74,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 3,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   buttonText: {
     color: Colors.textWhite,

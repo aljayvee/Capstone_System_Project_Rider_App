@@ -48,11 +48,17 @@ export function DeclineModal({
           />
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancel}
+              accessibilityRole="button"
+              accessibilityLabel="Keep this errand">
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.confirmButton, !reason.trim() && styles.disabledButton]} 
+              accessibilityRole="button"
+              accessibilityLabel="Confirm and decline this errand"
               onPress={handleConfirm}
               disabled={!reason.trim()}
             >
@@ -125,6 +131,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgGray,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   cancelText: {
     fontWeight: FontWeights.bold as any,
@@ -136,6 +144,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   disabledButton: {
     opacity: 0.5,

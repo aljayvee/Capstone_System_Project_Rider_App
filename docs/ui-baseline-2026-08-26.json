@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-08-26T02:21:16.654Z",
+    "generatedAt": "2026-08-26T03:08:44.970Z",
     "contrast": {
       "pairsChecked": 1,
       "failing": 0,
@@ -12,15 +12,15 @@
       }
     },
     "targets": {
-      "measured": 30,
-      "belowMd3": 29,
+      "measured": 34,
+      "belowMd3": 33,
       "belowWcagMin": 0,
       "smallest": 24
     },
     "accessibility": {
       "touchables": 44,
-      "labelled": 2,
-      "unlabelled": 42
+      "labelled": 4,
+      "unlabelled": 40
     },
     "interruptions": {
       "total": 10,
@@ -619,7 +619,7 @@
       "style": "eyeToggleButton",
       "height": 28,
       "exact": false,
-      "hasHitSlop": false,
+      "hasHitSlop": true,
       "passesMd3": false,
       "passesWcag": true
     },
@@ -635,6 +635,15 @@
     {
       "where": "src/modules/home/components/CashCollectionInput.tsx",
       "style": "shortBtn",
+      "height": 28,
+      "exact": false,
+      "hasHitSlop": false,
+      "passesMd3": false,
+      "passesWcag": true
+    },
+    {
+      "where": "src/modules/home/components/RequestItemsPanel.tsx",
+      "style": "noReceiptButton",
       "height": 28,
       "exact": false,
       "hasHitSlop": false,
@@ -669,10 +678,37 @@
       "passesWcag": true
     },
     {
+      "where": "src/modules/home/HomeScreen.tsx",
+      "style": "multiErrandTab",
+      "height": 30,
+      "exact": false,
+      "hasHitSlop": false,
+      "passesMd3": false,
+      "passesWcag": true
+    },
+    {
       "where": "src/components/BackgroundLocationModal.tsx",
       "style": "skipBtn",
       "height": 32,
       "exact": false,
+      "hasHitSlop": false,
+      "passesMd3": false,
+      "passesWcag": true
+    },
+    {
+      "where": "src/modules/home/components/RequestItemsPanel.tsx",
+      "style": "uploadButton",
+      "height": 32,
+      "exact": false,
+      "hasHitSlop": false,
+      "passesMd3": false,
+      "passesWcag": true
+    },
+    {
+      "where": "src/screens/LiveErrandMapScreen.tsx",
+      "style": "backButton",
+      "height": 32,
+      "exact": true,
       "hasHitSlop": false,
       "passesMd3": false,
       "passesWcag": true

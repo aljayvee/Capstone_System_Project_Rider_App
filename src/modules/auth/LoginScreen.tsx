@@ -336,6 +336,7 @@ export const LoginScreen = () => {
                     onPress={() => setShowPassword((prev) => !prev)}
                     hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
                     accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
@@ -351,6 +352,9 @@ export const LoginScreen = () => {
             {/* HIGH-IMPACT ERGONOMIC SIGN IN BUTTON */}
             <TouchableOpacity
               style={[styles.loginButtonContainer, isLoading && styles.loginButtonDisabled]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isLoading, busy: isLoading }}
+              accessibilityLabel={isLoading ? 'Signing in' : 'Sign in'}
               onPress={handleLogin}
               disabled={isLoading}
               activeOpacity={0.88}
@@ -402,6 +406,8 @@ export const LoginScreen = () => {
             <TouchableOpacity
               style={styles.modalCloseBtn}
               onPress={() => setShowRestrictedModal(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close this message"
               activeOpacity={0.85}
             >
               <Text style={styles.modalCloseBtnText}>Acknowledge & Close</Text>
@@ -477,6 +483,9 @@ export const LoginScreen = () => {
 
                   <TouchableOpacity
                     style={[styles.otpVerifyBtn, isVerifying && styles.otpBtnDisabled]}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isVerifying, busy: isVerifying }}
+                    accessibilityLabel={isVerifying ? 'Verifying the code' : 'Verify the code'}
                     onPress={handleVerifyOtp}
                     disabled={isVerifying}
                     activeOpacity={0.85}
@@ -493,6 +502,8 @@ export const LoginScreen = () => {
                     disabled={isResending || isVerifying}
                     activeOpacity={0.7}
                     style={styles.otpResendBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={isResending ? 'Sending a new code' : 'Send the code again'}
                   >
                     <Text style={styles.otpResendText}>
                       {isResending ? 'Sending...' : 'Resend code'}
@@ -501,7 +512,9 @@ export const LoginScreen = () => {
                 </>
               )}
 
-              <TouchableOpacity onPress={handleCancelChallenge} activeOpacity={0.7}>
+              <TouchableOpacity onPress={handleCancelChallenge}
+              accessibilityRole="button"
+              accessibilityLabel="Use a different account" activeOpacity={0.7}>
                 <Text style={styles.otpCancelText}>Use a different account</Text>
               </TouchableOpacity>
             </View>
@@ -679,6 +692,8 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 48,
+    minWidth: 48,
   },
   loginButtonContainer: {
     marginTop: Spacing.xxl,
@@ -850,6 +865,9 @@ const styles = StyleSheet.create({
   },
   otpResendBtn: {
     paddingVertical: Spacing.md,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   otpResendText: {
     color: '#047857',

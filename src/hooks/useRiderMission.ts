@@ -6,7 +6,10 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Alert } from "react-native";
-import { StatusStep, STATUS_STEPS, ChatMessage, Errand, MergedErrand, RiderProfile } from "../types/rider";
+import {
+  StatusStep, STATUS_STEPS, ChatMessage, Errand, MergedErrand, RiderProfile,
+  BANNER_DURATION_MS, type BannerTone, type RiderBanner,
+} from "../types/rider";
 import { useRiderAuth } from "../context/RiderAuthContext";
 import { riderApiService } from "../config/apiConfig";
 import { shouldPersistStatusChange, STEP_TO_API } from "../services/errandStatus";
@@ -62,6 +65,8 @@ export interface UseRiderMissionReturn {
   showUploadModal: boolean;
   uploadProgress: number;
   errorMessage: string | null;
+  /** Non-blocking confirmation, or null. Replaces the success dialogs. */
+  banner: RiderBanner | null;
 
   // Computed
   stepIndex: number;
@@ -97,6 +102,7 @@ export interface UseRiderMissionReturn {
   setShowDRChat: (show: boolean) => void;
   setShowUploadModal: (show: boolean) => void;
   setActiveMissions: (missions: Errand[] | null) => void;
+  dismissBanner: () => void;
 }
 
 const ACTIVE_STATUSES: Errand["status"][] = ["Assigned", "Traveling"];
@@ -272,6 +278,31 @@ export function useRiderMission(): UseRiderMissionReturn {
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
+  // ─── non-blocking feedback ─────────────────────────────────────────────────
+  //
+  // Replaces the five Alert.alert calls that fired on success. Two of those are
+  // gone outright rather than converted: the stepper already shows the step it
+  // announced, and the waiting card already says the rider is standing by.
+  const [banner, setBanner] = useState<RiderBanner | null>(null);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showBanner = useCallback((tone: BannerTone, text: string) => {
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    setBanner({ id: Date.now(), tone, text });
+    bannerTimer.current = setTimeout(() => setBanner(null), BANNER_DURATION_MS);
+  }, []);
+
+  const dismissBanner = useCallback(() => {
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    setBanner(null);
+  }, []);
+
+  // A pending timer holding a setState after the screen is gone is the ordinary
+  // way this leaks.
+  useEffect(() => () => {
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+  }, []);
+
   const advanceStatus = useCallback(async () => {
     if (!errand || !activeMissions || activeMissions.length === 0) return;
     if (currentStatus === "Delivering" && paymentMode === "Cash on Delivery" && !collectedAmount) {
@@ -315,8 +346,10 @@ export function useRiderMission(): UseRiderMissionReturn {
 
     if (next === "Delivered") {
       setShowComplete(true);
-      // The rider's share, not the gross fee this used to announce.
-      Alert.alert("Errand Delivered!", `Earnings of ${formatEarnings(errand)} recorded.`);
+      // The rider's share, not the gross fee this used to announce. Kept as a
+      // banner rather than dropped: it is money, and worth stating even though
+      // the completion card repeats it.
+      showBanner("success", `Delivered. ${formatEarnings(errand)} recorded.`);
 
       if (paymentMode === "Cash on Delivery" && collectedAmount) {
         if (!shortPayment) {
@@ -348,10 +381,11 @@ export function useRiderMission(): UseRiderMissionReturn {
           }
         }
       }
-    } else {
-      Alert.alert("Status Updated", `Status updated: ${next}`);
     }
-  }, [currentStatus, paymentMode, collectedAmount, shortPayment, errand, activeMissions]);
+    // No announcement for the intermediate steps. ProgressSteps moves to the
+    // new step in the same render, which is the feedback — a modal restating it
+    // was a tap charged for reading the screen.
+  }, [currentStatus, paymentMode, collectedAmount, shortPayment, errand, activeMissions, showBanner]);
 
   const acceptMission = useCallback(async () => {
     if (!activeMissions || activeMissions.length === 0 || isAccepting) return;
@@ -361,7 +395,7 @@ export function useRiderMission(): UseRiderMissionReturn {
       await Promise.all(activeMissions.map((m) => riderApiService.acceptErrand(m.id)));
       setIsMissionAccepted(true);
       setCurrentStatus("Traveling");
-      Alert.alert("Task Accepted!", "Drive safely.");
+      showBanner("success", "Accepted. Drive safely.");
     } catch {
       Alert.alert("Error", "Failed to accept the errand. Please try again.");
     } finally {
@@ -378,7 +412,7 @@ export function useRiderMission(): UseRiderMissionReturn {
       Alert.alert("Error", "Failed to decline the errand. Please try again.");
       return;
     }
-    Alert.alert("Task Declined", "The dispatcher has been notified.");
+    showBanner("info", "Declined. The dispatcher has been notified.");
     setShowDeclineModal(false);
     setDeclineReason("");
     setActiveMissions(null);
@@ -396,7 +430,8 @@ export function useRiderMission(): UseRiderMissionReturn {
     setCompletedSubtasks({});
     setCollectedAmount("");
     refresh();
-    Alert.alert("Ready!", "Stand by for the dispatcher's assignment.");
+    // No announcement: resetting drops the rider straight onto WaitingCard,
+    // whose whole content is "standing by for an assignment".
   }, [refresh]);
 
   // Opening the camera is all this does. The photograph, the reading of it and
@@ -552,6 +587,7 @@ export function useRiderMission(): UseRiderMissionReturn {
     showUploadModal,
     uploadProgress,
     errorMessage,
+    banner,
 
     // Computed
     stepIndex,
@@ -563,6 +599,7 @@ export function useRiderMission(): UseRiderMissionReturn {
 
     // Actions
     refresh,
+    dismissBanner,
     advanceStatus,
     acceptMission,
     declineMission,

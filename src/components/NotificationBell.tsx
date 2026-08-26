@@ -26,6 +26,8 @@ export function NotificationBell() {
         style={styles.iconButton}
         onPress={() => setVisible(true)}
         testID="rider-notification-bell"
+        accessibilityRole="button"
+        accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         activeOpacity={0.75}
       >
         <Bell size={20} color={Colors.primary} strokeWidth={2.2} />
@@ -41,7 +43,11 @@ export function NotificationBell() {
           <View style={styles.sheet}>
             <View style={styles.header}>
               <Text style={styles.title}>Notifications</Text>
-              <TouchableOpacity onPress={() => setVisible(false)} testID="close-notifications">
+              <TouchableOpacity onPress={() => setVisible(false)}
+              testID="close-notifications"
+              accessibilityRole="button"
+              accessibilityLabel="Close notifications"
+            >
                 <X size={20} color={Colors.textGray} />
               </TouchableOpacity>
             </View>
@@ -60,7 +66,11 @@ export function NotificationBell() {
                     <View style={styles.itemHeader}>
                       <Text style={styles.itemTitle}>{item.title}</Text>
                       {!item.isRead && (
-                        <TouchableOpacity onPress={() => markRead(item.id)} hitSlop={8}>
+                        <TouchableOpacity onPress={() => markRead(item.id)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Mark this notification as read"
+                  >
                           <CheckCheck size={15} color={Colors.blue} />
                         </TouchableOpacity>
                       )}

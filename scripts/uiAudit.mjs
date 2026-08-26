@@ -269,10 +269,11 @@ const targetFindings = [];
 for (const file of files) {
   const styles = styleEntries(file.src);
   // Every `style={styles.X}` sitting on a touchable element.
-  // `(?:[^>]|=>)*?` rather than `[\s\S]*?` so the scan does not stop at the
-  // '>' inside `onPress={() => ...}`, which would hide every attribute
-  // declared after the first arrow function.
-  for (const m of file.src.matchAll(/<(TouchableOpacity|Pressable|TouchableHighlight|TouchableWithoutFeedback)\b((?:[^>]|=>)*?)>/g)) {
+  // Lazy scan to the first '>' NOT preceded by '=', so the tag ends at its own
+  // bracket rather than at the arrow in `onPress={() => ...}`. An earlier
+  // attempt used `(?:[^>]|=>)*?`, which does not work: lazy matching still
+  // terminates at the '>' inside '=>' because ending there succeeds.
+  for (const m of file.src.matchAll(/<(TouchableOpacity|Pressable|TouchableHighlight|TouchableWithoutFeedback)\b([\s\S]*?)(?<!=)>/g)) {
     const attrs = m[2];
     const styleRef = attrs.match(/style=\{(?:\[)?\s*styles\.(\w+)/);
     if (!styleRef) continue;
@@ -303,7 +304,7 @@ let touchableCount = 0;
 let labelledCount = 0;
 const unlabelledByFile = {};
 for (const file of files) {
-  for (const m of file.src.matchAll(/<(TouchableOpacity|Pressable|TouchableHighlight|TouchableWithoutFeedback|Button)\b((?:[^>]|=>)*?)>/g)) {
+  for (const m of file.src.matchAll(/<(TouchableOpacity|Pressable|TouchableHighlight|TouchableWithoutFeedback|Button)\b([\s\S]*?)(?<!=)>/g)) {
     touchableCount += 1;
     if (A11Y.test(m[2])) labelledCount += 1;
     else unlabelledByFile[file.rel] = (unlabelledByFile[file.rel] ?? 0) + 1;

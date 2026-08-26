@@ -23,7 +23,11 @@ export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
           <Text style={styles.name}>{customer}</Text>
           <Text style={styles.phone}>{customerPhone || 'No phone on file'}</Text>
         </View>
-        <TouchableOpacity style={styles.callButton} onPress={handleCall} disabled={!customerPhone}>
+        <TouchableOpacity
+          style={styles.callButton}
+          onPress={handleCall}
+          accessibilityRole="button"
+          accessibilityLabel="Call the customer" disabled={!customerPhone}>
           <Phone size={16} color={Colors.greenDark} />
         </TouchableOpacity>
       </View>
@@ -61,6 +65,10 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.greenLight,
+    minHeight: 48,
+    minWidth: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addressRow: {
     flexDirection: 'row',

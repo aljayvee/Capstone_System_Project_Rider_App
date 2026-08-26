@@ -29,7 +29,11 @@ export function CompletedCard({ errand, riderFirstName, onAcceptNext }: Complete
         <Text style={styles.earningsLabel}>EARNINGS FROM THIS TRIP</Text>
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={onAcceptNext}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={onAcceptNext}
+        accessibilityRole="button"
+        accessibilityLabel="Accept the next errand">
         <Text style={styles.buttonText}>Accept Next Errand</Text>
       </TouchableOpacity>
     </View>
@@ -92,6 +96,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.bgWhite,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   buttonText: {
     color: Colors.primary,

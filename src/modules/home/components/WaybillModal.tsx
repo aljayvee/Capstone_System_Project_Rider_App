@@ -23,7 +23,11 @@ export function WaybillModal({ visible, errand, onClose }: WaybillModalProps) {
               </View>
               <Text style={styles.headerTitle}>DIGITAL Customer Information</Text>
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close customer details">
               <X size={18} color={Colors.textDark} />
             </TouchableOpacity>
           </View>
@@ -109,6 +113,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
+    minHeight: 48,
+    minWidth: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   card: {
     backgroundColor: Colors.bgWhite,

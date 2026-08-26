@@ -40,7 +40,11 @@ export default function LiveErrandMapScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back to the errand"
+        >
           <ChevronLeft size={22} color={Colors.textDark} />
         </TouchableOpacity>
         <Text style={styles.title}>Live Errand Map</Text>
@@ -87,10 +91,12 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backButton: {
-    width: 32,
-    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    // Was a fixed 32x32. Stated as a minimum instead so the control meets
+    // Material's 48dp target and can still grow with the OS text size.
+    minHeight: 48,
+    minWidth: 48,
   },
   title: {
     fontSize: FontSizes.lg,

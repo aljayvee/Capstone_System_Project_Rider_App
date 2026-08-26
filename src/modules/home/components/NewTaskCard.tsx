@@ -158,6 +158,9 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
 
         <TouchableOpacity
           style={styles.declineButton}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isAccepting }}
+          accessibilityLabel="Decline this offer"
           onPress={onDecline}
           disabled={isAccepting}
         >
@@ -339,6 +342,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.md,
+    minHeight: 48,
   },
   declineText: {
     color: '#64748B',

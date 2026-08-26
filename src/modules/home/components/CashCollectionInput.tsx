@@ -104,6 +104,9 @@ export function CashCollectionInput({
           <>
             <TouchableOpacity
               style={[styles.confirmBtn, collectedInFull && styles.confirmBtnDone]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: collectedInFull, checked: collectedInFull }}
+              accessibilityLabel={collectedInFull ? 'Collected in full, confirmed' : `Confirm you collected ${formatPeso(due)} in full`}
               onPress={onCollectedInFull}
               disabled={collectedInFull}
               testID="cash-collected-in-full"
@@ -114,7 +117,11 @@ export function CashCollectionInput({
             </TouchableOpacity>
 
             {!collectedInFull && (
-              <TouchableOpacity style={styles.shortBtn} onPress={onReportShort} testID="cash-report-short">
+              <TouchableOpacity
+        style={styles.shortBtn}
+        onPress={onReportShort}
+        accessibilityRole="button"
+        accessibilityLabel="Report that the customer paid less than the total" testID="cash-report-short">
                 <AlertTriangle size={13} color={Colors.amberDark} />
                 <Text style={styles.shortText}>Customer paid short</Text>
               </TouchableOpacity>
@@ -158,6 +165,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     backgroundColor: Colors.greenDark,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   confirmBtnDone: { backgroundColor: Colors.greenBg, opacity: 0.9 },
   confirmBtnText: {
@@ -205,6 +214,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.xs,
     paddingVertical: Spacing.xs,
+    minHeight: 48,
   },
   shortText: {
     fontSize: FontSizes.xs,

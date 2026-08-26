@@ -1,0 +1,122 @@
+
+RIDER APP — UI ACCESSIBILITY BASELINE
+Generated 2026-08-26T03:16:52.386Z
+Standards: WCAG 2.2 AA (1.4.3, 1.4.11, 2.5.8) · Material Design 3 · Apple HIG
+
+──────────────────────────────────────────────────────────────────────────────
+1a. COLOUR CONTRAST — the palette's own pairings
+──────────────────────────────────────────────────────────────────────────────
+36 pairs the theme's naming implies · 11 below the required ratio
+of which 5 appear in a file that renders both.
+
+  OBSERVED — some screen puts this ink on this surface
+  ratio   need   size  foreground on background            meaning
+✗  2.31   4.5     -  textLight on bgGray                text on surface
+✗  2.43   4.5     -  textLight on bgLight               text on surface
+✗  2.54   4.5     -  textLight on bgWhite               text on surface
+✗  3.95   4.5     -  primary on primaryLight            primary on its own surface
+✗  4.39   4.5     -  textGray on bgGray                 text on surface
+
+  IMPLIED ONLY — the naming suggests the pair; no file renders both.
+  Worth fixing in the palette so it cannot be reached by accident.
+✗  1.54   4.5     -  green on greenLight                green on its own surface
+✗  1.66   4.5     -  green on greenBg                   green on its own surface
+✗  1.74   4.5     -  textWhite on green                 white on green
+✗  1.93   4.5     -  amber on amberLight                amber on its own surface
+✗  2.07   4.5     -  amber on amberBg                   amber on its own surface
+✗  2.15   4.5     -  textWhite on amber                 white on amber
+
+  25 pair(s) pass and are not listed. Use --json for all.
+
+──────────────────────────────────────────────────────────────────────────────
+1b. COLOUR CONTRAST — pairs observed in a single style entry
+──────────────────────────────────────────────────────────────────────────────
+1 found, 0 failing.
+Few, because React Native splits text colour and background across
+nested styles; correlating those needs the component tree, not the
+stylesheet. Treat 1a as the real measure.
+
+  ratio   need   size  foreground on background            where
+  17.06     3   28b  #0F172A on #F8FAFC                 modules/auth/LoginScreen.tsx
+
+──────────────────────────────────────────────────────────────────────────────
+2. TOUCH TARGETS  — estimated from stylesheets, not a layout pass
+──────────────────────────────────────────────────────────────────────────────
+35 measured · 0 below MD3's 48dp · 0 below WCAG's 24px floor
+
+  height  std  style                          where
+    48dp   ok   allowBtn                       components/BackgroundLocationModal.tsx
+    48dp   ok   skipBtn                        components/BackgroundLocationModal.tsx
+    48dp   ok   tabItem                        components/RiderBottomNav.tsx
+    48dp   ok   dismiss                        components/StatusBanner.tsx
+    48dp   ok   eyeToggleButton                modules/auth/LoginScreen.tsx
+    48dp   ok   otpResendBtn                   modules/auth/LoginScreen.tsx
+    48dp   ok   closeButton                    modules/chat/DispatcherChatModal.tsx
+    48dp   ok   sendButton                     modules/chat/DispatcherChatModal.tsx
+    48dp   ok   confirmBtn                     modules/home/components/CashCollectionInput.tsx
+    48dp   ok   shortBtn                       modules/home/components/CashCollectionInput.tsx
+    48dp   ok   button                         modules/home/components/CompletedCard.tsx
+    48dp   ok   callButton                     modules/home/components/CustomerDetailsPanel.tsx
+    48dp   ok   cancelButton                   modules/home/components/DeclineModal.tsx
+    48dp   ok   confirmButton                  modules/home/components/DeclineModal.tsx
+    48dp   ok   declineButton                  modules/home/components/NewTaskCard.tsx
+    48dp   ok   button                         modules/home/components/OfflineCard.tsx
+    48dp   ok   uploadButton                   modules/home/components/RequestItemsPanel.tsx
+    48dp   ok   noReceiptButton                modules/home/components/RequestItemsPanel.tsx
+    48dp   ok   closeIcon                      modules/home/components/UploadModal.tsx
+    48dp   ok   closeButton                    modules/home/components/WaybillModal.tsx
+  … 15 more (use --json)
+
+  ~ = estimated as paddingVertical*2 + content; confirm by hand before quoting.
+
+──────────────────────────────────────────────────────────────────────────────
+3. ACCESSIBILITY LABELLING
+──────────────────────────────────────────────────────────────────────────────
+45 of 45 controls carry any accessibility prop (100%).
+0 controls report nothing to a screen reader.
+
+
+──────────────────────────────────────────────────────────────────────────────
+4. INTERRUPTIONS IN THE RIDE PATH
+──────────────────────────────────────────────────────────────────────────────
+5 blocking Alert.alert calls, of which 0 confirm a success.
+
+  "Validation Error" — Please enter the collected amount.
+  "Error" — Failed to update the errand status on the server. Please try
+  "Error" — Failed to record items purchased on the server. Please try a
+  "Error" — Failed to accept the errand. Please try again.
+  "Error" — Failed to decline the errand. Please try again.
+
+  ✗ = fires on success and costs a tap while riding.
+
+──────────────────────────────────────────────────────────────────────────────
+5. TOKEN DISCIPLINE
+──────────────────────────────────────────────────────────────────────────────
+169 hardcoded hex values across 19 files, bypassing the theme.
+
+   81  modules/auth/LoginScreen.tsx
+   34  modules/home/components/NewTaskCard.tsx
+   13  components/TacticalGridBackground.tsx
+    8  components/RiderHeader.tsx
+    8  modules/home/HomeScreen.tsx
+    4  components/LiveErrandMap.tsx
+    4  components/RiderBottomNav.tsx
+    4  components/RiderDotMarker.tsx
+
+──────────────────────────────────────────────────────────────────────────────
+6. TYPE SCALE
+──────────────────────────────────────────────────────────────────────────────
+xxs:10  xs:11  sm:12  base:13  md:14  lg:16  xl:18  xxl:22  display:24  xxxl:29
+
+5 of 10 steps fall below the 16sp Material treats as body size.
+allowFontScaling considered in 0 file(s) — OS text scaling is otherwise untested.
+
+──────────────────────────────────────────────────────────────────────────────
+SUMMARY
+──────────────────────────────────────────────────────────────────────────────
+  palette pairs failing       11 / 36  (5 of them rendered)
+  targets below 48dp          0 / 35
+  controls with no a11y prop  0 / 45
+  success-only interruptions  0 / 5
+  hardcoded hex values        169
+

@@ -202,7 +202,12 @@ export default function ReceiptCaptureScreen({
         <Text style={styles.permissionBody}>
           The receipt photo is how the purchase is recorded, so the camera is required to continue.
         </Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={requestPermission}
+          accessibilityRole="button"
+          accessibilityLabel="Allow camera access"
+        >
           <Text style={styles.primaryBtnText}>Allow camera</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -246,7 +251,14 @@ export default function ReceiptCaptureScreen({
         {error && <Text style={styles.error}>{error}</Text>}
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={backToCamera} disabled={isSaving}>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={backToCamera}
+            disabled={isSaving}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isSaving }}
+            accessibilityLabel="Retake the photo"
+          >
             <RefreshCw size={16} color={Colors.textDark} />
             <Text style={styles.secondaryBtnText}>Retake</Text>
           </TouchableOpacity>
@@ -255,6 +267,9 @@ export default function ReceiptCaptureScreen({
             onPress={handleConfirm}
             disabled={isSaving}
             testID="receipt-confirm-button"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isSaving, busy: isSaving }}
+            accessibilityLabel={isSaving ? 'Saving' : 'Confirm this total'}
           >
             {isSaving ? (
               <ActivityIndicator color={Colors.textWhite} size="small" />
@@ -295,7 +310,14 @@ export default function ReceiptCaptureScreen({
       {error && <Text style={styles.error}>{error}</Text>}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.iconBtn} onPress={onCancel} disabled={phase === 'reading'}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onCancel}
+          disabled={phase === 'reading'}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: phase === 'reading' }}
+          accessibilityLabel="Cancel and go back"
+        >
           <X size={20} color={Colors.textDark} />
         </TouchableOpacity>
 
@@ -304,6 +326,9 @@ export default function ReceiptCaptureScreen({
           onPress={handleCapture}
           disabled={phase === 'reading'}
           testID="receipt-capture-button"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: phase === 'reading', busy: phase === 'reading' }}
+          accessibilityLabel={phase === 'reading' ? 'Reading the photo' : copy.cta}
         >
           <Camera size={18} color={Colors.textWhite} />
           <Text style={styles.primaryBtnText}>
@@ -311,7 +336,13 @@ export default function ReceiptCaptureScreen({
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.iconBtn} onPress={() => setTorch((on) => !on)}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => setTorch((on) => !on)}
+          accessibilityRole="button"
+          accessibilityState={{ checked: torch }}
+          accessibilityLabel={torch ? 'Turn the light off' : 'Turn the light on'}
+        >
           {torch ? <Zap size={20} color={Colors.amberDark} /> : <ZapOff size={20} color={Colors.textDark} />}
         </TouchableOpacity>
       </View>
@@ -373,6 +404,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
+    minHeight: 48,
   },
   primaryBtnText: { color: Colors.textWhite, fontWeight: FontWeights.bold as any, fontSize: FontSizes.md },
   secondaryBtn: {
@@ -384,6 +416,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     gap: Spacing.xs,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   secondaryBtnText: { color: Colors.textDark, fontWeight: FontWeights.semibold as any, fontSize: FontSizes.base },
   iconBtn: {
@@ -391,6 +425,10 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
+    minHeight: 48,
+    minWidth: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   error: {
     fontSize: FontSizes.sm,
