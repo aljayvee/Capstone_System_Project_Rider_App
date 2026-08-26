@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgWhite,
     alignItems: 'center',
     width: '100%',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 2,

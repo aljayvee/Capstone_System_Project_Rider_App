@@ -91,7 +91,7 @@ export function LiveErrandMap({
       ? firstDrawable(deliveryLegCoordinates, routeCoordinates, pickupLegCoordinates)
       : firstDrawable(pickupLegCoordinates, routeCoordinates);
 
-  const routeColor = phase === 'delivering' ? Colors.primary : '#F97316';
+  const routeColor = phase === 'delivering' ? Colors.routeToCustomer : Colors.routeToStore;
 
   const fitAllPoints = useCallback(() => {
     const points = [
@@ -232,7 +232,7 @@ export function LiveErrandMap({
       {/* ETA / distance floating badge */}
       {hasEta && (
         <View style={styles.etaBadge}>
-          <Clock size={12} color="#FFFFFF" />
+          <Clock size={12} color={Colors.textWhite}/>
           <Text style={styles.etaText}>
             {formatDuration(durationSeconds!)} • {formatDistance(distanceMeters!)}
           </Text>
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.15,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   etaText: {
-    color: '#FFFFFF',
+    color: Colors.textWhite,
     fontSize: 13,
     fontWeight: '600',
   },

@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bgLight, padding: Spacing.lg, gap: Spacing.md },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
   heading: { fontSize: FontSizes.xl, fontWeight: FontWeights.bold as any, color: Colors.textDark },
-  cameraWrap: { flex: 1, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: '#000' },
+  cameraWrap: { flex: 1, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.viewfinder },
   camera: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   guide: {
     width: '80%',
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   readingText: { color: Colors.textWhite, fontSize: FontSizes.base, fontWeight: FontWeights.semibold as any },
-  preview: { width: '100%', height: 220, borderRadius: BorderRadius.md, backgroundColor: '#000' },
+  preview: { width: '100%', height: 220, borderRadius: BorderRadius.md, backgroundColor: Colors.viewfinder },
   hint: { fontSize: FontSizes.sm, color: Colors.textMedium, textAlign: 'center' },
   readLabel: { fontSize: FontSizes.base, color: Colors.textMedium },
   amountRow: {

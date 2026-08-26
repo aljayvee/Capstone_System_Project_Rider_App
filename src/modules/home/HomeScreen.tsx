@@ -124,7 +124,7 @@ export default function HomeScreen() {
             {activeMissions && activeMissions.length > 1 && (
               <View style={styles.multiErrandTabs}>
                 <View style={styles.multiErrandLabel}>
-                  <Layers size={13} color="#1E3A5F" />
+                  <Layers size={13} color={Colors.navy}/>
                   <Text style={styles.multiErrandLabelText}>Queue ({activeMissions.length}/3):</Text>
                 </View>
                 {activeMissions.map((m, idx) => (
@@ -439,11 +439,11 @@ const styles = StyleSheet.create({
   multiErrandTabs: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: Colors.bgGray,
     padding: Spacing.sm,
     gap: Spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: Colors.border,
     flexWrap: 'wrap',
   },
   multiErrandLabel: {
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   multiErrandLabelText: {
     fontSize: 10,
     fontWeight: FontWeights.bold as any,
-    color: '#1E3A5F',
+    color: Colors.navy,
   },
   multiErrandTab: {
     paddingHorizontal: Spacing.md,
@@ -466,20 +466,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   multiErrandTabActive: {
-    backgroundColor: '#1E3A5F',
+    backgroundColor: Colors.navy,
   },
   multiErrandTabInactive: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: Colors.border,
   },
   multiErrandTabText: {
     fontSize: 11,
     fontWeight: FontWeights.bold as any,
   },
   multiErrandTabTextActive: {
-    color: '#FFFFFF',
+    color: Colors.textWhite,
   },
   multiErrandTabTextInactive: {
-    color: '#64748B',
+    color: Colors.textGray,
   },
   trackerCard: {
     backgroundColor: Colors.bgWhite,

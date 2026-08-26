@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#FFF1F2',
+    backgroundColor: Colors.primarySurface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,

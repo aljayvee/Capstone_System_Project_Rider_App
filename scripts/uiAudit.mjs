@@ -364,12 +364,27 @@ const CONFIRMATORY = /^(Status Updated|Task Accepted!?|Task Declined|Ready!?|Err
 const confirmatory = alerts.filter((a) => CONFIRMATORY.test(a.title));
 
 // ── 5. hardcoded colour bypass ───────────────────────────────────────────────
+//
+// Illustration is counted separately rather than excused. A bespoke SVG's fills
+// and gradient stops are the artwork itself, not design tokens, and forcing them
+// into the palette would produce a worse drawing and a meaningless metric. But
+// hiding them would let real bypasses accumulate behind the exemption, so both
+// numbers are printed and the exempt list stays short and named.
+const ILLUSTRATION = [/TacticalGridBackground\.tsx$/];
+
 let hardcoded = 0;
+let illustrationLiterals = 0;
 const hardcodedByFile = {};
 for (const file of files) {
   if (file.rel.endsWith('config/theme.ts')) continue;
   const n = [...file.src.matchAll(/['"]#[0-9A-Fa-f]{3,8}['"]/g)].length;
-  if (n) { hardcoded += n; hardcodedByFile[file.rel] = n; }
+  if (!n) continue;
+  if (ILLUSTRATION.some((re) => re.test(file.rel))) {
+    illustrationLiterals += n;
+    continue;
+  }
+  hardcoded += n;
+  hardcodedByFile[file.rel] = n;
 }
 
 // ── 6. font scaling ──────────────────────────────────────────────────────────
@@ -393,7 +408,11 @@ const summary = {
   },
   accessibility: { touchables: touchableCount, labelled: labelledCount, unlabelled: touchableCount - labelledCount },
   interruptions: { total: alerts.length, confirmatory: confirmatory.length },
-  tokens: { hardcodedHex: hardcoded, filesWithHardcoded: Object.keys(hardcodedByFile).length },
+  tokens: {
+    hardcodedHex: hardcoded,
+    filesWithHardcoded: Object.keys(hardcodedByFile).length,
+    illustrationLiterals,
+  },
   fontScaling: { filesConsidering: allowFontScaling },
   typeScale: fontSizes,
 };
@@ -485,7 +504,9 @@ for (const a of alerts) {
 console.log(`\n  ✗ = fires on success and costs a tap while riding.`);
 
 bar('5. TOKEN DISCIPLINE');
-console.log(`${hardcoded} hardcoded hex values across ${summary.tokens.filesWithHardcoded} files, bypassing the theme.\n`);
+console.log(`${hardcoded} hardcoded hex values across ${summary.tokens.filesWithHardcoded} files, bypassing the theme.`);
+console.log(`${illustrationLiterals} further values sit in illustration components, counted separately.`);
+console.log('');
 for (const [f, n] of Object.entries(hardcodedByFile).sort((a, b) => b[1] - a[1]).slice(0, 8)) {
   console.log(`  ${String(n).padStart(3)}  ${f.replace('src/', '')}`);
 }
@@ -503,5 +524,5 @@ console.log(`  same pairs, dark palette    ${darkFindings.filter((f) => !f.passe
 console.log(`  targets below 48dp          ${summary.targets.belowMd3} / ${summary.targets.measured}`);
 console.log(`  controls with no a11y prop  ${summary.accessibility.unlabelled} / ${summary.accessibility.touchables}`);
 console.log(`  success-only interruptions  ${summary.interruptions.confirmatory} / ${summary.interruptions.total}`);
-console.log(`  hardcoded hex values        ${summary.tokens.hardcodedHex}`);
+console.log(`  hardcoded hex values        ${summary.tokens.hardcodedHex}  (+${illustrationLiterals} in illustration)`);
 console.log('');

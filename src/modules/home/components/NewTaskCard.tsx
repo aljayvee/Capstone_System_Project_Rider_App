@@ -72,11 +72,11 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <View style={styles.incomingBadge}>
-            <Zap size={14} color="#FFFFFF" />
+            <Zap size={14} color={Colors.textWhite}/>
             <Text style={styles.incomingBadgeText}>INCOMING MISSION OFFER</Text>
           </View>
           <View style={styles.countdownBadge}>
-            <Clock size={13} color="#DC2626" />
+            <Clock size={13} color={Colors.primary}/>
             <Text style={styles.countdownText}>{secondsRemaining}s</Text>
           </View>
         </View>
@@ -94,7 +94,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
           <Text style={styles.earningsAmount}>{earnings}</Text>
         </View>
         <View style={styles.earningsIconBox}>
-          <DollarSign size={24} color="#10B981" />
+          <DollarSign size={24} color={Colors.success}/>
         </View>
       </View>
 
@@ -103,7 +103,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
         {/* Customer Info */}
         <View style={styles.detailRow}>
           <View style={styles.iconCircleNavy}>
-            <User size={13} color="#FFFFFF" />
+            <User size={13} color={Colors.textWhite}/>
           </View>
           <View style={styles.detailTextWrapper}>
             <Text style={styles.detailTitle}>Customer</Text>
@@ -116,7 +116,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
           pinpoints.map((p, idx) => (
             <View key={p.id || idx} style={styles.detailRow}>
               <View style={styles.iconCircleRed}>
-                <Store size={13} color="#FFFFFF" />
+                <Store size={13} color={Colors.textWhite}/>
               </View>
               <View style={styles.detailTextWrapper}>
                 <Text style={styles.detailTitle}>Store Waypoint #{idx + 1}</Text>
@@ -127,7 +127,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
         ) : (
           <View style={styles.detailRow}>
             <View style={styles.iconCircleRed}>
-              <Store size={13} color="#FFFFFF" />
+              <Store size={13} color={Colors.textWhite}/>
             </View>
             <View style={styles.detailTextWrapper}>
               <Text style={styles.detailTitle}>Store Waypoint #1</Text>
@@ -139,7 +139,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
         {/* Drop-off Location */}
         <View style={styles.detailRow}>
           <View style={styles.iconCircleGreen}>
-            <MapPin size={13} color="#FFFFFF" />
+            <MapPin size={13} color={Colors.textWhite}/>
           </View>
           <View style={styles.detailTextWrapper}>
             <Text style={styles.detailTitle}>Delivery Destination</Text>
@@ -175,29 +175,29 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.bgWhite,
     borderWidth: 2,
-    borderColor: '#1E3A5F',
+    borderColor: Colors.navy,
     elevation: 6,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.15,
     shadowRadius: 12,
     marginVertical: Spacing.sm,
   },
   timerBarContainer: {
     height: 5,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: Colors.border,
     width: '100%',
   },
   timerBarFill: {
     height: '100%',
-    backgroundColor: '#DC2626',
+    backgroundColor: Colors.primary,
   },
   header: {
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
-    backgroundColor: '#1E3A5F',
+    backgroundColor: Colors.navy,
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   incomingBadgeText: {
-    color: '#FFFFFF',
+    color: Colors.textWhite,
     fontSize: 10,
     fontWeight: FontWeights.bold as any,
     letterSpacing: 0.5,
@@ -224,15 +224,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: Colors.dangerBg,
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: Colors.primarySurface,
   },
   countdownText: {
-    color: '#DC2626',
+    color: Colors.primary,
     fontSize: 12,
     fontWeight: FontWeights.extrabold as any,
   },
@@ -240,12 +240,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   orderIdText: {
-    color: '#93C5FD',
+    color: Colors.navyLight,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold as any,
   },
   typeText: {
-    color: '#FFFFFF',
+    color: Colors.textWhite,
     fontSize: FontSizes.xl,
     fontWeight: FontWeights.extrabold as any,
   },
@@ -253,20 +253,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: Colors.successSubtle,
     borderBottomWidth: 1,
-    borderBottomColor: '#A7F3D0',
+    borderBottomColor: Colors.successBorder,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
   },
   earningsLabel: {
-    color: '#047857',
+    color: Colors.success,
     fontSize: 10,
     fontWeight: FontWeights.bold as any,
     letterSpacing: 0.5,
   },
   earningsAmount: {
-    color: '#065F46',
+    color: Colors.success,
     fontSize: FontSizes.xxl,
     fontWeight: FontWeights.black as any,
   },
@@ -274,30 +274,30 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#D1FAE5',
+    backgroundColor: Colors.successBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailsContainer: {
     padding: Spacing.xl,
     gap: Spacing.md,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.bgLight,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.bgWhite,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
   },
   iconCircleNavy: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#1E3A5F',
+    backgroundColor: Colors.navy,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#DC2626',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#10B981',
+    backgroundColor: Colors.successAccent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -322,18 +322,18 @@ const styles = StyleSheet.create({
   },
   detailTitle: {
     fontSize: 10,
-    color: '#64748B',
+    color: Colors.textGray,
     fontWeight: FontWeights.bold as any,
     textTransform: 'uppercase',
   },
   detailContent: {
     fontSize: FontSizes.sm,
-    color: '#1E293B',
+    color: Colors.textDark,
     fontWeight: FontWeights.semibold as any,
   },
   actionContainer: {
     padding: Spacing.xl,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.bgWhite,
     gap: Spacing.sm,
   },
   declineButton: {
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   declineText: {
-    color: '#64748B',
+    color: Colors.textGray,
     fontWeight: FontWeights.semibold as any,
     fontSize: FontSizes.sm,
   },

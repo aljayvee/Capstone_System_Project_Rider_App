@@ -28,7 +28,7 @@ import {
 } from 'lucide-react-native';
 import { useRiderAuth } from '../../context/RiderAuthContext';
 import { TacticalGridBackground } from '../../components/TacticalGridBackground';
-import { FontSizes, FontWeights, Spacing, BorderRadius } from '../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, Gradients } from '../../config/theme';
 
 export const LoginScreen = () => {
   const { login, pendingChallenge, verifyLoginOtp, resendLoginOtp, cancelChallenge } = useRiderAuth();
@@ -163,7 +163,7 @@ export const LoginScreen = () => {
 
   return (
     <View style={styles.rootContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.bgWhite} />
 
       {/* Clean White Tactical Vector Grid Background */}
       <TacticalGridBackground />
@@ -190,7 +190,7 @@ export const LoginScreen = () => {
             {/* Illuminated Primary Track Icon Badge (from Customer App) */}
             <View style={styles.logoOuterGlow}>
               <LinearGradient
-                colors={['#EF4444', '#DC2626', '#991B1B']}
+                colors={Gradients.brand}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[
@@ -204,15 +204,14 @@ export const LoginScreen = () => {
               >
                 <Bike
                   size={isSmallScreen ? 34 : 42}
-                  color="#FFFFFF"
-                  strokeWidth={2.3}
+                  color={Colors.textWhite}strokeWidth={2.3}
                 />
               </LinearGradient>
             </View>
 
             {/* Brand Pill */}
             <View style={styles.brandPill}>
-              <Bike size={14} color="#DC2626" strokeWidth={2.4} />
+              <Bike size={14} color={Colors.primary}strokeWidth={2.4} />
               <Text style={styles.brandPillText}>SUGO EXPRESS</Text>
             </View>
 
@@ -230,7 +229,7 @@ export const LoginScreen = () => {
             {/* API / Auth Error Banner */}
             {apiError ? (
               <View style={styles.errorBanner}>
-                <AlertCircle size={18} color="#DC2626" strokeWidth={2.2} />
+                <AlertCircle size={18} color={Colors.primary}strokeWidth={2.2} />
                 <Text style={styles.errorBannerText}>{apiError}</Text>
               </View>
             ) : null}
@@ -241,7 +240,7 @@ export const LoginScreen = () => {
                 <Text style={styles.fieldLabel}>USERNAME</Text>
                 {usernameError ? (
                   <View style={styles.inlineErrorBadge}>
-                    <AlertCircle size={12} color="#DC2626" strokeWidth={2.2} />
+                    <AlertCircle size={12} color={Colors.primary}strokeWidth={2.2} />
                     <Text style={styles.inlineErrorText}>{usernameError}</Text>
                   </View>
                 ) : null}
@@ -258,7 +257,7 @@ export const LoginScreen = () => {
                   <View style={[styles.inputIconBox, userFocused && styles.inputIconBoxFocused]}>
                     <User
                       size={18}
-                      color={usernameError ? '#DC2626' : userFocused ? '#DC2626' : '#64748B'}
+                      color={usernameError || userFocused ? Colors.primary : Colors.textGray}
                       strokeWidth={2.2}
                     />
                   </View>
@@ -276,7 +275,7 @@ export const LoginScreen = () => {
                     }}
                     onBlur={() => setUserFocused(false)}
                     placeholder="Enter your username"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={Colors.textLight}
                     autoCapitalize="none"
                     autoCorrect={false}
                     testID="username-input"
@@ -291,7 +290,7 @@ export const LoginScreen = () => {
                 <Text style={styles.fieldLabel}>PASSWORD</Text>
                 {passwordError ? (
                   <View style={styles.inlineErrorBadge}>
-                    <AlertCircle size={12} color="#DC2626" strokeWidth={2.2} />
+                    <AlertCircle size={12} color={Colors.primary}strokeWidth={2.2} />
                     <Text style={styles.inlineErrorText}>{passwordError}</Text>
                   </View>
                 ) : null}
@@ -308,7 +307,7 @@ export const LoginScreen = () => {
                   <View style={[styles.inputIconBox, passFocused && styles.inputIconBoxFocused]}>
                     <Lock
                       size={18}
-                      color={passwordError ? '#DC2626' : passFocused ? '#DC2626' : '#64748B'}
+                      color={passwordError || passFocused ? Colors.primary : Colors.textGray}
                       strokeWidth={2.2}
                     />
                   </View>
@@ -326,7 +325,7 @@ export const LoginScreen = () => {
                     }}
                     onBlur={() => setPassFocused(false)}
                     placeholder="Enter your password"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={Colors.textLight}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     testID="password-input"
@@ -340,9 +339,9 @@ export const LoginScreen = () => {
                     accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
-                      <EyeOff size={19} color="#DC2626" strokeWidth={2.2} />
+                      <EyeOff size={19} color={Colors.primary}strokeWidth={2.2} />
                     ) : (
-                      <Eye size={19} color="#64748B" strokeWidth={2.2} />
+                      <Eye size={19} color={Colors.textGray}strokeWidth={2.2} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -361,20 +360,20 @@ export const LoginScreen = () => {
               testID="rider-login-submit"
             >
               <LinearGradient
-                colors={['#EF4444', '#DC2626', '#B91C1C']}
+                colors={Gradients.brand}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.loginButtonGradient}
               >
                 {isLoading ? (
                   <View style={styles.loadingRow}>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <ActivityIndicator color={Colors.textWhite}size="small" />
                     <Text style={styles.loginButtonText}>SIGNING IN...</Text>
                   </View>
                 ) : (
                   <View style={styles.loginBtnContent}>
                     <Text style={styles.loginButtonText}>SIGN IN</Text>
-                    <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                    <ArrowRight size={18} color={Colors.textWhite}strokeWidth={2.5} />
                   </View>
                 )}
               </LinearGradient>
@@ -393,7 +392,7 @@ export const LoginScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalIconBadge}>
-              <ShieldAlert size={36} color="#DC2626" strokeWidth={2.2} />
+              <ShieldAlert size={36} color={Colors.primary}strokeWidth={2.2} />
             </View>
 
             <Text style={styles.modalTitle}>Access Restricted</Text>
@@ -430,7 +429,7 @@ export const LoginScreen = () => {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.otpIconBadge}>
-                <MailCheck size={36} color="#047857" strokeWidth={2.2} />
+                <MailCheck size={36} color={Colors.success}strokeWidth={2.2} />
               </View>
 
               {/* Only the seeded web admin can ever be in PROFILE_SETUP, and an
@@ -465,7 +464,7 @@ export const LoginScreen = () => {
                       if (otpError) setOtpError(null);
                     }}
                     placeholder="000000"
-                    placeholderTextColor="#CBD5E1"
+                    placeholderTextColor={Colors.textLight}
                     keyboardType="number-pad"
                     maxLength={6}
                     textContentType="oneTimeCode"
@@ -476,7 +475,7 @@ export const LoginScreen = () => {
 
                   {otpError ? (
                     <View style={styles.otpErrorRow}>
-                      <AlertCircle size={14} color="#DC2626" />
+                      <AlertCircle size={14} color={Colors.primary}/>
                       <Text style={styles.otpErrorText}>{otpError}</Text>
                     </View>
                   ) : null}
@@ -491,7 +490,7 @@ export const LoginScreen = () => {
                     activeOpacity={0.85}
                   >
                     {isVerifying ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <ActivityIndicator color={Colors.textWhite}size="small" />
                     ) : (
                       <Text style={styles.modalCloseBtnText}>Verify & Sign In</Text>
                     )}
@@ -528,7 +527,7 @@ export const LoginScreen = () => {
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.bgWhite,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -542,7 +541,7 @@ const styles = StyleSheet.create({
     padding: 3,
     borderRadius: 50,
     backgroundColor: 'rgba(220, 38, 38, 0.15)',
-    shadowColor: '#DC2626',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -551,23 +550,23 @@ const styles = StyleSheet.create({
   },
   logoBadge: {
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: Colors.bgWhite,
     justifyContent: 'center',
     alignItems: 'center',
   },
   brandPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: Colors.dangerBg,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: Colors.primarySurface,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
     marginBottom: Spacing.xs,
   },
   brandPillText: {
-    color: '#DC2626',
+    color: Colors.primary,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.extrabold,
     letterSpacing: 1.5,
@@ -576,13 +575,13 @@ const styles = StyleSheet.create({
   portalTitle: {
     fontSize: FontSizes.xxl,
     fontWeight: FontWeights.black,
-    color: '#0F172A',
+    color: Colors.textDark,
     letterSpacing: 0.3,
     marginTop: Spacing.xxs,
   },
   portalSubtitle: {
     fontSize: FontSizes.sm,
-    color: '#64748B',
+    color: Colors.textGray,
     fontWeight: FontWeights.medium,
     marginTop: Spacing.xxs,
     letterSpacing: 0.2,
@@ -593,16 +592,16 @@ const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: Colors.dangerBg,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: Colors.danger,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     marginBottom: Spacing.lg,
   },
   errorBannerText: {
-    color: '#B91C1C',
+    color: Colors.danger,
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.semibold,
     marginLeft: Spacing.md,
@@ -621,69 +620,69 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.extrabold,
-    color: '#334155',
+    color: Colors.textMedium,
     letterSpacing: 0.8,
   },
   inlineErrorBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: Colors.dangerBg,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
   inlineErrorText: {
-    color: '#DC2626',
+    color: Colors.primary,
     fontSize: FontSizes.xxs,
     fontWeight: FontWeights.bold,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.bgWhite,
     borderWidth: 1.2,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     height: 54, // Ergonomic 54px touch target
-    shadowColor: '#0F172A',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
   },
   inputWrapperFocused: {
-    borderColor: '#DC2626',
-    backgroundColor: '#FFFBFB',
-    shadowColor: '#DC2626',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.bgWhite,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 3,
   },
   inputWrapperError: {
-    borderColor: '#DC2626',
-    backgroundColor: '#FEF2F2',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySurface,
   },
   inputIconBox: {
     width: 32,
     height: 32,
     borderRadius: BorderRadius.sm,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.bgLight,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: Colors.borderLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
   },
   inputIconBoxFocused: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FECACA',
+    backgroundColor: Colors.dangerBg,
+    borderColor: Colors.primarySurface,
   },
   textInput: {
     flex: 1,
-    color: '#0F172A',
+    color: Colors.textDark,
     fontSize: FontSizes.md,
     fontWeight: FontWeights.medium,
     paddingVertical: 0,
@@ -699,7 +698,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xxl,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    shadowColor: '#DC2626',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -720,7 +719,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   loginButtonText: {
-    color: '#FFFFFF',
+    color: Colors.textWhite,
     fontWeight: FontWeights.black,
     fontSize: FontSizes.md,
     letterSpacing: 0.8,
@@ -741,14 +740,14 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.bgWhite,
     borderRadius: BorderRadius.xxl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
     padding: Spacing.xxl,
     alignItems: 'center',
     elevation: 12,
-    shadowColor: '#000000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
@@ -757,9 +756,9 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: Colors.dangerBg,
     borderWidth: 1.5,
-    borderColor: '#FECACA',
+    borderColor: Colors.primarySurface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
@@ -767,13 +766,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: FontSizes.xl,
     fontWeight: FontWeights.black,
-    color: '#0F172A',
+    color: Colors.textDark,
     textAlign: 'center',
   },
   modalSubtitle: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold,
-    color: '#DC2626',
+    color: Colors.primary,
     letterSpacing: 1.2,
     marginTop: Spacing.xxs,
     marginBottom: Spacing.md,
@@ -781,18 +780,18 @@ const styles = StyleSheet.create({
   },
   modalBodyText: {
     fontSize: FontSizes.sm,
-    color: '#475569',
+    color: Colors.textMedium,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: Spacing.xxl,
   },
   modalCloseBtn: {
     width: '100%',
-    backgroundColor: '#DC2626',
+    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.lg,
     alignItems: 'center',
-    shadowColor: '#DC2626',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -802,9 +801,9 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#D1FAE5',
+    backgroundColor: Colors.successBg,
     borderWidth: 1.5,
-    borderColor: '#A7F3D0',
+    borderColor: Colors.successBorder,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
@@ -812,7 +811,7 @@ const styles = StyleSheet.create({
   otpSubtitle: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold,
-    color: '#047857',
+    color: Colors.success,
     letterSpacing: 1.2,
     marginTop: Spacing.xxs,
     marginBottom: Spacing.md,
@@ -820,20 +819,20 @@ const styles = StyleSheet.create({
   },
   otpEmail: {
     fontWeight: FontWeights.extrabold,
-    color: '#0F172A',
+    color: Colors.textDark,
   },
   otpInput: {
     width: '100%',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.bgLight,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: Colors.border,
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.lg,
     textAlign: 'center',
     fontSize: 28,
     fontWeight: FontWeights.black,
     letterSpacing: 12,
-    color: '#0F172A',
+    color: Colors.textDark,
     marginBottom: Spacing.md,
   },
   otpErrorRow: {
@@ -843,18 +842,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   otpErrorText: {
-    color: '#DC2626',
+    color: Colors.primary,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.semibold,
     flexShrink: 1,
   },
   otpVerifyBtn: {
     width: '100%',
-    backgroundColor: '#047857',
+    backgroundColor: Colors.success,
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.lg,
     alignItems: 'center',
-    shadowColor: '#047857',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -870,18 +869,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   otpResendText: {
-    color: '#047857',
+    color: Colors.success,
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.bold,
   },
   otpCancelText: {
-    color: '#64748B',
+    color: Colors.textGray,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.semibold,
     marginTop: Spacing.xs,
   },
   modalCloseBtnText: {
-    color: '#FFFFFF',
+    color: Colors.textWhite,
     fontSize: FontSizes.md,
     fontWeight: FontWeights.extrabold,
     letterSpacing: 0.5,

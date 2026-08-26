@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Bike } from 'lucide-react-native';
-import { Colors, FontWeights } from '../config/theme';
+import { Colors, FontWeights, Gradients } from '../config/theme';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { NotificationBell } from './NotificationBell';
 
@@ -33,7 +33,7 @@ export function RiderHeader({
 
   return (
     <LinearGradient
-      colors={['#EF4444', '#F87171', '#FECACA', '#FFFFFF']}
+      colors={Gradients.header}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -73,7 +73,7 @@ export function RiderHeader({
               <View
                 style={[
                   styles.pulseDot,
-                  { backgroundColor: isOffline ? '#9CA3AF' : '#4ADE80' }
+                  { backgroundColor: isOffline ? Colors.offlineDot : Colors.onlineDot }
                 ]}
               />
               <Text style={styles.liveIndicatorText}>
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,

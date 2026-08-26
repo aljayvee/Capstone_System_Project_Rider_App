@@ -1,0 +1,114 @@
+
+RIDER APP — UI ACCESSIBILITY BASELINE
+Generated 2026-08-26T03:48:40.248Z
+Standards: WCAG 2.2 AA (1.4.3, 1.4.11, 2.5.8) · Material Design 3 · Apple HIG
+
+──────────────────────────────────────────────────────────────────────────────
+1a. COLOUR CONTRAST — the palette's own pairings
+──────────────────────────────────────────────────────────────────────────────
+28 pairs the theme's naming implies · 0 below the required ratio
+of which 0 appear in a file that renders both.
+
+  OBSERVED — some screen puts this ink on this surface
+  ratio   need   size  foreground on background            meaning
+  (none)
+
+  IMPLIED ONLY — the naming suggests the pair; no file renders both.
+  Worth fixing in the palette so it cannot be reached by accident.
+  (none)
+
+  28 pair(s) pass and are not listed. Use --json for all.
+
+──────────────────────────────────────────────────────────────────────────────
+1a-dark. THE SAME PAIRINGS ON THE DARK PALETTE
+──────────────────────────────────────────────────────────────────────────────
+28 pairs checked against DarkColors, 0 below the required ratio.
+
+  Every pairing that passes in light also passes in dark.
+
+──────────────────────────────────────────────────────────────────────────────
+1b. COLOUR CONTRAST — pairs observed in a single style entry
+──────────────────────────────────────────────────────────────────────────────
+1 found, 0 failing.
+Few, because React Native splits text colour and background across
+nested styles; correlating those needs the component tree, not the
+stylesheet. Treat 1a as the real measure.
+
+  ratio   need   size  foreground on background            where
+  14.05     3   28b  textDark on bgLight                modules/auth/LoginScreen.tsx
+
+──────────────────────────────────────────────────────────────────────────────
+2. TOUCH TARGETS  — estimated from stylesheets, not a layout pass
+──────────────────────────────────────────────────────────────────────────────
+35 measured · 0 below MD3's 48dp · 0 below WCAG's 24px floor
+
+  height  std  style                          where
+    48dp   ok   allowBtn                       components/BackgroundLocationModal.tsx
+    48dp   ok   skipBtn                        components/BackgroundLocationModal.tsx
+    48dp   ok   tabItem                        components/RiderBottomNav.tsx
+    48dp   ok   dismiss                        components/StatusBanner.tsx
+    48dp   ok   eyeToggleButton                modules/auth/LoginScreen.tsx
+    48dp   ok   otpResendBtn                   modules/auth/LoginScreen.tsx
+    48dp   ok   closeButton                    modules/chat/DispatcherChatModal.tsx
+    48dp   ok   sendButton                     modules/chat/DispatcherChatModal.tsx
+    48dp   ok   confirmBtn                     modules/home/components/CashCollectionInput.tsx
+    48dp   ok   shortBtn                       modules/home/components/CashCollectionInput.tsx
+    48dp   ok   button                         modules/home/components/CompletedCard.tsx
+    48dp   ok   callButton                     modules/home/components/CustomerDetailsPanel.tsx
+    48dp   ok   cancelButton                   modules/home/components/DeclineModal.tsx
+    48dp   ok   confirmButton                  modules/home/components/DeclineModal.tsx
+    48dp   ok   declineButton                  modules/home/components/NewTaskCard.tsx
+    48dp   ok   button                         modules/home/components/OfflineCard.tsx
+    48dp   ok   uploadButton                   modules/home/components/RequestItemsPanel.tsx
+    48dp   ok   noReceiptButton                modules/home/components/RequestItemsPanel.tsx
+    48dp   ok   closeIcon                      modules/home/components/UploadModal.tsx
+    48dp   ok   closeButton                    modules/home/components/WaybillModal.tsx
+  … 15 more (use --json)
+
+  ~ = estimated as paddingVertical*2 + content; confirm by hand before quoting.
+
+──────────────────────────────────────────────────────────────────────────────
+3. ACCESSIBILITY LABELLING
+──────────────────────────────────────────────────────────────────────────────
+45 of 45 controls carry any accessibility prop (100%).
+0 controls report nothing to a screen reader.
+
+
+──────────────────────────────────────────────────────────────────────────────
+4. INTERRUPTIONS IN THE RIDE PATH
+──────────────────────────────────────────────────────────────────────────────
+5 blocking Alert.alert calls, of which 0 confirm a success.
+
+  "Validation Error" — Please enter the collected amount.
+  "Error" — Failed to update the errand status on the server. Please try
+  "Error" — Failed to record items purchased on the server. Please try a
+  "Error" — Failed to accept the errand. Please try again.
+  "Error" — Failed to decline the errand. Please try again.
+
+  ✗ = fires on success and costs a tap while riding.
+
+──────────────────────────────────────────────────────────────────────────────
+5. TOKEN DISCIPLINE
+──────────────────────────────────────────────────────────────────────────────
+0 hardcoded hex values across 0 files, bypassing the theme.
+13 further values sit in illustration components, counted separately.
+
+
+──────────────────────────────────────────────────────────────────────────────
+6. TYPE SCALE
+──────────────────────────────────────────────────────────────────────────────
+xxs:11  xs:12  sm:14  base:16  md:18  lg:20  xl:22  xxl:26  display:28  xxxl:32
+
+3 of 10 steps fall below the 16sp Material treats as body size.
+allowFontScaling considered in 0 file(s) — OS text scaling is otherwise untested.
+
+──────────────────────────────────────────────────────────────────────────────
+SUMMARY
+──────────────────────────────────────────────────────────────────────────────
+  palette pairs failing       0 / 28  (0 of them rendered)
+  same pairs, dark palette    0 / 28
+  targets below 48dp          0 / 35
+  controls with no a11y prop  0 / 45
+  success-only interruptions  0 / 5
+  hardcoded hex values        0  (+13 in illustration)
+

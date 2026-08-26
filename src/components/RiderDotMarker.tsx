@@ -74,16 +74,16 @@ const styles = StyleSheet.create({
     width: RING_SIZE,
     height: RING_SIZE,
     borderRadius: RING_SIZE / 2,
-    backgroundColor: '#3B82F6',  /* blue-500 */
+    backgroundColor: Colors.info,  /* blue-500 */
   },
   dot: {
     width: DOT_SIZE,
     height: DOT_SIZE,
     borderRadius: DOT_SIZE / 2,
-    backgroundColor: '#2563EB',  /* blue-600 */
+    backgroundColor: Colors.info,  /* blue-600 */
     borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
+    borderColor: Colors.bgWhite,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,

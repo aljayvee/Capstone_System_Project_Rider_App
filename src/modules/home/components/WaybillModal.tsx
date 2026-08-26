@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,

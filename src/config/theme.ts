@@ -110,6 +110,30 @@ export const LightColors = {
   onInfo: "#FFFFFF",
   onNavy: "#FFFFFF",
 
+  // ─── the two route legs ──────────────────────────────────────────────────
+  //
+  // Named because they carry meaning, not decoration: orange is the run to the
+  // pinned stores, and the pink-red only appears once every stop is done and
+  // the rider is heading to the customer. A rider reads the colour before they
+  // read anything else on that screen.
+  routeToStore: "#F97316",
+  routeToCustomer: "#DC2626",
+
+  /** The presence dot in the header. Non-text, so 3:1 against its ground. */
+  onlineDot: "#10B981",
+  offlineDot: "#646B76",
+
+  /**
+   * A camera viewfinder's ground. Deliberately true black in BOTH themes: it
+   * sits behind a live preview, where anything else shows as a coloured halo
+   * around the frame.
+   */
+  viewfinder: "#000000",
+
+  /** shadowColor. A token so the dark theme can soften it rather than
+   *  stacking black on an already-black ground. */
+  shadow: "#000000",
+
   offlineBg: "#374151",
 } as const;
 
@@ -181,6 +205,16 @@ export const DarkColors: Record<keyof typeof LightColors, string> = {
   onInfo: "#1F2937",
   onNavy: "#1F2937",
 
+  routeToStore: "#FB923C",
+  routeToCustomer: "#F87171",
+
+  onlineDot: "#34D399",
+  offlineDot: "#A9B0BD",
+
+  viewfinder: "#000000",
+
+  shadow: "#000000",
+
   offlineBg: "#111827",
 };
 
@@ -247,6 +281,21 @@ export const BorderRadius = {
   xl: 20,
   xxl: 24,
   full: 9999,
+} as const;
+
+/**
+ * Brand gradients, as tokens.
+ *
+ * A gradient is a design decision like any other colour, and leaving these as
+ * inline arrays is how the same three-stop red ends up written slightly
+ * differently in three places. Ordered light-to-dark in the direction each is
+ * drawn.
+ */
+export const Gradients = {
+  /** The header's wash, fading into the page. */
+  header: [LightColors.primaryGradientStart, "#F87171", LightColors.primaryGradientEnd, LightColors.bgWhite],
+  /** The login badge and primary button. */
+  brand: [LightColors.primaryGradientStart, LightColors.primary, LightColors.primaryStrong],
 } as const;
 
 /** Material's minimum touch target, in dp. Referenced by controls directly. */

@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     backgroundColor: Colors.bgDark,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 5,

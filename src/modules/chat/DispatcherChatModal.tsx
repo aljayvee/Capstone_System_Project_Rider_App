@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: Colors.border,
     fontSize: 13,
   },
   sendButton: {

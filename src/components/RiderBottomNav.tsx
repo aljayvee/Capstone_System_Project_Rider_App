@@ -97,15 +97,15 @@ export function RiderBottomNav({ state, descriptors, navigation }: BottomTabBarP
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.bgWhite,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: Colors.borderLight,
     paddingTop: Spacing.sm + 2,
     justifyContent: 'space-around',
     alignItems: 'center',
-    shadowColor: '#000000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.05,
     shadowRadius: 16,
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold,
   },
   tabLabelInactive: {
-    color: '#64748B',
+    color: Colors.textGray,
     fontWeight: FontWeights.medium,
   },
 });
