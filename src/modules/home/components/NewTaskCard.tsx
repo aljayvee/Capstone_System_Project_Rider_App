@@ -73,7 +73,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
         <View style={styles.headerTopRow}>
           <View style={styles.incomingBadge}>
             <Zap size={14} color={Colors.textWhite}/>
-            <Text style={styles.incomingBadgeText}>INCOMING MISSION OFFER</Text>
+            <Text style={styles.incomingBadgeText}>NEW ERRAND</Text>
           </View>
           <View style={styles.countdownBadge}>
             <Clock size={13} color={Colors.primary}/>
@@ -98,7 +98,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
         </View>
       </View>
 
-      {/* MISSION WAYPOINTS & DETAILS */}
+      {/* Where the rider is going, in the order they will go there. */}
       <View style={styles.detailsContainer}>
         {/* Customer Info */}
         <View style={styles.detailRow}>
@@ -111,7 +111,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
           </View>
         </View>
 
-        {/* Numbered Store Waypoints */}
+        {/* The stores, numbered in visiting order. */}
         {pinpoints.length > 0 ? (
           pinpoints.map((p, idx) => (
             <View key={p.id || idx} style={styles.detailRow}>
@@ -119,7 +119,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
                 <Store size={13} color={Colors.textWhite}/>
               </View>
               <View style={styles.detailTextWrapper}>
-                <Text style={styles.detailTitle}>Store Waypoint #{idx + 1}</Text>
+                <Text style={styles.detailTitle}>Store {idx + 1}</Text>
                 <Text style={styles.detailContent}>{p.storeName}</Text>
               </View>
             </View>
@@ -130,7 +130,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
               <Store size={13} color={Colors.textWhite}/>
             </View>
             <View style={styles.detailTextWrapper}>
-              <Text style={styles.detailTitle}>Store Waypoint #1</Text>
+              <Text style={styles.detailTitle}>Store</Text>
               <Text style={styles.detailContent}>{errand.type} Partner Store</Text>
             </View>
           </View>
@@ -142,7 +142,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
             <MapPin size={13} color={Colors.textWhite}/>
           </View>
           <View style={styles.detailTextWrapper}>
-            <Text style={styles.detailTitle}>Delivery Destination</Text>
+            <Text style={styles.detailTitle}>Customer</Text>
             <Text style={styles.detailContent} numberOfLines={2}>{errand.address}</Text>
           </View>
         </View>
@@ -151,7 +151,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
       {/* ACTION CONTROLS */}
       <View style={styles.actionContainer}>
         <SlideToConfirm
-          label={isAccepting ? 'Accepting Mission…' : 'Slide to Accept Mission'}
+          label={isAccepting ? 'Accepting…' : 'Slide to accept'}
           onSlideComplete={onAccept}
           disabled={isAccepting}
         />
@@ -164,7 +164,7 @@ export function NewTaskCard({ errand, onAccept, onDecline, isAccepting = false }
           onPress={onDecline}
           disabled={isAccepting}
         >
-          <Text style={styles.declineText}>Decline Offer</Text>
+          <Text style={styles.declineText}>Decline</Text>
         </TouchableOpacity>
       </View>
     </View>

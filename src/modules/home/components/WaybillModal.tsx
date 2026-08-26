@@ -43,7 +43,7 @@ export function WaybillModal({ visible, errand, onClose }: WaybillModalProps) {
                 <Text style={styles.infoValue}>{errand.customer}</Text>
               </View>
               <View style={styles.infoBlock}>
-                <Text style={styles.infoLabel}>DESTINATION</Text>
+                <Text style={styles.infoLabel}>DELIVER TO</Text>
                 <Text style={styles.infoValue}>{errand.address}</Text>
               </View>
 

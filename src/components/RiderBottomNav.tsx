@@ -13,7 +13,7 @@ interface TabConfig {
 
 const TAB_CONFIGS: TabConfig[] = [
   { name: 'Home', label: 'Home', Icon: Home },
-  { name: 'Tasks', label: 'My Tasks', Icon: ClipboardList },
+  { name: 'Tasks', label: 'My errands', Icon: ClipboardList },
   { name: 'Profile', label: 'Profile', Icon: UserRound },
 ];
 

@@ -135,7 +135,7 @@ export default function HomeScreen() {
                     accessibilityState={{ selected: selectedMissionIndex === idx }}
                     accessibilityLabel={
                       idx === 0
-                        ? `Active errand ${formatErrandId(m.id)}`
+                        ? `Current errand ${formatErrandId(m.id)}`
                         : `Queued errand ${idx}, ${formatErrandId(m.id)}`
                     }
                     style={[
@@ -160,7 +160,7 @@ export default function HomeScreen() {
               <View style={styles.headerLeft}>
                 <Package size={16} color={Colors.textWhite} />
                 <Text style={styles.headerTitle}>
-                  {selectedMissionIndex === 0 ? "Current Assignment" : `Queued Task #${selectedMissionIndex}`}
+                  {selectedMissionIndex === 0 ? "Current errand" : `Queued errand ${selectedMissionIndex}`}
                 </Text>
               </View>
               <View style={styles.headerRight}>
@@ -171,7 +171,7 @@ export default function HomeScreen() {
                   accessibilityLabel="Open the live map"
                 >
                   <Map size={12} color={Colors.textWhite} />
-                  <Text style={styles.detailsBtnText}>Live Map</Text>
+                  <Text style={styles.detailsBtnText}>Map</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.detailsBtn}
@@ -180,7 +180,7 @@ export default function HomeScreen() {
                   accessibilityLabel="Show customer details"
                 >
                   <FileText size={12} color={Colors.textWhite} />
-                  <Text style={styles.detailsBtnText}>Customer Details</Text>
+                  <Text style={styles.detailsBtnText}>Customer</Text>
                 </TouchableOpacity>
                 <View style={styles.idBadge}>
                   <Text style={styles.idBadgeText}>{formatErrandId(displayErrand.id)}</Text>

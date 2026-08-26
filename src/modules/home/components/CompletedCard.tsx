@@ -21,20 +21,20 @@ export function CompletedCard({ errand, riderFirstName, onAcceptNext }: Complete
       <View style={styles.iconContainer}>
         <CheckCircle size={32} color={Colors.primary} />
       </View>
-      <Text style={styles.title}>Errand Completed!</Text>
+      <Text style={styles.title}>Errand delivered</Text>
       <Text style={styles.subtitle}>Great job, {greetingName}! Payment collected.</Text>
 
       <View style={styles.earningsBox}>
         <Text style={styles.earningsValue}>{earnings}</Text>
-        <Text style={styles.earningsLabel}>EARNINGS FROM THIS TRIP</Text>
+        <Text style={styles.earningsLabel}>YOU EARNED</Text>
       </View>
 
       <TouchableOpacity
         style={styles.button}
         onPress={onAcceptNext}
         accessibilityRole="button"
-        accessibilityLabel="Accept the next errand">
-        <Text style={styles.buttonText}>Accept Next Errand</Text>
+        accessibilityLabel="Take the next errand">
+        <Text style={styles.buttonText}>Next errand</Text>
       </TouchableOpacity>
     </View>
   );

@@ -19,14 +19,14 @@ export function OfflineCard({ onViewRequests, setShowWaybill }: OfflineCardProps
       <View style={styles.iconContainer}>
         <Navigation size={24} color={Colors.textLight} />
       </View>
-      <Text style={styles.title}>You're Offline</Text>
-      <Text style={styles.description}>Connection lost. Use your cached files to complete the delivery.</Text>
+      <Text style={styles.title}>You're offline</Text>
+      <Text style={styles.description}>No signal. Everything you need is saved on this phone — carry on with the errand.</Text>
       <TouchableOpacity
         style={styles.button}
         onPress={handlePress}
         accessibilityRole="button"
-        accessibilityLabel="View the customer's requests, saved on this phone">
-        <Text style={styles.buttonText}>View Customer Requests</Text>
+        accessibilityLabel="See what to buy, saved on this phone">
+        <Text style={styles.buttonText}>See what to buy</Text>
       </TouchableOpacity>
     </View>
   );

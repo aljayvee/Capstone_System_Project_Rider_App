@@ -10,8 +10,8 @@ export function WaitingCard() {
         <View style={styles.iconContainer}>
           <Bike size={32} color={Colors.textLight} />
         </View>
-        <Text style={styles.title}>Waiting for Assignment</Text>
-        <Text style={styles.description}>Stand by. The dispatcher will assign grouped errands to you shortly.</Text>
+        <Text style={styles.title}>Waiting for your next errand</Text>
+        <Text style={styles.description}>The dispatcher will send one through shortly. Keep the app open.</Text>
       </View>
     </View>
   );

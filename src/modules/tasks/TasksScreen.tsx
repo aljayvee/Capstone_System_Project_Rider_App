@@ -11,19 +11,19 @@ export default function TasksScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.headerTitle}>Task History</Text>
+        <Text style={styles.headerTitle}>Errands you've delivered</Text>
 
         {phase === 'loading' ? (
           <ActivityIndicator size="large" color={Colors.primary} style={styles.loadingIndicator} />
         ) : deliveredErrands.length === 0 ? (
-          <Text style={styles.emptyText}>No delivered errands yet.</Text>
+          <Text style={styles.emptyText}>Nothing here yet. Your finished errands will collect here.</Text>
         ) : null}
 
         {deliveredErrands.map(errand => (
           <View key={errand.id} style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
-                <Text style={styles.errandId}>Errand #{formatErrandId(errand.id)}</Text>
+                <Text style={styles.errandId}>Errand {formatErrandId(errand.id)}</Text>
                 <View style={styles.statusBadge}>
                   <Text style={styles.statusText}>Delivered</Text>
                 </View>

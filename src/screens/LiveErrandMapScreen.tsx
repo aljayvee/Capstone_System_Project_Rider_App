@@ -68,7 +68,7 @@ export default function LiveErrandMapScreen() {
         />
       ) : (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No destination or store pins set for this errand yet.</Text>
+          <Text style={styles.emptyText}>The dispatcher hasn't pinned the stores or the customer yet.</Text>
         </View>
       )}
     </SafeAreaView>

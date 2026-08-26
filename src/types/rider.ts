@@ -24,10 +24,10 @@ export interface StepMeta {
 }
 
 export const STEP_META: Record<StatusStep, StepMeta> = {
-  Traveling: { label: "Traveling to Pickup", action: "Mark Arrived at Store" },
-  "At Store": { label: "Arrived at Store", action: "Done Shopping" },
-  Delivering: { label: "Delivering to Customer", action: "Mark as Delivered" },
-  Delivered: { label: "Delivered!", action: "Complete" },
+  Traveling: { label: "On the way to the store", action: "I've arrived" },
+  "At Store": { label: "At the store", action: "I've finished shopping" },
+  Delivering: { label: "On the way to the customer", action: "I've handed it over" },
+  Delivered: { label: "Delivered", action: "Finish" },
 };
 
 // ─── Errand & Business Types ─────────────────────────────────────────────────
