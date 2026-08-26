@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.black as any,
   },
   earningsLabel: {
-    color: Colors.primaryDark,
+    color: Colors.primaryStrong,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold as any,
     letterSpacing: 0.5,

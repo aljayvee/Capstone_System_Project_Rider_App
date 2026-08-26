@@ -343,7 +343,7 @@ export default function ReceiptCaptureScreen({
           accessibilityState={{ checked: torch }}
           accessibilityLabel={torch ? 'Turn the light off' : 'Turn the light on'}
         >
-          {torch ? <Zap size={20} color={Colors.amberDark} /> : <ZapOff size={20} color={Colors.textDark} />}
+          {torch ? <Zap size={20} color={Colors.warning} /> : <ZapOff size={20} color={Colors.textDark} />}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: FontSizes.sm,
-    color: Colors.primaryDark,
+    color: Colors.primaryStrong,
     backgroundColor: 'rgba(185,28,28,0.08)',
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,

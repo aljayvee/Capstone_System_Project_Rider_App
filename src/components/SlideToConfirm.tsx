@@ -29,7 +29,7 @@ export function SlideToConfirm({
   onSlideComplete,
   disabled = false,
   height = DEFAULT_HEIGHT,
-  trackColor = Colors.primaryLight,
+  trackColor = Colors.primarySurface,
   thumbColor = Colors.primary,
   completeThreshold = DEFAULT_THRESHOLD,
 }: SlideToConfirmProps) {

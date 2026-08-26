@@ -54,7 +54,7 @@ export function CashCollectionInput({
     <View style={styles.container}>
       <View style={styles.card}>
         <View style={styles.header}>
-          <Banknote size={16} color={Colors.greenDark} />
+          <Banknote size={16} color={Colors.success} />
           <Text style={styles.label}>COLLECT FROM CUSTOMER</Text>
         </View>
 
@@ -81,7 +81,7 @@ export function CashCollectionInput({
              rather than a quietly smaller number. */
           <View style={styles.shortPanel}>
             <View style={styles.header}>
-              <AlertTriangle size={14} color={Colors.amberDark} />
+              <AlertTriangle size={14} color={Colors.warning} />
               <Text style={styles.shortHeading}>How much did they hand over?</Text>
             </View>
             <View style={styles.shortRow}>
@@ -122,7 +122,7 @@ export function CashCollectionInput({
         onPress={onReportShort}
         accessibilityRole="button"
         accessibilityLabel="Report that the customer paid less than the total" testID="cash-report-short">
-                <AlertTriangle size={13} color={Colors.amberDark} />
+                <AlertTriangle size={13} color={Colors.warning} />
                 <Text style={styles.shortText}>Customer paid short</Text>
               </TouchableOpacity>
             )}
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold as any,
-    color: Colors.greenDark,
+    color: Colors.success,
     letterSpacing: 0.5,
   },
   amount: {
@@ -163,12 +163,12 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.greenDark,
+    backgroundColor: Colors.success,
     alignItems: 'center',
     minHeight: 48,
     justifyContent: 'center',
   },
-  confirmBtnDone: { backgroundColor: Colors.greenBg, opacity: 0.9 },
+  confirmBtnDone: { backgroundColor: Colors.successSubtle, opacity: 0.9 },
   confirmBtnText: {
     fontSize: FontSizes.base,
     fontWeight: FontWeights.bold as any,
@@ -178,14 +178,14 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     padding: Spacing.md,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.amberBg,
+    backgroundColor: Colors.warningSubtle,
     borderWidth: 1,
-    borderColor: Colors.borderYellow,
+    borderColor: Colors.warningBorder,
   },
   shortHeading: {
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.bold as any,
-    color: Colors.amberDark,
+    color: Colors.warning,
   },
   shortRow: {
     flexDirection: 'row',
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingLeft: Spacing.xs,
   },
-  shortNote: { fontSize: FontSizes.xs, color: Colors.amberDark },
+  shortNote: { fontSize: FontSizes.xs, color: Colors.warning },
   shortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   shortText: {
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.semibold as any,
-    color: Colors.amberDark,
+    color: Colors.warning,
     textDecorationLine: 'underline',
   },
 });

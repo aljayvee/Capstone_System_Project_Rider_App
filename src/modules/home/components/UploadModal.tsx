@@ -33,7 +33,7 @@ export function UploadModal({ visible, progress, onClose }: UploadModalProps) {
             {progress < 100 ? (
               <View style={styles.progressContainer}>
                 <View style={styles.iconContainer}>
-                  <Camera size={32} color={Colors.blue} />
+                  <Camera size={32} color={Colors.info} />
                 </View>
                 <Text style={styles.scanningText}>Scanning document...</Text>
                 <View style={styles.progressBarBg}>
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: Colors.blueLight,
+    backgroundColor: Colors.infoBg,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
@@ -150,13 +150,13 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: Colors.blue,
+    backgroundColor: Colors.info,
   },
   progressText: {
     marginTop: Spacing.md,
     fontSize: 10,
     fontWeight: FontWeights.bold as any,
-    color: Colors.blue,
+    color: Colors.info,
   },
   successContainer: {
     ...StyleSheet.absoluteFill,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.greenMedium,
+    backgroundColor: Colors.successAccent,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   verifiedBadge: {
-    backgroundColor: Colors.greenMedium,
+    backgroundColor: Colors.successAccent,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,

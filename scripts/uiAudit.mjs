@@ -77,25 +77,36 @@ const round2 = (n) => Math.round(n * 100) / 100;
 // ── the theme ────────────────────────────────────────────────────────────────
 function readTheme() {
   const themeFile = files.find((f) => f.rel.endsWith('config/theme.ts'));
-  if (!themeFile) return { colors: {}, fontSizes: {} };
+  if (!themeFile) return { colors: {}, darkColors: {}, fontSizes: {} };
 
-  const colors = {};
-  const colorBlock = themeFile.src.match(/export const Colors\s*=\s*\{([\s\S]*?)\n\}/);
-  if (colorBlock) {
-    for (const m of colorBlock[1].matchAll(/^\s*(\w+):\s*"(#[0-9A-Fa-f]{3,8})"/gm)) {
-      colors[m[1]] = m[2].toUpperCase();
+  // Named palettes, so both themes can be checked. A dark palette that was
+  // never contrast-checked is the usual way an accessibility claim quietly
+  // stops being true.
+  const palette = (name) => {
+    const block = themeFile.src.match(
+      new RegExp('export const ' + name + '[^=]*=\\s*\\{([\\s\\S]*?)\\n\\}')
+    );
+    const out = {};
+    if (block) {
+      for (const m of block[1].matchAll(/^\s*(\w+):\s*"(#[0-9A-Fa-f]{3,8})"/gm)) {
+        out[m[1]] = m[2].toUpperCase();
+      }
     }
-  }
+    return out;
+  };
 
   const fontSizes = {};
   const fontBlock = themeFile.src.match(/export const FontSizes\s*=\s*\{([\s\S]*?)\n\}/);
   if (fontBlock) {
     for (const m of fontBlock[1].matchAll(/^\s*(\w+):\s*(\d+)/gm)) fontSizes[m[1]] = Number(m[2]);
   }
-  return { colors, fontSizes };
+
+  // `Colors` for a single-palette theme, `LightColors` once dark mode exists.
+  const light = Object.keys(palette('LightColors')).length ? palette('LightColors') : palette('Colors');
+  return { colors: light, darkColors: palette('DarkColors'), fontSizes };
 }
 
-const { colors, fontSizes } = readTheme();
+const { colors, darkColors, fontSizes } = readTheme();
 
 // ── 1. contrast ──────────────────────────────────────────────────────────────
 //
@@ -112,7 +123,15 @@ const { colors, fontSizes } = readTheme();
 // Text style and `backgroundColor` on its container, and correlating those
 // needs the component tree rather than the stylesheet. Reported separately so
 // the small number is not mistaken for a clean bill of health.
-const HUES = ['primary', 'green', 'amber', 'blue', 'navy'];
+/**
+ * Roles whose token names encode "this ink belongs on those surfaces".
+ *
+ * The palette is named semantically now, so the pairing is derivable rather
+ * than guessed: `success` is the ink, `successBg` and `successSubtle` are the
+ * grounds it is meant to sit on. Under the previous literal naming (`green`,
+ * `greenDark`, `greenBg`) nothing said which of them was text.
+ */
+const ROLES = ['success', 'warning', 'danger', 'info'];
 
 function designSystemPairs() {
   const out = [];
@@ -122,19 +141,28 @@ function designSystemPairs() {
     out.push({ fg, fgHex: colors[fg], bg, bgHex: colors[bg], fontSize: null, bold: false, where: 'config/theme.ts', style: note });
   };
 
-  for (const hue of HUES) {
-    for (const surface of [`${hue}Bg`, `${hue}Light`]) {
-      for (const ink of [`${hue}Dark`, hue]) add(ink, surface, `${hue} on its own surface`);
-    }
-    // White text on a saturated fill is the standard button treatment.
-    add('textWhite', hue, `white on ${hue}`);
-    add('textWhite', `${hue}Dark`, `white on ${hue}Dark`);
+  for (const role of ROLES) {
+    for (const surface of [`${role}Bg`, `${role}Subtle`]) add(role, surface, `${role} ink on its surface`);
   }
+
+  // The brand red is a fill carrying white text; primaryStrong is the ink for
+  // the tinted surface. Two different jobs, which is why they are two tokens.
+  add('primaryStrong', 'primarySurface', 'primary ink on its surface');
+  // on<Role> rather than textWhite: the ink for a fill is its own token, so the
+  // check follows the palette's intent in BOTH themes rather than assuming the
+  // ink is always white.
+  add('onPrimary', 'primary', 'ink on the primary fill');
+  add('onPrimary', 'primaryStrong', 'ink on the pressed fill');
+  add('onNavy', 'navy', 'ink on navy');
+  add('onSuccess', 'success', 'ink on a success fill');
+  add('onWarning', 'warning', 'ink on a warning fill');
+  add('onDanger', 'danger', 'ink on a danger fill');
+  add('onInfo', 'info', 'ink on an info fill');
 
   const texts = Object.keys(colors).filter((k) => /^text/.test(k) && k !== 'textWhite');
   const surfaces = Object.keys(colors).filter((k) => /^bg/.test(k) && k !== 'bgDark');
   for (const t of texts) for (const s of surfaces) add(t, s, 'text on surface');
-  for (const t of ['textWhite']) add(t, 'bgDark', 'text on dark surface');
+  add('textWhite', 'bgDark', 'text on dark surface');
 
   return out;
 }
@@ -211,6 +239,17 @@ const systemFindings = designSystemPairs()
   .filter((f) => f.ratio !== null)
   .map((f) => ({ ...f, observed: isObserved(f.fg, f.bg) }))
   .sort(byRatio);
+
+// The same pairings resolved against the dark palette. Same token names, same
+// intent, different values — so any pair that passes in light and fails in dark
+// is a dark-palette bug rather than a design question.
+const darkFindings = Object.keys(darkColors).length
+  ? designSystemPairs()
+      .map((p) => ({ ...p, fgHex: darkColors[p.fg] ?? p.fgHex, bgHex: darkColors[p.bg] ?? p.bgHex }))
+      .map(score)
+      .filter((f) => f.ratio !== null)
+      .sort(byRatio)
+  : [];
 const colourFindings = findColourPairs().map(score).filter((f) => f.ratio !== null).sort(byRatio);
 
 // ── 2. touch targets ─────────────────────────────────────────────────────────
@@ -397,6 +436,19 @@ if (failImplied.length === 0) console.log('  (none)');
 
 console.log(`\n  ${systemFindings.filter((f) => f.passes).length} pair(s) pass and are not listed. Use --json for all.`);
 
+if (darkFindings.length) {
+  bar('1a-dark. THE SAME PAIRINGS ON THE DARK PALETTE');
+  const df = darkFindings.filter((f) => !f.passes);
+  console.log(`${darkFindings.length} pairs checked against DarkColors, ${df.length} below the required ratio.
+`);
+  if (df.length === 0) {
+    console.log('  Every pairing that passes in light also passes in dark.');
+  } else {
+    console.log('  ratio   need   size  foreground on background            meaning');
+    for (const f of df) console.log(line(f, f.style));
+  }
+}
+
 bar('1b. COLOUR CONTRAST — pairs observed in a single style entry');
 console.log(`${colourFindings.length} found, ${summary.contrast.failing} failing.`);
 console.log(`Few, because React Native splits text colour and background across\nnested styles; correlating those needs the component tree, not the\nstylesheet. Treat 1a as the real measure.\n`);
@@ -447,6 +499,7 @@ console.log(`allowFontScaling considered in ${allowFontScaling} file(s) — OS t
 
 bar('SUMMARY');
 console.log(`  palette pairs failing       ${summary.contrast.systemFailing} / ${summary.contrast.systemChecked}  (${failObserved.length} of them rendered)`);
+console.log(`  same pairs, dark palette    ${darkFindings.filter((f) => !f.passes).length} / ${darkFindings.length}`);
 console.log(`  targets below 48dp          ${summary.targets.belowMd3} / ${summary.targets.measured}`);
 console.log(`  controls with no a11y prop  ${summary.accessibility.unlabelled} / ${summary.accessibility.touchables}`);
 console.log(`  success-only interruptions  ${summary.interruptions.confirmatory} / ${summary.interruptions.total}`);

@@ -18,9 +18,9 @@ import type { RiderBanner, BannerTone } from '../types/rider';
  */
 
 const TONE: Record<BannerTone, { fg: string; bg: string; border: string; Icon: typeof Info }> = {
-  success: { fg: Colors.greenDark, bg: Colors.greenBg, border: Colors.greenDark, Icon: CheckCircle2 },
-  info: { fg: Colors.navy, bg: Colors.blueBg, border: Colors.navy, Icon: Info },
-  warning: { fg: Colors.amberDark, bg: Colors.amberBg, border: Colors.amberDark, Icon: AlertTriangle },
+  success: { fg: Colors.success, bg: Colors.successSubtle, border: Colors.success, Icon: CheckCircle2 },
+  info: { fg: Colors.navy, bg: Colors.infoSubtle, border: Colors.navy, Icon: Info },
+  warning: { fg: Colors.warning, bg: Colors.warningSubtle, border: Colors.warning, Icon: AlertTriangle },
 };
 
 interface StatusBannerProps {

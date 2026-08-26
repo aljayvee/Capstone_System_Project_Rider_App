@@ -71,7 +71,7 @@ export function NotificationBell() {
                     accessibilityRole="button"
                     accessibilityLabel="Mark this notification as read"
                   >
-                          <CheckCheck size={15} color={Colors.blue} />
+                          <CheckCheck size={15} color={Colors.info} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: FontSizes.md, color: Colors.textGray, textAlign: 'center', paddingVertical: Spacing.xxl },
   list: { maxHeight: 420 },
   item: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  itemUnread: { backgroundColor: Colors.blueBg },
+  itemUnread: { backgroundColor: Colors.infoSubtle },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.sm },
   itemTitle: { fontSize: FontSizes.md, fontWeight: FontWeights.bold, color: Colors.textDark, flex: 1 },
   itemBody: { fontSize: FontSizes.base, color: Colors.textGray, marginTop: 2 },

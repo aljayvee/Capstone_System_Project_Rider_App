@@ -28,7 +28,7 @@ export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
           onPress={handleCall}
           accessibilityRole="button"
           accessibilityLabel="Call the customer" disabled={!customerPhone}>
-          <Phone size={16} color={Colors.greenDark} />
+          <Phone size={16} color={Colors.success} />
         </TouchableOpacity>
       </View>
       <View style={styles.addressRow}>
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   callButton: {
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.greenLight,
+    backgroundColor: Colors.successBg,
     minHeight: 48,
     minWidth: 48,
     justifyContent: 'center',

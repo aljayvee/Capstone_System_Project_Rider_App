@@ -90,14 +90,14 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold,
   },
   statusBadge: {
-    backgroundColor: Colors.greenLight,
+    backgroundColor: Colors.successBg,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
     alignSelf: 'flex-start',
   },
   statusText: {
-    color: Colors.greenDark,
+    color: Colors.success,
     fontSize: FontSizes.xs,
   },
   cardHeaderRight: {

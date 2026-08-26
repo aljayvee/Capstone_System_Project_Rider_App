@@ -33,7 +33,7 @@ export function RequestItemsPanel({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <ClipboardList size={14} color={Colors.amberDark} />
+        <ClipboardList size={14} color={Colors.warning} />
         <Text style={styles.headerTitle}>Request Items & Instructions</Text>
       </View>
       <View style={styles.content}>
@@ -71,11 +71,11 @@ export function RequestItemsPanel({
                         : `Photograph the receipt for ${section.title ?? 'this stop'}`
                   }
                 >
-                  <Camera size={14} color={isCompleted ? Colors.greenDark : Colors.amberDark} />
+                  <Camera size={14} color={isCompleted ? Colors.success : Colors.warning} />
                   <Text
                     style={[
                       styles.uploadText,
-                      { color: isCompleted ? Colors.greenDark : Colors.amberDark },
+                      { color: isCompleted ? Colors.success : Colors.warning },
                     ]}
                   >
                     {isCompleted ? 'Receipt saved' : isUploading ? 'Reading…' : 'Photograph receipt'}
@@ -111,9 +111,9 @@ const styles = StyleSheet.create({
   container: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.amberBg,
+    backgroundColor: Colors.warningSubtle,
     borderWidth: 1,
-    borderColor: Colors.borderYellow,
+    borderColor: Colors.warningBorder,
     marginBottom: Spacing.md,
   },
   header: {
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.bold as any,
-    color: Colors.amberDark,
+    color: Colors.warning,
   },
   content: { gap: Spacing.sm },
   itemBox: {
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     backgroundColor: Colors.bgWhite,
     borderWidth: 1,
-    borderColor: Colors.borderYellow,
+    borderColor: Colors.warningBorder,
     gap: 2,
   },
   itemTitle: {
@@ -158,12 +158,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   uploadPending: {
-    backgroundColor: Colors.amberBg,
-    borderColor: Colors.borderYellow,
+    backgroundColor: Colors.warningSubtle,
+    borderColor: Colors.warningBorder,
   },
   uploadSuccess: {
-    backgroundColor: Colors.greenBg,
-    borderColor: Colors.greenDark,
+    backgroundColor: Colors.successSubtle,
+    borderColor: Colors.success,
   },
   noReceiptButton: {
     alignItems: 'center',

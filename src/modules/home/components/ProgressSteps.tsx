@@ -43,7 +43,7 @@ export function ProgressSteps({ currentStatus, stepIndex }: ProgressStepsProps) 
                 style={[
                   styles.iconCircle,
                   {
-                    backgroundColor: done ? Colors.primary : active ? Colors.primaryLight : Colors.bgGray,
+                    backgroundColor: done ? Colors.primary : active ? Colors.primarySurface : Colors.bgGray,
                     borderColor: active ? Colors.primary : 'transparent',
                     borderWidth: 2,
                   }
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xxs,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: Colors.primarySurface,
   },
   badgeText: {
     color: Colors.primary,

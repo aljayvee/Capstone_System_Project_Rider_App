@@ -9,6 +9,7 @@ import { LoginScreen } from './src/modules/auth/LoginScreen';
 import { AuthedNavigator } from './src/navigation/AuthedNavigator';
 
 import { RiderAuthProvider, useRiderAuth } from './src/context/RiderAuthContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import { Colors } from './src/config/theme';
 
 export type RootStackParamList = {
@@ -82,9 +83,13 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <ErrorBoundary>
-          <RiderAuthProvider>
-            <AppContent />
-          </RiderAuthProvider>
+          {/* Outside RiderAuthProvider: the login screen needs the theme too,
+              and the theme has nothing to do with who is signed in. */}
+          <ThemeProvider>
+            <RiderAuthProvider>
+              <AppContent />
+            </RiderAuthProvider>
+          </ThemeProvider>
         </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>

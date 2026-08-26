@@ -83,13 +83,13 @@ const styles = StyleSheet.create({
   container: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.greenBg,
+    backgroundColor: Colors.successSubtle,
     borderWidth: 1,
-    borderColor: Colors.greenBorder,
+    borderColor: Colors.successBorder,
     marginBottom: Spacing.md,
   },
   title: {
-    color: Colors.greenDark,
+    color: Colors.success,
     fontSize: FontSizes.base,
     fontWeight: FontWeights.bold as any,
     marginBottom: Spacing.md,
@@ -114,17 +114,17 @@ const styles = StyleSheet.create({
   totalRow: {
     borderTopWidth: 1,
     borderStyle: 'dashed',
-    borderTopColor: Colors.greenBorder,
+    borderTopColor: Colors.successBorder,
     paddingTop: Spacing.xs,
     marginTop: Spacing.xs,
   },
   totalLabel: {
-    color: Colors.greenDark,
+    color: Colors.success,
     fontSize: FontSizes.md,
     fontWeight: FontWeights.bold as any,
   },
   totalValue: {
-    color: Colors.greenDark,
+    color: Colors.success,
     fontSize: FontSizes.md,
     fontWeight: FontWeights.extrabold as any,
   },
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   // total above it, and must not read as though it were.
   itemRow: {
     borderTopWidth: 1,
-    borderTopColor: Colors.greenBorder,
+    borderTopColor: Colors.successBorder,
     paddingTop: Spacing.sm,
     marginTop: Spacing.sm,
   },

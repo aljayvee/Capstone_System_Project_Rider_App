@@ -220,7 +220,7 @@ export default function HomeScreen() {
                   trust the screen goes back to tapping buttons at random. */}
               {mission.storeArrival.advancedAutomatically && currentStatus === "At Store" && (
                 <View style={styles.arrivalNote}>
-                  <MapPin size={14} color={Colors.greenDark} />
+                  <MapPin size={14} color={Colors.success} />
                   <Text style={styles.arrivalNoteText}>
                     Arrived automatically — you reached the store.
                   </Text>
@@ -229,7 +229,7 @@ export default function HomeScreen() {
 
               {mission.storeArrival.arrivingAt && currentStatus === "Traveling" && (
                 <View style={styles.arrivalPending}>
-                  <MapPin size={14} color={Colors.amberDark} />
+                  <MapPin size={14} color={Colors.warning} />
                   <Text style={styles.arrivalPendingText}>
                     You're at {mission.storeArrival.arrivingAt.storeName}. Stay put a moment and
                     this will move on its own — or tap below.
@@ -359,8 +359,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   handoverBtnDone: {
-    borderColor: Colors.greenDark,
-    backgroundColor: Colors.greenBg,
+    borderColor: Colors.success,
+    backgroundColor: Colors.successSubtle,
   },
   handoverText: {
     fontSize: FontSizes.base,
@@ -372,8 +372,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.greenBg,
-    borderColor: Colors.greenDark,
+    backgroundColor: Colors.successSubtle,
+    borderColor: Colors.success,
     borderWidth: 1,
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
@@ -383,14 +383,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.semibold as any,
-    color: Colors.greenDark,
+    color: Colors.success,
   },
   arrivalPending: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.amberBg,
-    borderColor: Colors.borderYellow,
+    backgroundColor: Colors.warningSubtle,
+    borderColor: Colors.warningBorder,
     borderWidth: 1,
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.sm,
     fontWeight: FontWeights.semibold as any,
-    color: Colors.amberDark,
+    color: Colors.warning,
   },
 
   container: {
@@ -550,24 +550,24 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   typeBadge: {
-    backgroundColor: Colors.blueLight,
+    backgroundColor: Colors.infoBg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
   },
   typeBadgeText: {
-    color: Colors.blue,
+    color: Colors.info,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold,
   },
   paymentBadge: {
-    backgroundColor: Colors.amberLight,
+    backgroundColor: Colors.warningBg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
   },
   paymentBadgeText: {
-    color: Colors.amberDark,
+    color: Colors.warning,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.semibold,
   },
