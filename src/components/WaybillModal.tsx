@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-native';
 import { X } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
-import { MergedErrand } from '../../../types/rider';
-import { formatErrandId } from '../../../utils/formatErrandId';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../config/theme';
+import { MergedErrand } from '../types/rider';
+import { formatErrandId } from '../utils/formatErrandId';
 
 interface WaybillModalProps {
   visible: boolean;

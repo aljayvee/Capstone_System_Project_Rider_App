@@ -28,11 +28,11 @@ import {
 } from 'lucide-react-native';
 import { useRiderAuth } from '../../context/RiderAuthContext';
 import { TacticalGridBackground } from '../../components/TacticalGridBackground';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, Gradients } from '../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, Gradients, useResponsive, moderateScale, scaledFontSize, MAX_CONTENT_WIDTH } from '../../config/theme';
 
 export const LoginScreen = () => {
   const { login, pendingChallenge, verifyLoginOtp, resendLoginOtp, cancelChallenge } = useRiderAuth();
-  const { height: screenHeight } = useWindowDimensions();
+  const { height: screenHeight, isCompact, isTablet } = useResponsive();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [username, setUsername] = useState('');
@@ -532,7 +532,10 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: Spacing.xl + Spacing.xs,
+    paddingHorizontal: Spacing.xl,
+    maxWidth: MAX_CONTENT_WIDTH,
+    width: '100%',
+    alignSelf: 'center',
   },
   heroHeader: {
     alignItems: 'center',
@@ -567,20 +570,20 @@ const styles = StyleSheet.create({
   },
   brandPillText: {
     color: Colors.primary,
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.extrabold,
     letterSpacing: 1.5,
     marginLeft: Spacing.xs,
   },
   portalTitle: {
-    fontSize: FontSizes.xxl,
+    fontSize: scaledFontSize(FontSizes.xxl, 0.20),
     fontWeight: FontWeights.black,
     color: Colors.textDark,
     letterSpacing: 0.3,
     marginTop: Spacing.xxs,
   },
   portalSubtitle: {
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     color: Colors.textGray,
     fontWeight: FontWeights.medium,
     marginTop: Spacing.xxs,
@@ -602,7 +605,7 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     color: Colors.danger,
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.semibold,
     marginLeft: Spacing.md,
     flex: 1,
@@ -618,7 +621,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   fieldLabel: {
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.extrabold,
     color: Colors.textMedium,
     letterSpacing: 0.8,
@@ -634,7 +637,7 @@ const styles = StyleSheet.create({
   },
   inlineErrorText: {
     color: Colors.primary,
-    fontSize: FontSizes.xxs,
+    fontSize: scaledFontSize(FontSizes.xxs, 0.20),
     fontWeight: FontWeights.bold,
   },
   inputWrapper: {
@@ -645,7 +648,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    height: 54, // Ergonomic 54px touch target
+    minHeight: moderateScale(50, 0.20),
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -683,7 +686,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     color: Colors.textDark,
-    fontSize: FontSizes.md,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.medium,
     paddingVertical: 0,
   },
@@ -695,7 +698,7 @@ const styles = StyleSheet.create({
     minWidth: 48,
   },
   loginButtonContainer: {
-    marginTop: Spacing.xxl,
+    marginTop: Spacing.xl,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     shadowColor: Colors.shadow,
@@ -708,7 +711,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   loginButtonGradient: {
-    height: 54, // Ergonomic 54px touch target
+    minHeight: moderateScale(52, 0.20),
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
@@ -721,7 +724,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: Colors.textWhite,
     fontWeight: FontWeights.black,
-    fontSize: FontSizes.md,
+    fontSize: scaledFontSize(FontSizes.md, 0.20),
     letterSpacing: 0.8,
     marginRight: Spacing.sm,
   },
@@ -764,13 +767,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: FontSizes.xl,
+    fontSize: scaledFontSize(FontSizes.xl, 0.20),
     fontWeight: FontWeights.black,
     color: Colors.textDark,
     textAlign: 'center',
   },
   modalSubtitle: {
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.bold,
     color: Colors.primary,
     letterSpacing: 1.2,
@@ -779,7 +782,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   modalBodyText: {
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
     color: Colors.textMedium,
     textAlign: 'center',
     lineHeight: 22,
@@ -789,8 +792,10 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.lg,
+    paddingVertical: moderateScale(12, 0.20),
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -809,7 +814,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   otpSubtitle: {
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.bold,
     color: Colors.success,
     letterSpacing: 1.2,
@@ -829,7 +834,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.lg,
     textAlign: 'center',
-    fontSize: 28,
+    fontSize: scaledFontSize(26, 0.20),
     fontWeight: FontWeights.black,
     letterSpacing: 12,
     color: Colors.textDark,
@@ -843,7 +848,7 @@ const styles = StyleSheet.create({
   },
   otpErrorText: {
     color: Colors.primary,
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.semibold,
     flexShrink: 1,
   },
@@ -851,8 +856,10 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: Colors.success,
     borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.lg,
+    paddingVertical: moderateScale(12, 0.20),
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -870,18 +877,18 @@ const styles = StyleSheet.create({
   },
   otpResendText: {
     color: Colors.success,
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.bold,
   },
   otpCancelText: {
     color: Colors.textGray,
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.semibold,
     marginTop: Spacing.xs,
   },
   modalCloseBtnText: {
     color: Colors.textWhite,
-    fontSize: FontSizes.md,
+    fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.extrabold,
     letterSpacing: 0.5,
   },

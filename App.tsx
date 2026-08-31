@@ -4,6 +4,20 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { useFonts } from 'expo-font';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
+import {
+  JetBrainsMono_500Medium,
+  JetBrainsMono_700Bold,
+  JetBrainsMono_800ExtraBold,
+} from '@expo-google-fonts/jetbrains-mono';
+import * as SplashScreen from 'expo-splash-screen';
+import AnimatedSplashScreen from './src/components/AnimatedSplashScreen';
 
 import { LoginScreen } from './src/modules/auth/LoginScreen';
 import { AuthedNavigator } from './src/navigation/AuthedNavigator';
@@ -11,6 +25,8 @@ import { AuthedNavigator } from './src/navigation/AuthedNavigator';
 import { RiderAuthProvider, useRiderAuth } from './src/context/RiderAuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { Colors } from './src/config/theme';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export type RootStackParamList = {
   Login: undefined;
@@ -21,26 +37,30 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 function AppContent() {
   const { rider, token, isLoading } = useRiderAuth();
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading Sugo Express...</Text>
-      </View>
-    );
-  }
+  const [isSplashComplete, setIsSplashComplete] = React.useState(false);
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!rider || !token ? (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        ) : (
-          <Stack.Screen name="Main" component={AuthedNavigator} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <View style={{ flex: 1 }}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!rider || !token ? (
+            <Stack.Screen name="Login" component={LoginScreen} />
+          ) : (
+            <Stack.Screen name="Main" component={AuthedNavigator} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+
+      {!isSplashComplete && (
+        <AnimatedSplashScreen
+          isAppReady={!isLoading}
+          onAnimationComplete={() => {
+            SplashScreen.hideAsync().catch(() => {});
+            setIsSplashComplete(true);
+          }}
+        />
+      )}
+    </View>
   );
 }
 
@@ -79,6 +99,20 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    JetBrainsMono_500Medium,
+    JetBrainsMono_700Bold,
+    JetBrainsMono_800ExtraBold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>

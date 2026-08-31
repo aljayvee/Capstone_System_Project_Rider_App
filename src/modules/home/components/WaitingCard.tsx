@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Bike } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 
 export function WaitingCard() {
   return (
@@ -10,8 +10,8 @@ export function WaitingCard() {
         <View style={styles.iconContainer}>
           <Bike size={32} color={Colors.textLight} />
         </View>
-        <Text style={styles.title}>Waiting for your next errand</Text>
-        <Text style={styles.description}>The dispatcher will send one through shortly. Keep the app open.</Text>
+        <Text style={styles.title} maxFontSizeMultiplier={1.2}>Waiting for your next errand</Text>
+        <Text style={styles.description} maxFontSizeMultiplier={1.15}>The dispatcher will send one through shortly. Keep the app open.</Text>
       </View>
     </View>
   );
@@ -26,27 +26,29 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   content: {
-    padding: 32,
+    padding: Spacing.xl,
     alignItems: 'center',
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: moderateScale(60, 0.20),
+    height: moderateScale(60, 0.20),
+    borderRadius: moderateScale(30, 0.20),
     backgroundColor: Colors.bgLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   title: {
     color: Colors.textDark,
-    fontSize: FontSizes.xl,
+    fontSize: scaledFontSize(FontSizes.lg, 0.20),
     fontWeight: FontWeights.bold as any,
+    textAlign: 'center',
   },
   description: {
     color: Colors.textGray,
-    fontSize: FontSizes.sm,
-    marginTop: Spacing.md,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    marginTop: Spacing.sm,
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

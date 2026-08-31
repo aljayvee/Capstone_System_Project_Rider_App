@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ClipboardList, Camera } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 import { StatusStep, Errand, MergedErrand } from '../../../types/rider';
 import { requestSections, type RequestSection } from '../../../services/requestSections';
 
@@ -34,7 +34,7 @@ export function RequestItemsPanel({
     <View style={styles.container}>
       <View style={styles.header}>
         <ClipboardList size={14} color={Colors.warning} />
-        <Text style={styles.headerTitle}>Request Items & Instructions</Text>
+        <Text style={styles.headerTitle} maxFontSizeMultiplier={1.2}>Request Items & Instructions</Text>
       </View>
       <View style={styles.content}>
         {sections.map((section, idx) => {
@@ -43,9 +43,15 @@ export function RequestItemsPanel({
 
           return (
             <View key={idx} style={styles.itemBox}>
-              {section.title && <Text style={styles.itemTitle}>{section.title}</Text>}
+              {section.title && <Text style={styles.itemTitle} maxFontSizeMultiplier={1.2}>{section.title}</Text>}
+              {/* Store, then what kind of store, then what to buy there. The
+                  category is the dispatcher's, not a guess — a stop pinned off
+                  the catalogue simply has no line rather than a made-up one. */}
+              {section.storeCategory && (
+                <Text style={styles.itemCategory} maxFontSizeMultiplier={1.15}>{section.storeCategory}</Text>
+              )}
               {section.lines.map((line, lineIdx) => (
-                <Text key={lineIdx} style={styles.itemText}>
+                <Text key={lineIdx} style={styles.itemText} maxFontSizeMultiplier={1.15}>
                   {section.title ? `• ${line}` : line}
                 </Text>
               ))}
@@ -77,6 +83,7 @@ export function RequestItemsPanel({
                       styles.uploadText,
                       { color: isCompleted ? Colors.success : Colors.warning },
                     ]}
+                    maxFontSizeMultiplier={1.15}
                   >
                     {isCompleted ? 'Receipt saved' : isUploading ? 'Reading…' : 'Photograph receipt'}
                   </Text>
@@ -96,7 +103,7 @@ export function RequestItemsPanel({
                   accessibilityLabel={`This shop gives no receipt — photograph the goods for ${section.title ?? 'this stop'} instead`}
                   testID={`no-receipt-${idx}`}
                 >
-                  <Text style={styles.noReceiptText}>This shop gives no receipt</Text>
+                  <Text style={styles.noReceiptText} maxFontSizeMultiplier={1.15}>This shop gives no receipt</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -123,7 +130,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   headerTitle: {
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.bold as any,
     color: Colors.warning,
   },
@@ -137,14 +144,22 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   itemTitle: {
-    fontSize: FontSizes.base,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.bold as any,
     color: Colors.textDark,
-    marginBottom: 2,
+  },
+  itemCategory: {
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    fontWeight: FontWeights.semibold as any,
+    color: Colors.textGray,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 4,
   },
   itemText: {
-    fontSize: FontSizes.base,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     color: Colors.textDark,
+    lineHeight: 20,
   },
   uploadButton: {
     flexDirection: 'row',
@@ -152,7 +167,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.xs,
     marginTop: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    paddingVertical: moderateScale(10, 0.20),
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
     minHeight: 48,
@@ -173,13 +188,13 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   noReceiptText: {
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.semibold as any,
     color: Colors.textMedium,
     textDecorationLine: 'underline',
   },
   uploadText: {
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.semibold as any,
   },
 });

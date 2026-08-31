@@ -11,8 +11,22 @@ import { earningsOf, formatEarnings, totalEarnings } from "../src/utils/earnings
  */
 
 const PINS = [
-  { id: 101, storeName: "Jollibee DT Roundball", latitude: 6.689, longitude: 124.6788, sequence: 0 },
-  { id: 102, storeName: "Primark Save More", latitude: 6.6905, longitude: 124.6742, sequence: 1 },
+  {
+    id: 101,
+    storeName: "Jollibee DT Roundball",
+    storeCategory: "Fast Food & Restaurant",
+    latitude: 6.689,
+    longitude: 124.6788,
+    sequence: 0,
+  },
+  {
+    id: 102,
+    storeName: "Primark Save More",
+    storeCategory: "Grocery",
+    latitude: 6.6905,
+    longitude: 124.6742,
+    sequence: 1,
+  },
 ];
 
 const base = {
@@ -59,8 +73,13 @@ describe("the shopping list the rider is given", () => {
     } as any);
 
     expect(errand.payload).toEqual([
-      { name: "Jollibee DT Roundball", items: ["Burgers"], pinpointId: 101 },
-      { name: "Primark Save More", items: ["Noodles"], pinpointId: 102 },
+      {
+        name: "Jollibee DT Roundball",
+        items: ["Burgers"],
+        pinpointId: 101,
+        storeCategory: "Fast Food & Restaurant",
+      },
+      { name: "Primark Save More", items: ["Noodles"], pinpointId: 102, storeCategory: "Grocery" },
     ]);
   });
 
@@ -83,7 +102,9 @@ describe("the shopping list the rider is given", () => {
       pabiliItemRequests: [],
     } as any);
 
-    expect(errand.payload).toEqual([{ name: "Other items", items: ["Burgers"], pinpointId: null }]);
+    expect(errand.payload).toEqual([
+      { name: "Other items", items: ["Burgers"], pinpointId: null, storeCategory: null },
+    ]);
   });
 
   it("keeps an unfiled item visible beside the filed ones", () => {
@@ -95,8 +116,14 @@ describe("the shopping list the rider is given", () => {
     } as any);
 
     expect(errand.payload).toEqual([
-      { name: "Jollibee DT Roundball", items: ["Burgers"], pinpointId: 101 },
-      { name: "Other items", items: ["Batteries"], pinpointId: null },
+      {
+        name: "Jollibee DT Roundball",
+        items: ["Burgers"],
+        pinpointId: 101,
+        storeCategory: "Fast Food & Restaurant",
+      },
+      // No stop, so no category — never invented as "Other".
+      { name: "Other items", items: ["Batteries"], pinpointId: null, storeCategory: null },
     ]);
   });
 
@@ -160,6 +187,22 @@ describe("the gate that lets a rider leave a store", () => {
     expect(requestSections(errand).map((s) => s.pinpointId)).toEqual([101, 102]);
   });
 
+  it("carries each stop's merchant category down to the rider's list", () => {
+    // Store, then what KIND of store. A rider walking into a mall needs to know
+    // whether they are shopping for groceries or collecting a bill, and the
+    // category is the dispatcher's answer rather than a guess from the name.
+    const errand = mapApiErrandToDomain({
+      ...base,
+      pabiliDetails: [working(1, "Burgers", 1, 101), working(2, "Noodles", 1, 102)],
+      pabiliItemRequests: [],
+    } as any);
+
+    expect(requestSections(errand).map((s) => s.storeCategory)).toEqual([
+      "Fast Food & Restaurant",
+      "Grocery",
+    ]);
+  });
+
   it("needs one receipt for a single-stop errand", () => {
     const errand = mapApiErrandToDomain({
       ...base,
@@ -195,7 +238,10 @@ describe("what the rider is told they will earn", () => {
     const errand = mapApiErrandToDomain({
       ...base,
       deliveryFee: 205,
-      riderEarnings: { riderShare: 143.5, businessShare: 61.5, deliveryFee: 205, tip: 0, commissionRate: 0.7, itemCostExcluded: 5000, isFinal: false },
+      // No businessShare: the server stopped sending the company's cut to riders
+      // (server/src/services/patterns/riderEarnings.ts), so a fixture carrying one
+      // would be describing a payload that no longer exists.
+      riderEarnings: { riderShare: 143.5, deliveryFee: 205, tip: 0, commissionRate: 0.7, itemCostExcluded: 5000, isFinal: false },
       pabiliDetails: [],
       pabiliItemRequests: [],
     } as any);

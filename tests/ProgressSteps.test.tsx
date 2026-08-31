@@ -1,6 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import { ProgressSteps } from '../src/modules/home/components/ProgressSteps';
+import { ProgressSteps } from '../src/modules/task/components/ProgressSteps';
 import { STATUS_STEPS, STEP_META, type StatusStep } from '../src/types/rider';
 
 /**

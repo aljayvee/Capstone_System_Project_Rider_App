@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, ClipboardList, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Home, Navigation, History, UserRound, type LucideIcon } from 'lucide-react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, FontFamily, scaledFontSize, moderateScale } from '../config/theme';
 
 interface TabConfig {
   name: string;
@@ -13,7 +13,8 @@ interface TabConfig {
 
 const TAB_CONFIGS: TabConfig[] = [
   { name: 'Home', label: 'Home', Icon: Home },
-  { name: 'Tasks', label: 'My errands', Icon: ClipboardList },
+  { name: 'Task', label: 'Task', Icon: Navigation },
+  { name: 'History', label: 'My History', Icon: History },
   { name: 'Profile', label: 'Profile', Icon: UserRound },
 ];
 
@@ -84,6 +85,8 @@ export function RiderBottomNav({ state, descriptors, navigation }: BottomTabBarP
                 styles.tabLabel,
                 isFocused ? styles.tabLabelActive : styles.tabLabelInactive,
               ]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.15}
             >
               {label}
             </Text>
@@ -112,10 +115,13 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   tabItem: {
+    // flex rather than a 72dp minimum: with a fourth tab that floor overflowed a
+    // 360dp screen and pushed the last label off the edge.
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 72,
     paddingVertical: 2,
+    paddingHorizontal: 2,
     minHeight: 48,
   },
   iconContainer: {
@@ -126,16 +132,17 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   tabLabel: {
-    fontSize: FontSizes.xs,
+    fontFamily: FontFamily.medium,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     letterSpacing: 0.2,
   },
   tabLabelActive: {
+    fontFamily: FontFamily.bold,
     color: Colors.primary,
-    fontWeight: FontWeights.bold,
   },
   tabLabelInactive: {
+    fontFamily: FontFamily.medium,
     color: Colors.textGray,
-    fontWeight: FontWeights.medium,
   },
 });
 

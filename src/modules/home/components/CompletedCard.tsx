@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { CheckCircle } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 
 import { Errand, MergedErrand } from '../../../types/rider';
 import { formatEarnings } from '../../../utils/earnings';
@@ -21,12 +21,12 @@ export function CompletedCard({ errand, riderFirstName, onAcceptNext }: Complete
       <View style={styles.iconContainer}>
         <CheckCircle size={32} color={Colors.primary} />
       </View>
-      <Text style={styles.title}>Errand delivered</Text>
-      <Text style={styles.subtitle}>Great job, {greetingName}! Payment collected.</Text>
+      <Text style={styles.title} maxFontSizeMultiplier={1.2}>Errand delivered</Text>
+      <Text style={styles.subtitle} maxFontSizeMultiplier={1.15}>Great job, {greetingName}! Payment collected.</Text>
 
       <View style={styles.earningsBox}>
-        <Text style={styles.earningsValue}>{earnings}</Text>
-        <Text style={styles.earningsLabel}>YOU EARNED</Text>
+        <Text style={styles.earningsValue} maxFontSizeMultiplier={1.2}>{earnings}</Text>
+        <Text style={styles.earningsLabel} maxFontSizeMultiplier={1.15}>YOU EARNED</Text>
       </View>
 
       <TouchableOpacity
@@ -34,7 +34,7 @@ export function CompletedCard({ errand, riderFirstName, onAcceptNext }: Complete
         onPress={onAcceptNext}
         accessibilityRole="button"
         accessibilityLabel="Take the next errand">
-        <Text style={styles.buttonText}>Next errand</Text>
+        <Text style={styles.buttonText} maxFontSizeMultiplier={1.15}>Next errand</Text>
       </TouchableOpacity>
     </View>
   );
@@ -43,14 +43,14 @@ export function CompletedCard({ errand, riderFirstName, onAcceptNext }: Complete
 const styles = StyleSheet.create({
   container: {
     borderRadius: BorderRadius.lg,
-    padding: Spacing.xxxl,
+    padding: Spacing.xl,
     alignItems: 'center',
     backgroundColor: Colors.primary,
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: moderateScale(60, 0.20),
+    height: moderateScale(60, 0.20),
+    borderRadius: moderateScale(30, 0.20),
     backgroundColor: Colors.bgWhite,
     alignItems: 'center',
     justifyContent: 'center',
@@ -58,17 +58,18 @@ const styles = StyleSheet.create({
   },
   title: {
     color: Colors.textWhite,
-    fontSize: FontSizes.xl,
+    fontSize: scaledFontSize(FontSizes.xl, 0.20),
     fontWeight: FontWeights.bold as any,
     marginBottom: Spacing.xs,
   },
   subtitle: {
     color: Colors.whiteOverlayText,
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    textAlign: 'center',
   },
   earningsBox: {
-    marginTop: Spacing.xl,
-    padding: Spacing.xl,
+    marginTop: Spacing.lg,
+    padding: Spacing.lg,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.bgWhite,
     alignItems: 'center',
@@ -80,19 +81,19 @@ const styles = StyleSheet.create({
   },
   earningsValue: {
     color: Colors.primary,
-    fontSize: FontSizes.xxxl,
+    fontSize: scaledFontSize(FontSizes.xxl, 0.20),
     fontWeight: FontWeights.black as any,
   },
   earningsLabel: {
     color: Colors.primaryStrong,
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.bold as any,
     letterSpacing: 0.5,
   },
   button: {
-    marginTop: Spacing.xl,
+    marginTop: Spacing.lg,
     width: '100%',
-    paddingVertical: Spacing.lg,
+    paddingVertical: moderateScale(12, 0.20),
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.bgWhite,
     alignItems: 'center',
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: Colors.primary,
-    fontSize: FontSizes.md,
     fontWeight: FontWeights.bold as any,
+    fontSize: scaledFontSize(FontSizes.md, 0.20),
   },
 });

@@ -14,7 +14,7 @@
  */
 export type StatusStep = "Traveling" | "At Store" | "Delivering" | "Delivered";
 
-export type NavTab = "home" | "tasks" | "profile";
+export type NavTab = "home" | "task" | "history" | "profile";
 
 export const STATUS_STEPS: StatusStep[] = ["Traveling", "At Store", "Delivering", "Delivered"];
 
@@ -66,6 +66,12 @@ export interface ErrandPinpoint {
    * car park is further from its pin than a carinderia's whole frontage.
    */
   geofenceRadiusMeters?: number | null;
+  /**
+   * The merchant category the dispatcher filed this stop under, flattened by the
+   * server from the stop's category row. Null for a stop pinned off the
+   * catalogue, which renders as no line rather than as a guess.
+   */
+  storeCategory?: string | null;
   arrivedAt?: string | null;
   departedAt?: string | null;
   latitude: number;
@@ -80,7 +86,12 @@ export interface ErrandPinpoint {
 export interface RiderEarnings {
   /** The headline figure: (deliveryFee x rate) + the whole tip. */
   riderShare: number;
-  businessShare: number;
+  /**
+   * The company's cut is deliberately absent — the server stopped sending it
+   * (see server/src/services/patterns/riderEarnings.ts). It was rendered to
+   * riders as a "Company share" row, which put the business's margin on the
+   * screen of every person it employs on every errand they run.
+   */
   /** The gross fee the split was taken from. */
   deliveryFee: number;
   tip: number;
@@ -140,19 +151,34 @@ export interface Errand {
   createdAt: string;
   updatedAt: string;
   pabiliDetails?: PabiliDetail[];
-  payload?: { name: string; items: string[]; pinpointId: number | null }[];
+  payload?: {
+    name: string;
+    items: string[];
+    pinpointId: number | null;
+    /** The stop's merchant category, shown between the store name and its items. */
+    storeCategory: string | null;
+  }[];
   details?: string;
 }
 
 export interface RiderProfile {
   id: string;
   name: string;
+  /** Held separately from `name` so Edit Account can round-trip them unchanged. */
+  firstName: string;
+  lastName: string;
   initials: string;
   riderId: string;
   phone: string;
   email: string;
   joinDate: string;
   status: "Active" | "Inactive";
+  /**
+   * When the avatar last changed, or null if there is none. A timestamp rather
+   * than the image: it tells the app whether to fetch the bytes at all, and
+   * doubles as the cache key when the rider replaces their photo.
+   */
+  photoUpdatedAt?: string | null;
 }
 
 // ─── Messaging Types ─────────────────────────────────────────────────────────

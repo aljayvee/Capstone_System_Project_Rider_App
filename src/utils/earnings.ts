@@ -45,7 +45,6 @@ export function mergeEarnings(errands: AnyErrand[]): RiderEarnings | undefined {
 
   return {
     riderShare: sum((e) => e.riderShare),
-    businessShare: sum((e) => e.businessShare),
     deliveryFee: sum((e) => e.deliveryFee),
     tip: sum((e) => e.tip),
     itemCostExcluded: sum((e) => e.itemCostExcluded),

@@ -33,3 +33,24 @@ export function formatPeso(value: number): string {
 
   return `${sign}₱${grouped}${centavos ? `.${centavos}` : ""}`;
 }
+
+/**
+ * A timestamp a rider can match against a receipt, to the second.
+ *
+ * `YYYY/MM/DD HH:mm:ss`, in the device's own timezone. Deliberately not
+ * toLocaleDateString: history is where a rider goes to settle an argument about
+ * which errand was which, and a locale-dependent "8/26/2026" is ambiguous
+ * against "26/8/2026" on the next phone. Fixed field order, zero-padded, sorts
+ * correctly as a string.
+ */
+export function formatTimestamp(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  );
+}

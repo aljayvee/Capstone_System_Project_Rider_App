@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Navigation } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 
 interface OfflineCardProps {
   onViewRequests?: () => void;
@@ -19,14 +19,14 @@ export function OfflineCard({ onViewRequests, setShowWaybill }: OfflineCardProps
       <View style={styles.iconContainer}>
         <Navigation size={24} color={Colors.textLight} />
       </View>
-      <Text style={styles.title}>You're offline</Text>
-      <Text style={styles.description}>No signal. Everything you need is saved on this phone — carry on with the errand.</Text>
+      <Text style={styles.title} maxFontSizeMultiplier={1.2}>You're offline</Text>
+      <Text style={styles.description} maxFontSizeMultiplier={1.15}>No signal. Everything you need is saved on this phone — carry on with the errand.</Text>
       <TouchableOpacity
         style={styles.button}
         onPress={handlePress}
         accessibilityRole="button"
         accessibilityLabel="See what to buy, saved on this phone">
-        <Text style={styles.buttonText}>See what to buy</Text>
+        <Text style={styles.buttonText} maxFontSizeMultiplier={1.15}>See what to buy</Text>
       </TouchableOpacity>
     </View>
   );
@@ -44,9 +44,9 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: moderateScale(48, 0.20),
+    height: moderateScale(48, 0.20),
+    borderRadius: moderateScale(24, 0.20),
     backgroundColor: Colors.offlineBg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -54,19 +54,20 @@ const styles = StyleSheet.create({
   },
   title: {
     color: Colors.textWhite,
-    fontSize: FontSizes.md,
+    fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.bold as any,
     marginBottom: Spacing.xs,
   },
   description: {
     color: Colors.textLight,
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     textAlign: 'center',
     marginBottom: Spacing.xl,
+    lineHeight: 18,
   },
   button: {
     width: '100%',
-    paddingVertical: Spacing.lg,
+    paddingVertical: moderateScale(12, 0.20),
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
@@ -80,6 +81,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: Colors.textWhite,
     fontWeight: FontWeights.bold as any,
-    fontSize: FontSizes.md,
+    fontSize: scaledFontSize(FontSizes.md, 0.20),
   },
 });

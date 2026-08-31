@@ -1,32 +1,59 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapCoordinate } from '../utils/coords';
-import { fetchDrivingRoute } from '../services/directionsService';
+import { fetchDrivingRoute, RouteLeg, RouteStep } from '../services/directionsService';
 
 const REFRESH_INTERVAL_MS = 30000;
 
+/**
+ * How soon to try again after a failed fetch.
+ *
+ * The ordinary refresh is half a minute, which is the right cadence for a route
+ * that is already correct. It is far too long to sit on a failure: a rider in a
+ * dead spot for three seconds would otherwise keep a degraded line for thirty.
+ */
+const RETRY_AFTER_FAILURE_MS = 5000;
+
 export interface LiveRouteResult {
   coordinates: MapCoordinate[] | null;
-  /** First leg only: rider → first store (or rider → customer if no waypoints). */
+  /** All store pickup legs. Rendered in Orange-Yellow. */
   pickupLegCoordinates: MapCoordinate[] | null;
-  /** Remaining legs: stores → customer. Null if no waypoints. */
+  /** Customer delivery run. Rendered in Pink-Red. */
   deliveryLegCoordinates: MapCoordinate[] | null;
+  /** Turn-by-turn navigation steps across the route. */
+  steps: RouteStep[];
+  /** Individual route legs with step-level metadata. */
+  legs: RouteLeg[];
   distanceMeters: number | null;
   durationSeconds: number | null;
   isLoading: boolean;
+  /**
+   * True when the line is straight segments between points rather than a road
+   * route. The map draws these dashed — a guessed line that looks identical to a
+   * real one tells the rider to ride through a building.
+   */
+  isFallback: boolean;
+  /** True when this is the last good route and refreshes are currently failing. */
+  isStale: boolean;
+  provider?: string;
+  degraded?: boolean;
 }
 
 const EMPTY_RESULT: LiveRouteResult = {
   coordinates: null,
   pickupLegCoordinates: null,
   deliveryLegCoordinates: null,
+  steps: [],
+  legs: [],
   distanceMeters: null,
   durationSeconds: null,
   isLoading: false,
+  isFallback: false,
+  isStale: false,
 };
 
 /**
- * Builds a direct straight-line polyline connecting the available points
- * ONLY used as a true offline / API failure fallback, never as an initial flash.
+ * Straight lines between the points, used only when there has never been a real
+ * route to show. Never used to REPLACE one — see the failure branch below.
  */
 function buildFallbackRoute(
   origin: MapCoordinate | null,
@@ -50,9 +77,13 @@ function buildFallbackRoute(
       coordinates: allPoints,
       pickupLegCoordinates: pickupLeg,
       deliveryLegCoordinates: deliveryLeg.length >= 2 ? deliveryLeg : null,
+      steps: [],
+      legs: [],
       distanceMeters: null,
       durationSeconds: null,
       isLoading: false,
+      isFallback: true,
+      isStale: false,
     };
   }
 
@@ -60,16 +91,20 @@ function buildFallbackRoute(
     coordinates: allPoints,
     pickupLegCoordinates: null,
     deliveryLegCoordinates: allPoints,
+    steps: [],
+    legs: [],
     distanceMeters: null,
     durationSeconds: null,
     isLoading: false,
+    isFallback: true,
+    isStale: false,
   };
 }
 
 /**
- * Re-fetches a driving route (through the given waypoints, in order) on a
- * fixed interval. If rider location is not yet available, routes between store waypoints
- * and the destination.
+ * Re-fetches a driving route (through the given waypoints, in order) on a fixed
+ * interval. If rider location is not yet available, routes between store
+ * waypoints and the destination.
  */
 export function useLiveRoute(
   origin: MapCoordinate | null,
@@ -94,13 +129,13 @@ export function useLiveRoute(
     const hasRider = Boolean(origin);
     const effectiveOrigin = hasRider ? origin : (currentWaypoints.length > 0 ? currentWaypoints[0] : null);
     const effectiveDestination = destination ?? (currentWaypoints.length > 0 ? currentWaypoints[currentWaypoints.length - 1] : null);
-    const effectiveWaypoints = hasRider ? currentWaypoints : currentWaypoints.slice(1);
 
     if (!effectiveOrigin || !effectiveDestination) {
       return;
     }
 
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const fetchRoute = () => {
       const liveRider = originRef.current;
@@ -112,43 +147,36 @@ export function useLiveRoute(
       setResult((prev) => ({ ...prev, isLoading: !prev.coordinates }));
 
       fetchDrivingRoute(liveOrigin, effectiveDestination, liveWaypoints).then((res) => {
-        if (!cancelled) {
-          if (res && res.coordinates && res.coordinates.length > 0) {
-            // If rider was present with waypoints: leg 0 is pickup, leg 1+ is delivery
-            if (liveRider && currentWaypoints.length > 0) {
-              setResult({
-                coordinates: res.coordinates,
-                pickupLegCoordinates: res.pickupLegCoordinates,
-                deliveryLegCoordinates: res.deliveryLegCoordinates,
-                distanceMeters: res.distanceMeters,
-                durationSeconds: res.durationSeconds,
-                isLoading: false,
-              });
-            } else if (liveRider && currentWaypoints.length === 0) {
-              // Direct rider → customer delivery
-              setResult({
-                coordinates: res.coordinates,
-                pickupLegCoordinates: null,
-                deliveryLegCoordinates: res.coordinates,
-                distanceMeters: res.distanceMeters,
-                durationSeconds: res.durationSeconds,
-                isLoading: false,
-              });
-            } else {
-              // No rider yet: route is store → customer (delivery leg only)
-              setResult({
-                coordinates: res.coordinates,
-                pickupLegCoordinates: null,
-                deliveryLegCoordinates: res.coordinates,
-                distanceMeters: res.distanceMeters,
-                durationSeconds: res.durationSeconds,
-                isLoading: false,
-              });
-            }
-          } else {
-            setResult(buildFallbackRoute(originRef.current, destination, currentWaypoints));
-          }
+        if (cancelled) return;
+
+        if (res && res.coordinates && res.coordinates.length > 0) {
+          const legsKnown = Boolean(liveRider) && currentWaypoints.length > 0;
+          setResult({
+            coordinates: res.coordinates,
+            pickupLegCoordinates: legsKnown ? res.pickupLegCoordinates : null,
+            deliveryLegCoordinates: legsKnown ? res.deliveryLegCoordinates : res.coordinates,
+            steps: res.steps || [],
+            legs: res.legs || [],
+            distanceMeters: res.distanceMeters,
+            durationSeconds: res.durationSeconds,
+            isLoading: false,
+            isFallback: false,
+            isStale: false,
+            provider: res.provider,
+            degraded: res.degraded,
+          });
+          return;
         }
+
+        // The fetch failed. Keep previous good route or fallback
+        setResult((prev) =>
+          prev.coordinates && !prev.isFallback
+            ? { ...prev, isLoading: false, isStale: true }
+            : buildFallbackRoute(originRef.current, destination, currentWaypoints)
+        );
+
+        if (retryTimer) clearTimeout(retryTimer);
+        retryTimer = setTimeout(fetchRoute, RETRY_AFTER_FAILURE_MS);
       });
     };
 
@@ -158,13 +186,10 @@ export function useLiveRoute(
     return () => {
       cancelled = true;
       clearInterval(interval);
+      if (retryTimer) clearTimeout(retryTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destination?.latitude, destination?.longitude, waypointsKey, originLat, originLng]);
 
   return result;
 }
-
-
-
-

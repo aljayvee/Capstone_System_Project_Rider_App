@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { Phone, MapPin } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 
 import { Errand, MergedErrand } from '../../../types/rider';
 
@@ -19,9 +19,9 @@ export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
   return (
     <View style={styles.container}>
       <View style={styles.topRow}>
-        <View>
-          <Text style={styles.name}>{customer}</Text>
-          <Text style={styles.phone}>{customerPhone || 'No phone on file'}</Text>
+        <View style={{ flex: 1, paddingRight: Spacing.sm }}>
+          <Text style={styles.name} numberOfLines={1} maxFontSizeMultiplier={1.2}>{customer}</Text>
+          <Text style={styles.phone} maxFontSizeMultiplier={1.15}>{customerPhone || 'No phone on file'}</Text>
         </View>
         <TouchableOpacity
           style={styles.callButton}
@@ -33,7 +33,7 @@ export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
       </View>
       <View style={styles.addressRow}>
         <MapPin size={14} color={Colors.textLight} style={styles.mapPin} />
-        <Text style={styles.address}>{address}</Text>
+        <Text style={styles.address} numberOfLines={2} maxFontSizeMultiplier={1.15}>{address}</Text>
       </View>
     </View>
   );
@@ -54,12 +54,13 @@ const styles = StyleSheet.create({
   },
   name: {
     color: Colors.textDark,
-    fontSize: FontSizes.base,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.bold as any,
   },
   phone: {
     color: Colors.textGray,
-    fontSize: FontSizes.base,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    marginTop: 2,
   },
   callButton: {
     padding: Spacing.md,
@@ -81,6 +82,7 @@ const styles = StyleSheet.create({
   },
   address: {
     color: Colors.textMedium,
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    flex: 1,
   },
 });

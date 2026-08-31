@@ -10,6 +10,13 @@ export interface RequestSection {
   name: string;
   /** The stop this list was pinned to, when the items carry one. */
   pinpointId: number | null;
+  /**
+   * The merchant category the dispatcher filed the stop under — "Grocery",
+   * "Pharmacy", "Fast Food & Restaurant". Shown between the store name and the
+   * items so a rider walking into a mall knows what kind of counter to look for.
+   * Null for the flat legacy form and for items with no stop.
+   */
+  storeCategory: string | null;
 }
 
 /**
@@ -33,6 +40,7 @@ export function requestSections(errand?: MergedErrand | Errand | null): RequestS
       lines: group.items,
       name: group.name,
       pinpointId: group.pinpointId ?? null,
+      storeCategory: group.storeCategory ?? null,
     }));
   }
 
@@ -52,6 +60,7 @@ export function requestSections(errand?: MergedErrand | Errand | null): RequestS
       lines: [formatted],
       name: formatted.split(':')[0],
       pinpointId: null,
+      storeCategory: null,
     };
   });
 }

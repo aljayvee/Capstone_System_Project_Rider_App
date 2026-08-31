@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, FontFamily } from '../config/theme';
 
-import { Errand, MergedErrand } from '../../../types/rider';
-import { formatPeso } from '../../../utils/format';
+import { Errand, MergedErrand } from '../types/rider';
+import { formatPeso } from '../utils/format';
 
 interface FeeBreakdownPanelProps {
   errand: MergedErrand | Errand;
@@ -21,6 +21,12 @@ const peso = formatPeso;
  * The item line is the part that matters most. A rider handed ₱500 of company
  * cash for the shopping needs to see it named as the company's, or a large total
  * invites the assumption that some of it is theirs to keep.
+ *
+ * There is no "Company share" row. It used to sit directly above the rider's own
+ * total, which put the business's margin on the screen of every person it employs,
+ * on every errand they run, next to the smaller number they take home. The field
+ * is gone from the payload as well (server/src/services/patterns/riderEarnings.ts),
+ * so this is not a hidden row — there is nothing to hide.
  */
 export function FeeBreakdownPanel({ errand }: FeeBreakdownPanelProps) {
   const earnings = errand.riderEarnings;
@@ -56,11 +62,6 @@ export function FeeBreakdownPanel({ errand }: FeeBreakdownPanelProps) {
             <Text style={styles.value} testID="fee-tip">{peso(earnings.tip)}</Text>
           </View>
         )}
-        <View style={styles.row}>
-          <Text style={styles.label}>Company share</Text>
-          <Text style={styles.value} testID="fee-business-share">{peso(earnings.businessShare)}</Text>
-        </View>
-
         <View style={[styles.row, styles.totalRow]}>
           <Text style={styles.totalLabel}>You earn</Text>
           <Text style={styles.totalValue} testID="fee-total-earnings">{peso(earnings.riderShare)}</Text>
@@ -89,9 +90,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   title: {
+    fontFamily: FontFamily.bold,
     color: Colors.success,
     fontSize: FontSizes.base,
-    fontWeight: FontWeights.bold as any,
     marginBottom: Spacing.md,
   },
   rows: {
@@ -103,13 +104,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
+    fontFamily: FontFamily.regular,
     color: Colors.textMedium,
     fontSize: FontSizes.base,
   },
   value: {
+    fontFamily: FontFamily.mono,
     color: Colors.textDark,
     fontSize: FontSizes.base,
-    fontWeight: FontWeights.semibold as any,
   },
   totalRow: {
     borderTopWidth: 1,
@@ -119,14 +121,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   totalLabel: {
+    fontFamily: FontFamily.bold,
     color: Colors.success,
     fontSize: FontSizes.md,
-    fontWeight: FontWeights.bold as any,
   },
   totalValue: {
+    fontFamily: FontFamily.monoBold,
     color: Colors.success,
     fontSize: FontSizes.md,
-    fontWeight: FontWeights.extrabold as any,
   },
   // Set apart from the earnings rows on purpose: this money is not part of the
   // total above it, and must not read as though it were.
@@ -137,14 +139,15 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   itemLabel: {
+    fontFamily: FontFamily.medium,
     color: Colors.textMedium,
     fontSize: FontSizes.sm,
     flexShrink: 1,
     paddingRight: Spacing.sm,
   },
   itemValue: {
+    fontFamily: FontFamily.mono,
     color: Colors.textMedium,
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semibold as any,
   },
 });

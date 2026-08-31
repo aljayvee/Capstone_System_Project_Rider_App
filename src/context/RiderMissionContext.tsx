@@ -4,6 +4,7 @@ import { useRiderLocationBroadcast, type RiderOwnLocation } from '../hooks/useRi
 import { useRiderMissionSocket } from '../hooks/useRiderMissionSocket';
 import { useRegisterPushToken } from '../hooks/useRegisterPushToken';
 import { useStoreArrival, type StoreArrivalState } from '../hooks/useStoreArrival';
+import { useOfferReminder } from '../hooks/useOfferReminder';
 import { useRiderAuth } from './RiderAuthContext';
 
 interface RiderMissionContextValue extends UseRiderMissionReturn {
@@ -16,7 +17,7 @@ interface RiderMissionContextValue extends UseRiderMissionReturn {
 const RiderMissionContext = createContext<RiderMissionContextValue | undefined>(undefined);
 
 // Hoists the single copy of mission state, the GPS watch, and the real-time
-// socket listener so every screen (Home, Tasks, the live map) observes the
+// socket listener so every screen (Home, Task, History, Profile) observes the
 // same data instead of each mounting its own independent useRiderMission().
 export const RiderMissionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { rider, isOnline: isOnDuty } = useRiderAuth();
@@ -36,6 +37,11 @@ export const RiderMissionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const { connected: socketConnected } = useRiderMissionSocket(rider?.id, mission.refresh);
   useRegisterPushToken(rider?.id, mission.refresh);
+
+  // The nudge for an offer nobody has looked at yet. Here rather than on Home so
+  // it survives the rider being on another tab, or the app being backgrounded —
+  // which is the only situation it exists for.
+  useOfferReminder(mission.phase === 'offered', mission.errand?.id);
 
   // Reaching a store advances the step on its own. Hoisted here beside the GPS
   // watch so it runs once for the session rather than per screen — mounting it

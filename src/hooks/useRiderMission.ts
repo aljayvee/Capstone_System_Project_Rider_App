@@ -52,6 +52,17 @@ export interface UseRiderMissionReturn {
   completedSubtasks: Record<number, boolean>;
   uploadingSubtask: number | null;
   activeMissions: Errand[] | null;
+  /**
+   * Errands the dispatcher has put to this rider that they have not answered yet.
+   * These are the Home tab's accept/decline cards.
+   *
+   * Split out of `activeMissions`, which used to hold offers and accepted work in
+   * one array. That single list is why the offer card and the progress tracker
+   * had to live on the same screen: nothing could tell them apart.
+   */
+  offeredErrands: Errand[];
+  /** Errands the rider has accepted and is running. The Task tab's contents. */
+  activeErrands: Errand[];
   isMissionAccepted: boolean;
   isAccepting: boolean;
   showDeclineModal: boolean;
@@ -105,7 +116,12 @@ export interface UseRiderMissionReturn {
   dismissBanner: () => void;
 }
 
-const ACTIVE_STATUSES: Errand["status"][] = ["Assigned", "Traveling"];
+// "Assigned" is an offer awaiting an answer; "Traveling" is work in progress.
+// ACTIVE_STATUSES keeps both because the merged `errand`, the accept/decline
+// calls and the offline cache all still operate on the pair.
+const OFFERED_STATUSES: Errand["status"][] = ["Assigned"];
+const ACCEPTED_STATUSES: Errand["status"][] = ["Traveling"];
+const ACTIVE_STATUSES: Errand["status"][] = [...OFFERED_STATUSES, ...ACCEPTED_STATUSES];
 
 export function useRiderMission(): UseRiderMissionReturn {
   const { rider } = useRiderAuth();
@@ -183,6 +199,12 @@ export function useRiderMission(): UseRiderMissionReturn {
         setRiderProfile({
           id: String(prof.id ?? rider?.id),
           name,
+          // Kept apart from the joined `name` so the edit form can round-trip
+          // them. Splitting a display name back into parts guesses wrong on
+          // anyone with two given names or a compound surname.
+          firstName: prof.firstName || name.split(" ")[0] || "",
+          lastName: prof.lastName || name.split(" ").slice(1).join(" ") || "",
+          photoUpdatedAt: prof.photoUpdatedAt ?? null,
           initials,
           riderId: `RDR-${String(prof.id ?? rider?.id).padStart(3, "0")}`,
           phone: prof.phone || "",
@@ -261,6 +283,18 @@ export function useRiderMission(): UseRiderMissionReturn {
       details: activeMissions.map((e) => e.details).filter(Boolean).join(" | "),
     };
   }, [activeMissions]);
+
+  // Two halves of one array, each with a screen of its own. Derived rather than
+  // stored so there is still exactly one source of truth for what the rider has.
+  const offeredErrands = useMemo(
+    () => (activeMissions ?? []).filter((e) => OFFERED_STATUSES.includes(e.status)),
+    [activeMissions]
+  );
+
+  const activeErrands = useMemo(
+    () => (activeMissions ?? []).filter((e) => ACCEPTED_STATUSES.includes(e.status)),
+    [activeMissions]
+  );
 
   const completedToday = useMemo(() => {
     const todayStr = new Date().toDateString();
@@ -574,6 +608,8 @@ export function useRiderMission(): UseRiderMissionReturn {
     cancelReceiptCapture,
     uploadingSubtask,
     activeMissions,
+    offeredErrands,
+    activeErrands,
     isMissionAccepted,
     isAccepting,
     showDeclineModal,

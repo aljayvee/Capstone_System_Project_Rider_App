@@ -11,6 +11,8 @@ import {
 } from '../tasks/locationTrackingTask';
 import { evaluateFix, distanceMeters, type Fix } from '../utils/locationQuality';
 import { createClientPointId, enqueuePoint } from '../services/locationQueue';
+import * as Notifications from 'expo-notifications';
+import { riderApiService } from '../config/apiConfig';
 
 export interface RiderOwnLocation {
   latitude: number;
@@ -28,6 +30,20 @@ export interface RiderOwnLocation {
 }
 
 type TrackingMode = 'idle' | 'active';
+
+/**
+ * How often the presence beacon goes up.
+ *
+ * Slower than the live Firebase pin and completely separate from it. The pin is
+ * for watching a rider move; this is for answering "can I dispatch to them", and
+ * that question does not need a coordinate every two seconds.
+ *
+ * Roughly 120 requests an hour while idle, at about a kilobyte a minute, and no
+ * extra GPS draw at all — the location task is already running. That is the whole
+ * price of making an idle rider visible to dispatch.
+ */
+const BEACON_INTERVAL_IDLE_MS = 30000;
+const BEACON_INTERVAL_ACTIVE_MS = 10000;
 
 // Idle cadence (on-duty, no active delivery) trades precision for battery —
 // riders can stay on-duty for a whole shift. Active-delivery cadence matches
@@ -94,8 +110,13 @@ export function useRiderLocationBroadcast(
   // and a null activeErrandId until they toggled duty off and on again.
   const isActiveDeliveryRef = useRef(isActiveDelivery);
   const activeErrandIdRef = useRef(activeErrandId);
+  // Read through a ref for the same reason: the beacon is sent from inside the
+  // long-lived GPS subscription, which must not be torn down and rebuilt every
+  // time the rider toggles duty.
+  const isOnDutyRef = useRef(isOnDuty);
   isActiveDeliveryRef.current = isActiveDelivery;
   activeErrandIdRef.current = activeErrandId;
+  isOnDutyRef.current = isOnDuty;
 
   // The background task runs headless, outside React, so it cannot read this
   // from props — it reads the current errand from storage instead.
@@ -125,10 +146,86 @@ export function useRiderLocationBroadcast(
   // Records whether each buffered point was captured during an outage. Purely
   // informational on the server side, but it is what makes an offline stretch
   // visible in a dispute replay instead of looking like a gap.
+  /**
+   * Builds and sends one presence beacon.
+   *
+   * Reports conditions rather than asserting readiness: the server decides what
+   * the rider counts as, so the device and the dispatcher can never hold two
+   * different opinions about who is available.
+   */
+  const sendBeacon = useCallback(
+    async (fix: Fix | null, shuttingDown = false) => {
+      if (!riderIdRef.current) return;
+
+      let notifications = false;
+      try {
+        notifications = (await Notifications.getPermissionsAsync()).granted;
+      } catch {
+        // A permissions probe that throws is not a granted permission.
+      }
+
+      await riderApiService.sendBeacon({
+        latitude: fix?.latitude ?? null,
+        longitude: fix?.longitude ?? null,
+        accuracyMeters: fix?.accuracyMeters ?? null,
+        headingDeg: fix?.headingDeg ?? null,
+        recordedAt: fix ? new Date(fix.timestamp).toISOString() : null,
+        onDuty: isOnDutyRef.current,
+        // Granted AND running. The permission alone is not evidence the OS let
+        // the task survive, and this whole mechanism exists because Android kills
+        // things that look permitted.
+        backgroundLocation: backgroundTaskActiveRef.current,
+        notifications,
+        // PLACEHOLDER, and knowingly so: Expo exposes no API to query
+        // SCHEDULE_EXACT_ALARM, so this cannot yet be measured. Sent as true so
+        // it never silently blocks dispatch on a value nobody checked. It must
+        // become a real probe — a small native module — before the server can
+        // honestly gate on it.
+        exactAlarms: true,
+        // Reported so the server can size its staleness window to the cadence
+        // actually in use. Fixed at 10s while the server assumed nothing, an idle
+        // rider beaconing every 30s counted as out of contact between every pair
+        // of beacons, and auto-assign answered "no available riders" for a fleet
+        // that was working.
+        beaconIntervalMs: isActiveDeliveryRef.current
+          ? BEACON_INTERVAL_ACTIVE_MS
+          : BEACON_INTERVAL_IDLE_MS,
+        connectivity: connectivityRef.current,
+        shuttingDown,
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    sendBeaconRef.current = (fix: Fix) => sendBeacon(fix);
+  }, [sendBeacon]);
+
+  // One beacon the moment duty changes, without waiting for the next GPS fix.
+  //
+  // Going off duty is the case that matters: silence alone would leave the rider
+  // looking AVAILABLE for the full ten-second window and could win them an errand
+  // they have just declared themselves unavailable for.
+  useEffect(() => {
+    if (!riderId) return;
+    void sendBeacon(lastAcceptedFixRef.current);
+  }, [riderId, isOnDuty, sendBeacon]);
+
+  const lastBeaconAtRef = useRef(0);
+  const sendBeaconRef = useRef<((fix: Fix) => Promise<void>) | null>(null);
+  const connectivityRef = useRef<'wifi' | 'cellular' | 'none'>('none');
   const isConnectedRef = useRef(true);
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       isConnectedRef.current = Boolean(state.isConnected && state.isInternetReachable !== false);
+      // Reported for diagnosis only. Eligibility never turns on connection
+      // quality — the spec counts slow, medium and fast all as available, and a
+      // beacon that arrived is proof enough that the rider is reachable.
+      connectivityRef.current = !isConnectedRef.current
+        ? 'none'
+        : state.type === 'wifi'
+          ? 'wifi'
+          : 'cellular';
     });
     return () => unsubscribe();
   }, []);
@@ -347,6 +444,21 @@ export function useRiderLocationBroadcast(
                 status: isActiveDeliveryRef.current ? 'BUSY' : 'AVAILABLE',
                 activeErrandId: activeErrandIdRef.current ?? null,
               }).catch(() => {});
+            }
+
+            // Presence beacon: sent whether or not an errand exists.
+            //
+            // This is the line that closes the gap. Everything below it is
+            // errand-scoped and returns early when idle, which is exactly why an
+            // idle rider used to be invisible to dispatch — they streamed
+            // coordinates to Firebase all shift and told the backend nothing.
+            const beaconGap = fix.timestamp - lastBeaconAtRef.current;
+            const beaconEvery = isActiveDeliveryRef.current
+              ? BEACON_INTERVAL_ACTIVE_MS
+              : BEACON_INTERVAL_IDLE_MS;
+            if (beaconGap >= beaconEvery) {
+              lastBeaconAtRef.current = fix.timestamp;
+              void sendBeaconRef.current?.(fix);
             }
 
             // Durable breadcrumb: buffered locally and uploaded in batches, so a

@@ -21,6 +21,53 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
   }
 }
 
+/** What the device reports about itself on every beacon. */
+export interface RiderBeacon {
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracyMeters?: number | null;
+  headingDeg?: number | null;
+  recordedAt?: string | null;
+  onDuty: boolean;
+  /** Permission granted AND the background task confirmed running. */
+  backgroundLocation: boolean;
+  notifications: boolean;
+  exactAlarms: boolean;
+  connectivity?: "wifi" | "cellular" | "none" | null;
+  /**
+   * The cadence this device is beaconing at, in ms.
+   *
+   * The server sizes its staleness window from this rather than assuming one.
+   * Only the device knows whether it is idle or on an errand, and the two
+   * cadences differ threefold.
+   */
+  beaconIntervalMs?: number;
+  /** Sent once, on the way down, so the server need not guess at silence. */
+  shuttingDown?: boolean;
+}
+
+/** The server's reading of that beacon, echoed back so the rider can be told. */
+export interface RiderBeaconResult {
+  riderId: number;
+  state: "AVAILABLE" | "SIGNAL_LOST" | "OFFLINE" | "NEEDS_PERMISSIONS" | "OFF_DUTY" | "LOGGED_OUT";
+  dispatchable: boolean;
+  impediments: Array<"background_location" | "notifications" | "exact_alarms">;
+  beaconAgeMs: number | null;
+  presumed: boolean;
+}
+
+/** One proof photo as the list endpoint describes it — no bytes. */
+export interface ProofImageMeta {
+  id: number;
+  kind: "RECEIPT" | "NO_RECEIPT" | "TRANSFER" | "PROOF_OF_DELIVERY";
+  mimeType: string;
+  byteSize: number;
+  capturedAt: string;
+  pinpointId: number | null;
+  verified: boolean;
+  declaredTotal?: number | null;
+}
+
 export const riderApiService = {
   async fetchRiderProfile(riderId: number): Promise<any> {
     try {
@@ -88,6 +135,103 @@ export const riderApiService = {
     } catch (err) {
       console.warn("Failed to mark items purchased:", err);
       return false;
+    }
+  },
+
+  /**
+   * The proof photos filed against one errand — receipts, no-receipt shots of the
+   * goods, and the handover at the door. Metadata only: the list endpoint omits
+   * the blobs on purpose, because a history screen showing ten past errands would
+   * otherwise download ten megabytes to draw ten thumbnails.
+   */
+  async fetchProofImages(errandId: string): Promise<ProofImageMeta[]> {
+    try {
+      const res = await apiClient.get(`/errands/${errandId}/proof-images`);
+      return Array.isArray(res.data) ? res.data : (res.data?.images ?? []);
+    } catch (err) {
+      console.warn("Failed to fetch proof images:", err);
+      return [];
+    }
+  },
+
+  /**
+   * One image, as a data URI ready to hand straight to <Image source={{ uri }}>.
+   *
+   * The server stores RAW base64, not a data URI — proofImageService.stripDataUri
+   * removes the `data:image/...;base64,` prefix on upload — and returns it that
+   * way alongside its mimeType. Passing that raw string to <Image> silently
+   * fails: the component mounts and renders an empty grey box rather than
+   * erroring, which is exactly what it did here.
+   *
+   * Rebuilt from mimeType the same way the dispatcher dashboard does it
+   * (ExceptionEvidence.tsx). The guard covers any row already carrying a prefix.
+   */
+  async fetchProofImage(errandId: string, imageId: number): Promise<string | null> {
+    try {
+      const res = await apiClient.get(`/errands/${errandId}/proof-images/${imageId}`);
+      const imageData: string | undefined = res.data?.imageData;
+      if (!imageData) return null;
+      if (imageData.startsWith("data:")) return imageData;
+      const mimeType: string = res.data?.mimeType || "image/jpeg";
+      return `data:${mimeType};base64,${imageData}`;
+    } catch (err) {
+      console.warn("Failed to fetch proof image:", err);
+      return null;
+    }
+  },
+
+  /**
+   * The rider's own account details. Throws rather than swallowing, because this
+   * is a form submission — a rider who is told nothing went wrong, and whose
+   * changes did not save, will not try again.
+   */
+  async updateProfile(
+    userId: string | number,
+    input: { firstName?: string; lastName?: string; email?: string; phone?: string }
+  ): Promise<any> {
+    const res = await apiClient.put(`/users/profile/${userId}`, input);
+    return res.data;
+  },
+
+  /** Sets or replaces the avatar. Same 5MB jpeg/jpg/png rules the server enforces. */
+  async uploadProfilePhoto(
+    riderId: string | number,
+    photo: { photoData: string; mimeType: string; fileSize: number; fileName?: string }
+  ): Promise<any> {
+    const res = await apiClient.put(`/riders/${riderId}/photo`, photo);
+    return res.data;
+  },
+
+  /** The avatar bytes, or null when the rider has not set one. */
+  async fetchProfilePhoto(riderId: string | number): Promise<string | null> {
+    try {
+      const res = await apiClient.get(`/riders/${riderId}/photo`);
+      return res.data?.photoData ?? null;
+    } catch (err: any) {
+      // 404 is the ordinary "no photo set" answer, not a failure worth logging.
+      if (err?.response?.status !== 404) console.warn("Failed to fetch profile photo:", err);
+      return null;
+    }
+  },
+
+  /**
+   * The presence beacon: where the rider is and whether an offer could reach them.
+   *
+   * Deliberately not tied to an errand — that is the entire point. The breadcrumb
+   * endpoint refuses any errand that is not ASSIGNED or IN_TRANSIT, so an idle
+   * rider had no way to tell the backend anything, and dispatch could not rank a
+   * fleet that had not already been dispatched to.
+   *
+   * Fails soft: a dropped beacon is not worth an error path on the device. The
+   * server treats silence as SIGNAL_LOST on its own, which is the correct reading
+   * of a beacon that did not arrive.
+   */
+  async sendBeacon(payload: RiderBeacon): Promise<RiderBeaconResult | null> {
+    try {
+      const res = await apiClient.post(`/riders/beacon`, payload);
+      return res.data ?? null;
+    } catch {
+      return null;
     }
   },
 

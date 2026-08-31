@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Navigation, Package, CheckCircle, Bike, type LucideIcon } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 import { StatusStep, STATUS_STEPS, STEP_META } from '../../../types/rider';
 
 interface ProgressStepsProps {
@@ -30,7 +30,7 @@ const icons: Record<StatusStep, LucideIcon> = {
 export function ProgressSteps({ currentStatus, stepIndex }: ProgressStepsProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Progress</Text>
+      <Text style={styles.title} maxFontSizeMultiplier={1.2}>Progress</Text>
       <View style={styles.stepsContainer}>
         {STATUS_STEPS.map((step, i) => {
           const Icon = icons[step];
@@ -59,13 +59,14 @@ export function ProgressSteps({ currentStatus, stepIndex }: ProgressStepsProps) 
                     fontWeight: (active ? FontWeights.bold : done ? FontWeights.medium : FontWeights.normal) as any,
                   }
                 ]}
+                maxFontSizeMultiplier={1.15}
               >
                 {STEP_META[step].label}
               </Text>
               {done && <CheckCircle size={14} color={Colors.primary} style={styles.checkIcon} />}
               {active && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>CURRENT</Text>
+                  <Text style={styles.badgeText} maxFontSizeMultiplier={1.15}>CURRENT</Text>
                 </View>
               )}
             </View>
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: Colors.textMedium,
-    fontSize: FontSizes.base,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.semibold as any,
     marginBottom: Spacing.md,
   },
@@ -95,14 +96,14 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   iconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: moderateScale(28, 0.20),
+    height: moderateScale(28, 0.20),
+    borderRadius: moderateScale(14, 0.20),
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepLabel: {
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
   },
   checkIcon: {
     marginLeft: 'auto',
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: Colors.primary,
-    fontSize: 10,
+    fontSize: scaledFontSize(10, 0.20),
     fontWeight: FontWeights.bold as any,
   },
 });

@@ -9,6 +9,8 @@ export interface ApiErrandPinpoint {
   latitude: number | string;
   longitude: number | string;
   sequence: number;
+  /** Flattened from the stop's category by the server's attachErrandNames. */
+  storeCategory?: string | null;
 }
 
 export interface ApiErrand {
@@ -82,6 +84,7 @@ export function mapApiErrandToDomain(api: ApiErrand): DomainErrand {
     .map((p) => ({
       id: p.id,
       storeName: p.storeName,
+      storeCategory: p.storeCategory ?? null,
       latitude: Number(p.latitude),
       longitude: Number(p.longitude),
       sequence: p.sequence,
@@ -186,7 +189,12 @@ function groupItemsByStore(
     if (forStop.length > 0) {
       // The stop id rides along so the receipt photographed here is filed
       // against this store rather than the errand at large.
-      groups.push({ name: stop.storeName, items: forStop.map(label), pinpointId: stop.id });
+      groups.push({
+        name: stop.storeName,
+        items: forStop.map(label),
+        pinpointId: stop.id,
+        storeCategory: stop.storeCategory ?? null,
+      });
     }
   }
 
@@ -194,7 +202,14 @@ function groupItemsByStore(
     (i) => !i.pinpointId || !(pinpoints ?? []).some((p) => p.id === i.pinpointId)
   );
   if (unattached.length > 0) {
-    groups.push({ name: "Other items", items: unattached.map(label), pinpointId: null });
+    // No stop, so no category to name. Null rather than "Other" — a category the
+    // dispatcher never chose should not be invented for the rider to shop by.
+    groups.push({
+      name: "Other items",
+      items: unattached.map(label),
+      pinpointId: null,
+      storeCategory: null,
+    });
   }
 
   return groups;

@@ -116,8 +116,13 @@ export const LightColors = {
   // pinned stores, and the pink-red only appears once every stop is done and
   // the rider is heading to the customer. A rider reads the colour before they
   // read anything else on that screen.
-  routeToStore: "#F97316",
-  routeToCustomer: "#DC2626",
+  routeToStore: "#F59E0B",
+  routeToCustomer: "#0284C7",
+  routePreview: "#94A3B8",
+
+  hudCardUrgentBg: "#162A45",
+  maneuverUrgent: "#10B981",
+  maneuverAlert: "#F59E0B",
 
   /** The presence dot in the header. Non-text, so 3:1 against its ground. */
   onlineDot: "#10B981",
@@ -125,9 +130,9 @@ export const LightColors = {
 
   /**
    * A camera viewfinder's ground. Deliberately true black in BOTH themes: it
-   * sits behind a live preview, where anything else shows as a coloured halo
-   * around the frame.
-   */
+  * sits behind a live preview, where anything else shows as a coloured halo
+  * around the frame.
+  */
   viewfinder: "#000000",
 
   /** shadowColor. A token so the dark theme can soften it rather than
@@ -205,8 +210,13 @@ export const DarkColors: Record<keyof typeof LightColors, string> = {
   onInfo: "#1F2937",
   onNavy: "#1F2937",
 
-  routeToStore: "#FB923C",
-  routeToCustomer: "#F87171",
+  routeToStore: "#FBBF24",
+  routeToCustomer: "#38BDF8",
+  routePreview: "#64748B",
+
+  hudCardUrgentBg: "#1E293B",
+  maneuverUrgent: "#34D399",
+  maneuverAlert: "#FBBF24",
 
   onlineDot: "#34D399",
   offlineDot: "#A9B0BD",
@@ -228,15 +238,19 @@ export const DarkColors: Record<keyof typeof LightColors, string> = {
 export const Colors = LightColors;
 export type ThemeColors = Record<keyof typeof LightColors, string>;
 
+export const FontFamily = {
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+  mono: 'JetBrainsMono_500Medium',
+  monoBold: 'JetBrainsMono_700Bold',
+  monoExtraBold: 'JetBrainsMono_800ExtraBold',
+} as const;
+
 /**
- * Sizes in sp, raised so the app is legible on a phone rather than at desk
- * distance.
- *
- * The old scale came from a web dashboard prototype whose rem values were
- * carried across as React Native pixels: body text was 13 and labels were 10.
- * Material treats 16sp as body and 14sp as the practical floor, and this app is
- * read outdoors, in motion, in bright sun. Every step below `sm` is for
- * decoration — a badge, a caption — never for anything a rider must act on.
+ * Sizes in sp, calibrated to the Samsung Galaxy A04 reference baseline.
+ * Material treats 16sp as body and 14sp as practical floor.
  */
 export const FontSizes = {
   xxs: 11,
@@ -265,22 +279,41 @@ export const FontWeights = {
 export const Spacing = {
   xxs: 2,
   xs: 4,
-  sm: 6,
-  md: 8,
-  lg: 12,
-  xl: 16,
-  xxl: 20,
-  xxxl: 24,
-  huge: 32,
+  sm: 8,
+  md: 14,
+  lg: 18,
+  xl: 24,
+  xxl: 30,
+  xxxl: 36,
+  huge: 40,
 } as const;
 
 export const BorderRadius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
+  sm: 6,
+  md: 10,
+  lg: 14,
   xl: 20,
   xxl: 24,
   full: 9999,
+} as const;
+
+export const Shadows = {
+  // Soft card lift
+  soft: {
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  // Upward-cast shadow for surfaces anchored to the bottom of the screen
+  liftedUp: {
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
+  },
 } as const;
 
 /**
@@ -300,3 +333,18 @@ export const Gradients = {
 
 /** Material's minimum touch target, in dp. Referenced by controls directly. */
 export const TOUCH_TARGET = 48;
+
+// Responsive Layout & Container Tokens
+export {
+  scale,
+  verticalScale,
+  moderateScale,
+  moderateVerticalScale,
+  scaledFontSize,
+  useResponsive,
+  Breakpoints,
+  MAX_CONTENT_WIDTH,
+  getDeviceCategory,
+  getAspectRatioCategory,
+  clamp,
+} from '../utils/responsive';

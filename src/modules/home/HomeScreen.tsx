@@ -1,343 +1,139 @@
 import React from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
-import type { AuthedStackParamList } from '../../navigation/AuthedNavigator';
+import type { MainTabParamList } from '../../navigation/AuthedNavigator';
 import RiderHeader from '../../components/RiderHeader';
 import { StatusBanner } from '../../components/StatusBanner';
-import {
-  OfflineCard,
-  WaitingCard,
-  NewTaskCard,
-  CustomerDetailsPanel,
-  RequestItemsPanel,
-  FeeBreakdownPanel,
-  ProgressSteps,
-  CashCollectionInput,
-  CompletedCard,
-  DeclineModal,
-  UploadModal,
-  WaybillModal
-} from './components';
-import FloatingChatButton from '../chat/FloatingChatButton';
-import DispatcherChatModal from '../chat/DispatcherChatModal';
-import { Package, ChevronRight, Map, FileText, Layers, MapPin, Info, Camera } from 'lucide-react-native';
-import { Colors, Spacing, BorderRadius, FontSizes, FontWeights } from '../../config/theme';
-import { STEP_META } from '../../types/rider';
+import { FeeBreakdownPanel } from '../../components/FeeBreakdownPanel';
+import { WaybillModal } from '../../components/WaybillModal';
+import { OfflineCard, WaitingCard, NewTaskCard, CompletedCard, DeclineModal } from './components';
+import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
 import { formatErrandId } from '../../utils/formatErrandId';
-import { errandGate, nextAction } from '../../services/errandGate';
-import ReceiptCaptureScreen from '../../screens/ReceiptCaptureScreen';
 
+/**
+ * The decision screen: what has been offered, and whether to take it.
+ *
+ * This used to be the whole app. Six hundred lines switching on `phase` to be,
+ * in turn, the offer card, the queue switcher, the customer panel, the shopping
+ * list, the fee breakdown, the progress stepper, the cash input and the advance
+ * button — so a rider halfway to a store scrolled past an accept/decline card
+ * for a different errand, and a rider deciding whether to accept scrolled past a
+ * progress stepper for one already in hand.
+ *
+ * Everything a rider does after saying yes now lives on the Task tab. What is
+ * left here is the one question this screen exists to ask.
+ */
 export default function HomeScreen() {
   const mission = useRiderMissionContext();
-  const navigation = useNavigation<StackNavigationProp<AuthedStackParamList>>();
-  const [selectedMissionIndex, setSelectedMissionIndex] = React.useState(0);
-
-  // Accepting a job means the rider is about to start driving, so the pinned map
-  // is the next thing they need — it was previously reachable only by finding a
-  // button further down the home screen. Navigation lives here rather than in
-  // useRiderMission so the hook stays free of routing concerns.
-  const handleAcceptAndNavigate = React.useCallback(async () => {
-    await mission.acceptMission();
-    navigation.navigate('LiveErrandMap');
-  }, [mission, navigation]);
+  // The nearest navigator here is the TAB navigator, not the outer stack —
+  // useNavigation resolves to whichever encloses this screen. Typing it as the
+  // stack compiled only because the jump below was cast to `never`.
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
 
   const {
     phase,
     isOffline,
-    currentStatus,
+    offeredErrands,
     errand,
-    activeMissions,
-    completedSubtasks,
-    stepIndex,
-    paymentMode,
-    collectedAmount,
-    advanceStatus,
-    setShowWaybill,
-    isDelivered,
     errorMessage,
     refresh,
-    isMissionAccepted,
+    setShowWaybill,
   } = mission;
 
-  // Selected display errand when multiple queued errands exist
-  const displayErrand = (activeMissions && activeMissions[selectedMissionIndex]) || errand;
+  // Accepting means the rider is about to start driving, so the map is the next
+  // thing they need. Navigation lives here rather than in useRiderMission so the
+  // hook stays free of routing concerns.
+  const handleAccept = React.useCallback(async () => {
+    await mission.acceptMission();
+    navigation.navigate('Task');
+  }, [mission, navigation]);
 
-  // The id a receipt is filed under must be a real errand. `displayErrand` can
-  // fall back to the merged card, whose id is every underlying id joined with
-  // " + " for display — a string no endpoint can resolve.
-  const captureErrandId = activeMissions?.[selectedMissionIndex]?.id ?? null;
-  // One rule, shared with the map screen. Two screens computing "can the rider
-  // move on?" separately is how the last one of these bugs happened.
-  const gate = errandGate(displayErrand, currentStatus, completedSubtasks, {
-    handoverCaptured: mission.handoverCaptured,
-    paymentMode,
-    collectedAmount,
-  });
-  const isActionable = gate.canAdvance;
-  const whatIsNext = nextAction(currentStatus, { handoverCaptured: mission.handoverCaptured });
+  const handleDecline = React.useCallback(() => {
+    mission.setShowDeclineModal(true);
+  }, [mission]);
+
+  const renderBody = () => {
+    if (isOffline) return <OfflineCard setShowWaybill={setShowWaybill} />;
+
+    if (phase === 'loading') {
+      return (
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      );
+    }
+
+    if (phase === 'error') {
+      return (
+        <View style={styles.centerState}>
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={refresh}
+            accessibilityRole="button"
+            accessibilityLabel="Try loading your errand again"
+          >
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (phase === 'completed' && errand) {
+      return (
+        <CompletedCard
+          errand={errand}
+          riderFirstName={mission.riderProfile?.name?.split(' ')[0]}
+          onAcceptNext={mission.resetForNextErrand}
+        />
+      );
+    }
+
+    if (offeredErrands.length === 0) return <WaitingCard />;
+
+    // One card per offer rather than one merged card. A rider offered two
+    // errands was previously shown a single blended one and had to accept or
+    // decline both together, with a fee figure that was the sum of two jobs.
+    return (
+      <>
+        {offeredErrands.length > 1 && (
+          <Text style={styles.offersHeading}>
+            {offeredErrands.length} errands offered to you
+          </Text>
+        )}
+        {offeredErrands.map((offer) => (
+          <View key={offer.id} style={styles.offerBlock}>
+            <NewTaskCard
+              errand={offer}
+              onAccept={handleAccept}
+              onDecline={handleDecline}
+              isAccepting={mission.isAccepting}
+            />
+            {/* The breakdown sits with the offer, not behind a tap. What the
+                errand pays is the whole basis of the decision being asked for. */}
+            <View style={styles.breakdownWrap}>
+              <View style={styles.breakdownHeader}>
+                <Text style={styles.breakdownId}>{formatErrandId(offer.id)}</Text>
+              </View>
+              <FeeBreakdownPanel errand={offer} />
+            </View>
+          </View>
+        ))}
+      </>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top']} style={styles.container}>
       <RiderHeader mission={mission} />
-      {/* Outside the ScrollView: a confirmation the rider has scrolled past is
-          a confirmation they never saw. */}
+      {/* Outside the ScrollView: a confirmation the rider has scrolled past is a
+          confirmation they never saw. */}
       <StatusBanner banner={mission.banner} onDismiss={mission.dismissBanner} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {isOffline ? (
-          <OfflineCard setShowWaybill={setShowWaybill} />
-        ) : phase === "loading" ? (
-          <View style={styles.centerState}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-          </View>
-        ) : phase === "error" ? (
-          <View style={styles.centerState}>
-            <Text style={styles.errorText}>{errorMessage}</Text>
-            <TouchableOpacity
-              style={styles.retryBtn}
-              onPress={refresh}
-              accessibilityRole="button"
-              accessibilityLabel="Try loading your errand again"
-            >
-              <Text style={styles.retryBtnText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : phase === "idle" ? (
-          <WaitingCard />
-        ) : phase === "offered" && errand ? (
-          <NewTaskCard
-            errand={errand}
-            onAccept={handleAcceptAndNavigate}
-            onDecline={() => mission.setShowDeclineModal(true)}
-            isAccepting={mission.isAccepting}
-          />
-        ) : phase === "completed" && errand ? (
-          <CompletedCard
-            errand={errand}
-            riderFirstName={mission.riderProfile?.name?.split(' ')[0]}
-            onAcceptNext={mission.resetForNextErrand}
-          />
-        ) : displayErrand ? (
-          <View style={styles.trackerCard}>
-            {/* MULTI-ERRAND QUEUE TAB SWITCHER (UP TO 3 TASKS) */}
-            {activeMissions && activeMissions.length > 1 && (
-              <View style={styles.multiErrandTabs}>
-                <View style={styles.multiErrandLabel}>
-                  <Layers size={13} color={Colors.navy}/>
-                  <Text style={styles.multiErrandLabelText}>Queue ({activeMissions.length}/3):</Text>
-                </View>
-                {activeMissions.map((m, idx) => (
-                  <TouchableOpacity
-                    key={m.id || idx}
-                    onPress={() => setSelectedMissionIndex(idx)}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: selectedMissionIndex === idx }}
-                    accessibilityLabel={
-                      idx === 0
-                        ? `Current errand ${formatErrandId(m.id)}`
-                        : `Queued errand ${idx}, ${formatErrandId(m.id)}`
-                    }
-                    style={[
-                      styles.multiErrandTab,
-                      selectedMissionIndex === idx ? styles.multiErrandTabActive : styles.multiErrandTabInactive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.multiErrandTabText,
-                        selectedMissionIndex === idx ? styles.multiErrandTabTextActive : styles.multiErrandTabTextInactive,
-                      ]}
-                    >
-                      {idx === 0 ? `Active (#${formatErrandId(m.id)})` : `Queued ${idx} (#${formatErrandId(m.id)})`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+      <ScrollView contentContainerStyle={styles.scrollContent}>{renderBody()}</ScrollView>
 
-            <View style={styles.trackerHeader}>
-              <View style={styles.headerLeft}>
-                <Package size={16} color={Colors.textWhite} />
-                <Text style={styles.headerTitle}>
-                  {selectedMissionIndex === 0 ? "Current errand" : `Queued errand ${selectedMissionIndex}`}
-                </Text>
-              </View>
-              <View style={styles.headerRight}>
-                <TouchableOpacity
-                  style={styles.detailsBtn}
-                  onPress={() => navigation.navigate('LiveErrandMap')}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open the live map"
-                >
-                  <Map size={12} color={Colors.textWhite} />
-                  <Text style={styles.detailsBtnText}>Map</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.detailsBtn}
-                  onPress={() => setShowWaybill(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Show customer details"
-                >
-                  <FileText size={12} color={Colors.textWhite} />
-                  <Text style={styles.detailsBtnText}>Customer</Text>
-                </TouchableOpacity>
-                <View style={styles.idBadge}>
-                  <Text style={styles.idBadgeText}>{formatErrandId(displayErrand.id)}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.trackerBody}>
-              <View style={styles.badgesRow}>
-                <View style={styles.typeBadge}>
-                  <Text style={styles.typeBadgeText}>{displayErrand.type}</Text>
-                </View>
-                <View style={styles.paymentBadge}>
-                  <Text style={styles.paymentBadgeText}>{displayErrand.paymentMode}</Text>
-                </View>
-              </View>
-
-              <CustomerDetailsPanel errand={displayErrand} />
-
-              {(displayErrand.payload || displayErrand.details) && (
-                <RequestItemsPanel
-                  errand={displayErrand}
-                  currentStatus={currentStatus}
-                  completedSubtasks={completedSubtasks}
-                  uploadingSubtask={mission.uploadingSubtask}
-                  onUpload={mission.openReceiptCapture}
-                  onNoReceipt={mission.openNoReceiptCapture}
-                />
-              )}
-
-              <FeeBreakdownPanel errand={displayErrand} />
-
-              <ProgressSteps currentStatus={currentStatus} stepIndex={stepIndex} />
-
-              {/* Why the step moved, or is about to. A status that advances with
-                  no visible cause reads as a glitch, and a rider who does not
-                  trust the screen goes back to tapping buttons at random. */}
-              {mission.storeArrival.advancedAutomatically && currentStatus === "At Store" && (
-                <View style={styles.arrivalNote}>
-                  <MapPin size={14} color={Colors.success} />
-                  <Text style={styles.arrivalNoteText}>
-                    Arrived automatically — you reached the store.
-                  </Text>
-                </View>
-              )}
-
-              {mission.storeArrival.arrivingAt && currentStatus === "Traveling" && (
-                <View style={styles.arrivalPending}>
-                  <MapPin size={14} color={Colors.warning} />
-                  <Text style={styles.arrivalPendingText}>
-                    You're at {mission.storeArrival.arrivingAt.storeName}. Stay put a moment and
-                    this will move on its own — or tap below.
-                  </Text>
-                </View>
-              )}
-
-              {currentStatus === "Delivering" && paymentMode === "Cash on Delivery" && (
-                <CashCollectionInput
-                  errand={displayErrand}
-                  collectedInFull={Boolean(collectedAmount)}
-                  // Records the intent only. The amount itself is filled in by
-                  // the server from the errand's own total, so nothing the
-                  // device sends can shrink it.
-                  onCollectedInFull={() => mission.setCollectedAmount("FULL")}
-                  onReportShort={mission.reportShortPayment}
-                  shortPayment={mission.shortPayment}
-                  shortAmount={mission.shortPayment ? collectedAmount : ''}
-                  onShortAmountChange={mission.setCollectedAmount}
-                />
-              )}
-
-              {/* The handover photo, taken at the door. The only evidence that
-                  exists if a customer later says nothing arrived. */}
-              {currentStatus === "Delivering" && (
-                <TouchableOpacity
-                  style={[styles.handoverBtn, mission.handoverCaptured && styles.handoverBtnDone]}
-                  onPress={mission.openHandoverCapture}
-                  disabled={mission.handoverCaptured}
-                  testID="handover-photo"
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: mission.handoverCaptured }}
-                  accessibilityLabel={
-                    mission.handoverCaptured
-                      ? "Handover photo already taken"
-                      : "Take the handover photo"
-                  }
-                >
-                  <Text style={styles.handoverText}>
-                    {mission.handoverCaptured ? "Handover photo taken ✓" : "Take handover photo"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {!isDelivered && selectedMissionIndex === 0 && (
-                <View style={styles.actionBlock}>
-                  {/* Says what is missing next to the button, rather than
-                      leaving a greyed rectangle to explain itself. A disabled
-                      control gives no feedback on tap and cannot show a tooltip
-                      on a touch screen, so the reason has to live outside it. */}
-                  {!isActionable && gate.blockedReason && (
-                    <View style={styles.blockedNote} testID="blocked-reason">
-                      <Info size={14} color={Colors.warning} />
-                      <Text style={styles.blockedText}>{gate.blockedReason}</Text>
-                    </View>
-                  )}
-                  {isActionable && whatIsNext && (
-                    <View style={styles.nextNote} testID="next-action">
-                      <Camera size={14} color={Colors.info} />
-                      <Text style={styles.nextText}>{whatIsNext}</Text>
-                    </View>
-                  )}
-
-                  <TouchableOpacity
-                    style={[styles.actionBtn, !isActionable && styles.actionBtnDisabled]}
-                    disabled={!isActionable}
-                    onPress={advanceStatus}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !isActionable }}
-                    accessibilityLabel={STEP_META[currentStatus].action}
-                    accessibilityHint={gate.blockedReason ?? undefined}
-                  >
-                    <Text style={styles.actionBtnText}>{STEP_META[currentStatus].action}</Text>
-                    <ChevronRight size={18} color={Colors.onPrimary} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        ) : null}
-      </ScrollView>
-
-      {isMissionAccepted && !!errand && !isOffline && (
-        <FloatingChatButton onPress={() => mission.setShowDRChat(true)} unread={mission.unreadDR} />
-      )}
-      {/* Takes over the screen while a receipt is being photographed. Full-screen
-          rather than a sheet: the rider is aiming a camera at a piece of paper
-          and needs the whole viewfinder. */}
-      {mission.receiptTarget && captureErrandId && (
-        <View style={StyleSheet.absoluteFill}>
-          <ReceiptCaptureScreen
-            errandId={captureErrandId}
-            kind={mission.receiptTarget.kind}
-            pinpointId={mission.receiptTarget.pinpointId}
-            onDone={mission.completeReceiptCapture}
-            onCancel={mission.cancelReceiptCapture}
-          />
-        </View>
-      )}
-
-      <DispatcherChatModal
-        visible={mission.showDRChat}
-        onClose={() => mission.setShowDRChat(false)}
-        messages={mission.drMessages}
-        onSend={mission.sendDispatcherMessage}
-        errandId={errand?.id ?? ''}
-        errandType={errand?.type ?? ''}
-      />
       <DeclineModal
         visible={mission.showDeclineModal}
         reason={mission.declineReason}
@@ -345,15 +141,10 @@ export default function HomeScreen() {
         onClose={() => mission.setShowDeclineModal(false)}
         onSubmit={mission.declineMission}
       />
-      <UploadModal
-        visible={mission.showUploadModal}
-        onClose={() => mission.setShowUploadModal(false)}
-        progress={mission.uploadProgress}
-      />
       {errand && (
         <WaybillModal
           visible={mission.showWaybill}
-          onClose={() => mission.setShowWaybill(false)}
+          onClose={() => setShowWaybill(false)}
           errand={errand}
         />
       )}
@@ -362,106 +153,17 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  actionBlock: {
-    gap: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  blockedNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.warningSubtle,
-    borderColor: Colors.warningBorder,
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  blockedText: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semibold as any,
-    color: Colors.warning,
-  },
-  nextNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.infoSubtle,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  nextText: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semibold as any,
-    color: Colors.info,
-  },
-  handoverBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgWhite,
-    minHeight: 48,
-  },
-  handoverBtnDone: {
-    borderColor: Colors.success,
-    backgroundColor: Colors.successSubtle,
-  },
-  handoverText: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.semibold as any,
-    color: Colors.textDark,
-  },
-
-  arrivalNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.successSubtle,
-    borderColor: Colors.success,
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  arrivalNoteText: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semibold as any,
-    color: Colors.success,
-  },
-  arrivalPending: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.warningSubtle,
-    borderColor: Colors.warningBorder,
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  arrivalPendingText: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semibold as any,
-    color: Colors.warning,
-  },
-
   container: {
     flex: 1,
     backgroundColor: Colors.bgGray,
   },
   scrollContent: {
-    padding: Spacing.xl,
-    gap: Spacing.xl,
-    paddingBottom: Spacing.huge * 2,
+    padding: Spacing.lg,
+    gap: Spacing.lg,
+    maxWidth: MAX_CONTENT_WIDTH,
+    width: '100%',
+    alignSelf: 'center',
+    paddingBottom: moderateScale(110, 0.20),
   },
   centerState: {
     alignItems: 'center',
@@ -471,7 +173,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: Colors.textGray,
-    fontSize: FontSizes.base,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
     textAlign: 'center',
   },
   retryBtn: {
@@ -484,161 +186,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   retryBtnText: {
-    color: Colors.textWhite,
-    fontWeight: FontWeights.bold,
-  },
-  multiErrandTabs: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.bgGray,
-    padding: Spacing.sm,
-    gap: Spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    flexWrap: 'wrap',
-  },
-  multiErrandLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 4,
-  },
-  multiErrandLabelText: {
-    fontSize: 10,
+    color: Colors.onPrimary,
     fontWeight: FontWeights.bold as any,
-    color: Colors.navy,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
   },
-  multiErrandTab: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 5,
-    borderRadius: BorderRadius.full,
-    minHeight: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  multiErrandTabActive: {
-    backgroundColor: Colors.navy,
-  },
-  multiErrandTabInactive: {
-    backgroundColor: Colors.border,
-  },
-  multiErrandTabText: {
-    fontSize: 11,
+  offersHeading: {
+    fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.bold as any,
+    color: Colors.textDark,
   },
-  multiErrandTabTextActive: {
-    color: Colors.textWhite,
-  },
-  multiErrandTabTextInactive: {
-    color: Colors.textGray,
-  },
-  trackerCard: {
-    backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-  },
-  trackerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.lg,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerTitle: {
-    color: Colors.textWhite,
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.bold,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  detailsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.whiteOverlayLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.whiteOverlay,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  detailsBtnText: {
-    color: Colors.textWhite,
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.semibold,
-  },
-  idBadge: {
-    backgroundColor: Colors.bgWhite,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-  },
-  idBadgeText: {
-    color: Colors.primary,
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.bold,
-  },
-  trackerBody: {
-    padding: Spacing.xl,
-    gap: Spacing.lg,
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  typeBadge: {
-    backgroundColor: Colors.infoBg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
-  typeBadgeText: {
-    color: Colors.info,
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.bold,
-  },
-  paymentBadge: {
-    backgroundColor: Colors.warningBg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-  },
-  paymentBadgeText: {
-    color: Colors.warning,
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.semibold,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
+  offerBlock: {
     gap: Spacing.md,
-    marginTop: Spacing.md,
-    minHeight: 48,
   },
-  actionBtnDisabled: {
-    backgroundColor: Colors.textLight,
+  breakdownWrap: {
+    gap: Spacing.xs,
   },
-  actionBtnText: {
-    color: Colors.textWhite,
-    fontSize: FontSizes.md,
-    fontWeight: FontWeights.bold,
+  breakdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  breakdownId: {
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    fontWeight: FontWeights.bold as any,
+    color: Colors.textGray,
+    letterSpacing: 0.4,
   },
 });

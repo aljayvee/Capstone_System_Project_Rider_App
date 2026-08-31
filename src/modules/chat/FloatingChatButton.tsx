@@ -3,25 +3,38 @@ import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { MessageCircle } from 'lucide-react-native';
 import { Colors } from '../../config/theme';
 
+/** Clears the tab bar on screens with nothing else above it. */
+const DEFAULT_BOTTOM_OFFSET = 96;
+
 export interface FloatingChatButtonProps {
   onPress: () => void;
   hasUnread?: boolean;
   unread?: boolean;
   visible?: boolean;
+  /**
+   * How far to sit above the bottom of the screen.
+   *
+   * This was a hardcoded 80, chosen to clear a tab bar that no longer has that
+   * height and, on the Task tab, is not the thing being cleared at all — the
+   * button now floats above a bottom sheet whose collapsed height the caller
+   * knows and this component cannot.
+   */
+  bottomOffset?: number;
 }
 
 export function FloatingChatButton({
   onPress,
   hasUnread,
   unread,
-  visible = true
+  visible = true,
+  bottomOffset = DEFAULT_BOTTOM_OFFSET,
 }: FloatingChatButtonProps) {
   const isUnread = hasUnread || unread;
   if (!visible) return null;
 
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[styles.container, { bottom: bottomOffset }]}
       accessibilityRole="button"
       accessibilityLabel={unread ? 'Message the dispatcher, you have unread messages' : 'Message the dispatcher'}
       onPress={onPress}
@@ -39,7 +52,6 @@ export function FloatingChatButton({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 80, 
     right: 16,
     width: 52,
     height: 52,

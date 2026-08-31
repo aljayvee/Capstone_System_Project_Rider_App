@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
 import { AlertCircle } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 
 interface DeclineModalProps {
   visible: boolean;
@@ -35,8 +35,8 @@ export function DeclineModal({
           <View style={styles.iconContainer}>
             <AlertCircle size={32} color={Colors.primary} />
           </View>
-          <Text style={styles.title}>Decline Task?</Text>
-          <Text style={styles.subtitle}>Please provide a reason for declining this errand.</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={1.2}>Decline Task?</Text>
+          <Text style={styles.subtitle} maxFontSizeMultiplier={1.15}>Please provide a reason for declining this errand.</Text>
 
           <TextInput
             style={styles.input}
@@ -53,7 +53,7 @@ export function DeclineModal({
               onPress={handleCancel}
               accessibilityRole="button"
               accessibilityLabel="Keep this errand">
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText} maxFontSizeMultiplier={1.15}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.confirmButton, !reason.trim() && styles.disabledButton]} 
@@ -62,7 +62,7 @@ export function DeclineModal({
               onPress={handleConfirm}
               disabled={!reason.trim()}
             >
-              <Text style={styles.confirmText}>Confirm</Text>
+              <Text style={styles.confirmText} maxFontSizeMultiplier={1.15}>Confirm</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -70,7 +70,6 @@ export function DeclineModal({
     </Modal>
   );
 }
-
 
 const styles = StyleSheet.create({
   overlay: {
@@ -82,52 +81,52 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 340,
     backgroundColor: Colors.bgWhite,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.xxxl,
+    padding: Spacing.xl,
     alignItems: 'center',
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: moderateScale(60, 0.20),
+    height: moderateScale(60, 0.20),
+    borderRadius: moderateScale(30, 0.20),
     backgroundColor: Colors.primarySurface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   title: {
-    fontSize: FontSizes.xl,
+    fontSize: scaledFontSize(FontSizes.xl, 0.20),
     fontWeight: FontWeights.bold as any,
     color: Colors.textDark,
     marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: FontSizes.sm,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     color: Colors.textGray,
     textAlign: 'center',
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.xl,
   },
   input: {
     width: '100%',
-    height: 96,
+    height: moderateScale(90, 0.20),
     backgroundColor: Colors.bgLight,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    fontSize: FontSizes.sm,
+    padding: Spacing.md,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     marginBottom: Spacing.lg,
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: Spacing.lg,
+    gap: Spacing.md,
     width: '100%',
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: Spacing.lg,
+    paddingVertical: moderateScale(12, 0.20),
     backgroundColor: Colors.bgGray,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
@@ -137,10 +136,11 @@ const styles = StyleSheet.create({
   cancelText: {
     fontWeight: FontWeights.bold as any,
     color: Colors.textDark,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
   },
   confirmButton: {
     flex: 1,
-    paddingVertical: Spacing.lg,
+    paddingVertical: moderateScale(12, 0.20),
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
@@ -153,5 +153,6 @@ const styles = StyleSheet.create({
   confirmText: {
     fontWeight: FontWeights.bold as any,
     color: Colors.textWhite,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
   },
 });
