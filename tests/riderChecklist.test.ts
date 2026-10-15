@@ -76,10 +76,21 @@ describe("the shopping list the rider is given", () => {
       {
         name: "Jollibee DT Roundball",
         items: ["Burgers"],
+        itemEntries: [
+          { id: 1, label: "Burgers", itemName: "Burgers", size: null, notes: null, quantity: 1, fulfillmentStatus: "PENDING" },
+        ],
         pinpointId: 101,
         storeCategory: "Fast Food & Restaurant",
       },
-      { name: "Primark Save More", items: ["Noodles"], pinpointId: 102, storeCategory: "Grocery" },
+      {
+        name: "Primark Save More",
+        items: ["Noodles"],
+        itemEntries: [
+          { id: 2, label: "Noodles", itemName: "Noodles", size: null, notes: null, quantity: 1, fulfillmentStatus: "PENDING" },
+        ],
+        pinpointId: 102,
+        storeCategory: "Grocery",
+      },
     ]);
   });
 
@@ -103,7 +114,15 @@ describe("the shopping list the rider is given", () => {
     } as any);
 
     expect(errand.payload).toEqual([
-      { name: "Other items", items: ["Burgers"], pinpointId: null, storeCategory: null },
+      {
+        name: "Other items",
+        items: ["Burgers"],
+        itemEntries: [
+          { id: 1, label: "Burgers", itemName: "Burgers", size: null, notes: null, quantity: 1, fulfillmentStatus: "PENDING" },
+        ],
+        pinpointId: null,
+        storeCategory: null,
+      },
     ]);
   });
 
@@ -119,11 +138,22 @@ describe("the shopping list the rider is given", () => {
       {
         name: "Jollibee DT Roundball",
         items: ["Burgers"],
+        itemEntries: [
+          { id: 1, label: "Burgers", itemName: "Burgers", size: null, notes: null, quantity: 1, fulfillmentStatus: "PENDING" },
+        ],
         pinpointId: 101,
         storeCategory: "Fast Food & Restaurant",
       },
       // No stop, so no category — never invented as "Other".
-      { name: "Other items", items: ["Batteries"], pinpointId: null, storeCategory: null },
+      {
+        name: "Other items",
+        items: ["Batteries"],
+        itemEntries: [
+          { id: 2, label: "Batteries", itemName: "Batteries", size: null, notes: null, quantity: 1, fulfillmentStatus: "PENDING" },
+        ],
+        pinpointId: null,
+        storeCategory: null,
+      },
     ]);
   });
 

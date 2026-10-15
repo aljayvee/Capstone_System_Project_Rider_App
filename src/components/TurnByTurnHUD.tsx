@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Animated, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CornerUpLeft,
@@ -25,11 +25,17 @@ import {
 } from '../config/theme';
 import type { ManeuverState } from '../hooks/useTurnByTurnNavigation';
 import type { RoutePhase } from '../services/routePhase';
+import { departInstruction } from '../utils/compass';
+import { navigationBannerText, thenText } from '../utils/maneuverText';
 
 interface TurnByTurnHUDProps {
   maneuver: ManeuverState;
   phase?: RoutePhase;
   targetName?: string;
+  /** Custom top offset for layered stacking; defaults below top header bar. */
+  topOffset?: number;
+  /** The panel's own layout, so the screen can stack what sits below it. */
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
 /**
@@ -91,7 +97,7 @@ function ManeuverIcon({
  * 4. Sub-preview for rapid upcoming maneuvers ("Then turn right").
  * 5. Re-routing indicator if off-route.
  */
-export function TurnByTurnHUD({ maneuver, phase = 'shopping', targetName }: TurnByTurnHUDProps) {
+export function TurnByTurnHUD({ maneuver, phase = 'shopping', targetName, topOffset, onLayout }: TurnByTurnHUDProps) {
   const insets = useSafeAreaInsets();
   const {
     instruction,
@@ -107,88 +113,128 @@ export function TurnByTurnHUD({ maneuver, phase = 'shopping', targetName }: Turn
 
   const isDelivering = phase === 'delivering';
   const badgeColor = isDelivering ? Colors.routeToCustomer : Colors.routeToStore;
+  const hudTop = topOffset ?? (insets.top + moderateScale(56, 0.2));
+
+  // A new maneuver slides in rather than replacing the old one in a single
+  // frame, which at a junction read as the panel flickering mid-turn.
+  const swap = React.useRef(new Animated.Value(1)).current;
+  const shownKey = `${maneuver.displayedStepIndex ?? 0}:${maneuverType}:${modifier ?? ''}`;
+  const lastKey = React.useRef(shownKey);
+  React.useEffect(() => {
+    if (lastKey.current === shownKey) return;
+    lastKey.current = shownKey;
+    swap.setValue(0);
+    Animated.timing(swap, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  }, [shownKey, swap]);
+  const swapStyle = {
+    opacity: swap,
+    transform: [{ translateY: swap.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }],
+  };
+
+  // Google Maps' order: the turn and how far ahead on top ("In 55 m, turn
+  // right"), the street under it ("onto Rizal Street"). Setting off, the second
+  // line says which way out of the gate instead ("Head west on Alunan Avenue"),
+  // since the rider is not on any street of the route yet.
+  //
+  // A route that is nothing but its departure (no turn anywhere on it) still
+  // says the departure on top, as before.
+  const onlyDeparture = maneuverType === 'depart';
+  const banner = onlyDeparture
+    ? {
+        primary: departInstruction(maneuver.activeStep?.bearingAfter, streetName) ?? instruction,
+        secondary: '',
+      }
+    : navigationBannerText({
+        distanceMeters: maneuver.distanceToManeuverMeters,
+        maneuverType,
+        modifier,
+        streetName,
+        instruction,
+        targetName,
+      });
+  const setOff = maneuver.setOff
+    ? departInstruction(maneuver.setOff.bearingAfter, maneuver.setOff.streetName) ?? maneuver.setOff.instruction
+    : null;
+  const secondaryText = setOff ?? banner.secondary;
 
   return (
-    <View style={[styles.container, { top: insets.top + Spacing.xs }]} pointerEvents="box-none">
+    <View style={[styles.container, { top: hudTop }]} pointerEvents="box-none" onLayout={onLayout}>
       <View style={[styles.hudCard, isNearManeuver && styles.hudCardUrgent]}>
         {/* Left: Direction Icon Container */}
-        <View style={[styles.iconContainer, { backgroundColor: badgeColor }]}>
+        <Animated.View style={[styles.iconContainer, { backgroundColor: badgeColor }, swapStyle]}>
           {isOffRoute ? (
             <RefreshCw size={26} color={Colors.textWhite} strokeWidth={2.5} />
           ) : (
             <ManeuverIcon maneuverType={maneuverType} modifier={modifier} size={28} color={Colors.textWhite} />
           )}
-        </View>
+        </Animated.View>
 
         {/* Center: Live Meter Counter & Street Instruction */}
-        <View style={styles.contentContainer}>
+        <Animated.View style={[styles.contentContainer, swapStyle]}>
           {isOffRoute ? (
             <View style={styles.offRouteRow}>
-              <Text style={styles.offRouteTitle} maxFontSizeMultiplier={1.15}>
+              <Text style={styles.offRouteTitle} maxFontSizeMultiplier={1.25}>
                 Recalculating route…
               </Text>
-              <Text style={styles.offRouteSubtitle} maxFontSizeMultiplier={1.15}>
+              <Text style={styles.offRouteSubtitle} maxFontSizeMultiplier={1.25}>
                 Finding best path back to road
               </Text>
             </View>
           ) : (
             <>
-              {/* Distance Countdown Pill & Next Action */}
-              <View style={styles.distanceRow}>
-                <Text
-                  style={[styles.distanceText, isNearManeuver && styles.distanceTextUrgent]}
-                  maxFontSizeMultiplier={1.2}
-                >
-                  {formattedDistance || 'Follow route'}
-                </Text>
-                {formattedTotalDistance ? (
-                  <View style={styles.totalBadge}>
-                    <Text style={styles.totalBadgeText} maxFontSizeMultiplier={1.1}>
-                      {formattedTotalDistance} left
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {/* Street Name or Target Instruction */}
-              <Text style={styles.instructionText} numberOfLines={1} maxFontSizeMultiplier={1.15}>
-                {streetName ? `${modifier ? `Turn ${modifier} onto ` : ''}${streetName}` : instruction}
+              {/* What to do, and how far ahead: "In 55 m, turn right". Capped
+                  at 2 lines. Green once the turn is close. */}
+              <Text
+                style={[styles.primaryText, isNearManeuver && styles.primaryTextUrgent]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.25}
+                testID="hud-instruction"
+              >
+                {banner.primary || formattedDistance || 'Follow the route'}
               </Text>
 
-              {/* Sub-line Next Step Preview (e.g. "Then turn right") */}
-              {nextStepPreview && (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel} maxFontSizeMultiplier={1.1}>
-                    Then:
-                  </Text>
+              {/* Where: "onto Rizal Street", or the way out while setting off.
+                  Laid out even on an unnamed road, for the same one height. */}
+              <Text
+                style={styles.secondaryText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                maxFontSizeMultiplier={1.25}
+                testID="hud-street"
+                importantForAccessibility={secondaryText ? 'auto' : 'no-hide-descendants'}
+              >
+                {secondaryText || ' '}
+              </Text>
+
+              {/* The turn after, when it comes quickly, and what is left of the
+                  whole route. Always laid out, so the panel keeps one height:
+                  it used to grow a line within 50 m of every turn and shrink
+                  after it, and the capsules stacked below it jumped each time. */}
+              <View style={styles.footerRow} testID="hud-preview-row">
+                <View
+                  style={[styles.previewGroup, !nextStepPreview && styles.previewRowIdle]}
+                  importantForAccessibility={nextStepPreview ? 'auto' : 'no-hide-descendants'}
+                >
                   <ManeuverIcon
-                    maneuverType={nextStepPreview.maneuverType}
-                    modifier={nextStepPreview.modifier}
+                    maneuverType={nextStepPreview?.maneuverType ?? 'continue'}
+                    modifier={nextStepPreview?.modifier}
                     size={14}
                     color={Colors.navyLight}
                   />
-                  <Text style={styles.previewText} numberOfLines={1} maxFontSizeMultiplier={1.1}>
-                    {nextStepPreview.instruction}
+                  <Text style={styles.previewText} numberOfLines={1} maxFontSizeMultiplier={1.25}>
+                    {nextStepPreview ? thenText(nextStepPreview.maneuverType, nextStepPreview.modifier) : ' '}
                   </Text>
                 </View>
-              )}
+                {formattedTotalDistance ? (
+                  <Text style={styles.totalText} numberOfLines={1} maxFontSizeMultiplier={1.25}>
+                    {formattedTotalDistance} left
+                  </Text>
+                ) : null}
+              </View>
             </>
           )}
-        </View>
-
-        {/* Right: Phase Identity Pill (Store vs Customer) */}
-        {targetName ? (
-          <View style={styles.targetPill}>
-            {isDelivering ? (
-              <MapPin size={12} color={Colors.routeToCustomer} />
-            ) : (
-              <Store size={12} color={Colors.routeToStore} />
-            )}
-            <Text style={styles.targetPillText} numberOfLines={1} maxFontSizeMultiplier={1.1}>
-              {targetName}
-            </Text>
-          </View>
-        ) : null}
+        </Animated.View>
       </View>
     </View>
   );
@@ -206,11 +252,13 @@ const styles = StyleSheet.create({
   },
   hudCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: Colors.navy,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     gap: Spacing.md,
+    minHeight: moderateScale(64, 0.2),
+    width: '100%',
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -235,52 +283,48 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  distanceRow: {
+  // "In 55 m, turn right": the line read at a glance, so the largest.
+  primaryText: {
+    fontFamily: FontFamily.bold,
+    color: Colors.textWhite,
+    fontSize: scaledFontSize(FontSizes.lg, 0.2),
+    letterSpacing: -0.2,
+  },
+  primaryTextUrgent: {
+    color: Colors.maneuverUrgent, // Crisp emerald green once the turn is close
+  },
+  // "onto Rizal Street".
+  secondaryText: {
+    fontFamily: FontFamily.semibold,
+    color: Colors.whiteOverlayText,
+    fontSize: scaledFontSize(FontSizes.sm, 0.2),
+  },
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    marginTop: 2,
   },
-  distanceText: {
-    fontFamily: FontFamily.monoExtraBold,
-    color: Colors.textWhite,
-    fontSize: scaledFontSize(FontSizes.lg, 0.2),
-    letterSpacing: -0.3,
-  },
-  distanceTextUrgent: {
-    color: Colors.maneuverUrgent, // Crisp emerald green for "Turn Now"
-  },
-  totalBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-  },
-  totalBadgeText: {
-    fontFamily: FontFamily.monoBold,
-    color: Colors.whiteOverlayText,
-    fontSize: scaledFontSize(FontSizes.xxs, 0.2),
-  },
-  instructionText: {
-    fontFamily: FontFamily.bold,
-    color: Colors.textWhite,
-    fontSize: scaledFontSize(FontSizes.sm, 0.2),
-  },
-  previewRow: {
+  previewGroup: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
   },
-  previewLabel: {
-    fontFamily: FontFamily.semibold,
-    color: Colors.navyLight,
-    fontSize: scaledFontSize(FontSizes.xxs, 0.2),
+  // Keeps its height, shows nothing.
+  previewRowIdle: {
+    opacity: 0,
   },
   previewText: {
     fontFamily: FontFamily.medium,
     color: Colors.whiteOverlayText,
+    fontSize: scaledFontSize(FontSizes.xs, 0.2),
+    flexShrink: 1,
+  },
+  totalText: {
+    fontFamily: FontFamily.monoBold,
+    color: Colors.whiteOverlayText,
     fontSize: scaledFontSize(FontSizes.xxs, 0.2),
-    flex: 1,
   },
   offRouteRow: {
     gap: 2,
@@ -302,7 +346,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.full,
-    maxWidth: 90,
+    maxWidth: moderateScale(140, 0.25),
+    flexShrink: 1,
   },
   targetPillText: {
     color: Colors.textDark,

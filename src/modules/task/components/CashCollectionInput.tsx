@@ -1,54 +1,58 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { Banknote, AlertTriangle } from 'lucide-react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Banknote, Camera, CheckCircle2, AlertTriangle } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
 import { formatPeso } from '../../../utils/format';
-import type { Errand, MergedErrand } from '../../../types/rider';
+import type { Errand, MergedErrand, PaymentPlan } from '../../../types/rider';
 
 interface CashCollectionProps {
   errand?: MergedErrand | Errand | null;
-  /** True once the rider confirms the full amount came back. */
+  /** True once a photo (GCash/Maya receipt, or cash in hand) is on file. */
   collectedInFull: boolean;
-  onCollectedInFull: () => void;
-  onReportShort: () => void;
   /** True once the rider has said the customer paid less than the total. */
   shortPayment?: boolean;
+  /** The rider's own count, once a cash photo comes back short. */
   shortAmount?: string;
-  onShortAmountChange?: (value: string) => void;
+  /** Opens the camera on the customer's GCash/Maya receipt — OCR'd against the balance. */
+  onCaptureBalanceProof: () => void;
+  /** Opens the camera on physical cash — the rider types what they were handed. */
+  onCaptureCashProof: () => void;
+  /** Optional note entered by the rider ("Cash nalang daw", "Walang barya si customer"). */
+  riderNote?: string;
   visible?: boolean;
 }
 
 /**
  * What the rider must collect at the door.
  *
- * This was a free-text box reading "ENTER COLLECTED AMOUNT", which asked the
- * rider to type a number the server already knew — and a number they were then
- * settled against. Typing a smaller one was the whole exploit, and no amount of
- * UI discipline closes a hole shaped like a text field.
- *
- * So the figure is presented and confirmed. The client no longer sends an amount
- * on this path at all; the server fills in the errand's own total, which means a
- * tampered app cannot under-report either.
- *
- * A genuine shortfall is still reachable, deliberately as an exception: it is
- * typed, because a customer who paid short is the one case with no other source
- * for the figure, and it lands as a flagged SHORT settlement rather than
- * disappearing into a total nobody questions.
+ * This used to be a plain "Collected in full" button — a claim with nothing
+ * behind it. Every cash collection now needs a photo first: the customer's
+ * GCash/Maya receipt when there's a balance to confirm electronically, or the
+ * cash itself otherwise — COD included. The photo is the evidence; the figure
+ * next to it is what the rider counted, not a number typed into a bare field.
  */
 export function CashCollectionInput({
   errand,
   collectedInFull,
-  onCollectedInFull,
-  onReportShort,
   shortPayment = false,
   shortAmount = '',
-  onShortAmountChange,
+  onCaptureBalanceProof,
+  onCaptureCashProof,
+  riderNote = '',
   visible = true,
 }: CashCollectionProps) {
   if (!visible) return null;
 
   const breakdown = errand?.feeBreakdown ?? null;
-  const due = breakdown?.grandTotal ?? errand?.amount ?? 0;
+  const plan = (errand as { paymentPlan?: PaymentPlan | null } | null)?.paymentPlan ?? null;
+
+  // Since 2026-10-08 a GCash/Maya or bank errand pays the whole bill here, like
+  // COD, so the balance is normally the grand total. It still wins: an errand
+  // that paid the retired 50% plan has part of the bill in already, money that
+  // never passed through the rider, and the grand total would collect it twice.
+  const due = plan?.hasLedger
+    ? plan.balanceDue
+    : breakdown?.grandTotal ?? errand?.amount ?? 0;
 
   return (
     <View style={styles.container}>
@@ -75,58 +79,58 @@ export function CashCollectionInput({
           </View>
         )}
 
-        {shortPayment ? (
-          /* The exception. Typed because nothing else knows what actually
-             changed hands — and flagged, which is what makes it reviewable
-             rather than a quietly smaller number. */
-          <View style={styles.shortPanel}>
-            <View style={styles.header}>
-              <AlertTriangle size={14} color={Colors.warning} />
-              <Text style={styles.shortHeading}>How much did they hand over?</Text>
+        {collectedInFull ? (
+          <View style={styles.doneBlock}>
+            <View style={styles.doneRow}>
+              <CheckCircle2 size={16} color={Colors.success} />
+              <Text style={styles.doneText}>
+                {shortPayment
+                  ? `Photographed — ${formatPeso(Number(shortAmount) || 0)} recorded as short`
+                  : plan?.hasLedger
+                    ? 'Receipt confirmed ✓'
+                    : 'Cash photographed ✓'}
+              </Text>
             </View>
-            <View style={styles.shortRow}>
-              <Text style={styles.peso}>₱</Text>
-              <TextInput
-                style={styles.shortInput}
-                value={shortAmount}
-                onChangeText={onShortAmountChange}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor={Colors.textLight}
-                testID="cash-short-amount"
-              />
-            </View>
-            <Text style={styles.shortNote}>
-              This is recorded as a shortfall and sent to your dispatcher.
-            </Text>
+            {Boolean(riderNote.trim()) && (
+              <Text style={styles.notePreviewText}>
+                Note: "{riderNote.trim()}"
+              </Text>
+            )}
           </View>
-        ) : (
+        ) : plan?.hasLedger ? (
           <>
             <TouchableOpacity
-              style={[styles.confirmBtn, collectedInFull && styles.confirmBtnDone]}
+              style={styles.confirmBtn}
               accessibilityRole="button"
-              accessibilityState={{ disabled: collectedInFull, checked: collectedInFull }}
-              accessibilityLabel={collectedInFull ? 'Collected in full, confirmed' : `Confirm you collected ${formatPeso(due)} in full`}
-              onPress={onCollectedInFull}
-              disabled={collectedInFull}
-              testID="cash-collected-in-full"
+              accessibilityLabel="Photograph the customer's GCash, Maya or bank transfer receipt"
+              onPress={onCaptureBalanceProof}
+              testID="cash-capture-balance-proof"
             >
-              <Text style={styles.confirmBtnText}>
-                {collectedInFull ? 'Collected in full ✓' : `Collected ${formatPeso(due)} in full`}
-              </Text>
+              <Camera size={16} color={Colors.textWhite} />
+              <Text style={styles.confirmBtnText}>Photograph their GCash, Maya or bank receipt</Text>
             </TouchableOpacity>
-
-            {!collectedInFull && (
-              <TouchableOpacity
-        style={styles.shortBtn}
-        onPress={onReportShort}
-        accessibilityRole="button"
-        accessibilityLabel="Report that the customer paid less than the total" testID="cash-report-short">
-                <AlertTriangle size={13} color={Colors.warning} />
-                <Text style={styles.shortText}>Customer paid short</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.shortBtn}
+              onPress={onCaptureCashProof}
+              accessibilityRole="button"
+              accessibilityLabel="They're paying cash instead"
+              testID="cash-capture-cash-instead"
+            >
+              <AlertTriangle size={13} color={Colors.warning} />
+              <Text style={styles.shortText}>They're paying cash instead</Text>
+            </TouchableOpacity>
           </>
+        ) : (
+          <TouchableOpacity
+            style={styles.confirmBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`Photograph the ${formatPeso(due)} collected in cash`}
+            onPress={onCaptureCashProof}
+            testID="cash-capture-cash-proof"
+          >
+            <Camera size={16} color={Colors.textWhite} />
+            <Text style={styles.confirmBtnText}>Photograph the cash you collected</Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
@@ -145,6 +149,7 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   label: {
+    flexShrink: 1,
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold as any,
     color: Colors.success,
@@ -157,57 +162,49 @@ const styles = StyleSheet.create({
   },
   lines: { gap: 2 },
   line: { flexDirection: 'row', justifyContent: 'space-between' },
-  lineLabel: { fontSize: FontSizes.sm, color: Colors.textMedium },
+  lineLabel: { flexShrink: 1, fontSize: FontSizes.sm, color: Colors.textMedium },
   lineValue: { fontSize: FontSizes.sm, color: Colors.textMedium },
   confirmBtn: {
     marginTop: Spacing.xs,
+    flexDirection: 'row',
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
     backgroundColor: Colors.success,
     alignItems: 'center',
-    minHeight: 48,
     justifyContent: 'center',
+    gap: Spacing.xs,
+    minHeight: 48,
   },
-  confirmBtnDone: { backgroundColor: Colors.successSubtle, opacity: 0.9 },
   confirmBtnText: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontSize: FontSizes.base,
     fontWeight: FontWeights.bold as any,
     color: Colors.textWhite,
   },
-  shortPanel: {
-    gap: Spacing.xs,
+  doneBlock: {
+    marginTop: Spacing.xs,
     padding: Spacing.md,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.warningSubtle,
-    borderWidth: 1,
-    borderColor: Colors.warningBorder,
+    backgroundColor: Colors.successSubtle,
+    gap: Spacing.xs,
   },
-  shortHeading: {
-    fontSize: FontSizes.sm,
-    fontWeight: FontWeights.bold as any,
-    color: Colors.warning,
-  },
-  shortRow: {
+  doneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm,
+    gap: Spacing.xs,
   },
-  peso: {
-    fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold as any,
-    color: Colors.textMedium,
-  },
-  shortInput: {
-    flex: 1,
-    fontSize: FontSizes.lg,
+  doneText: {
+    flexShrink: 1,
+    fontSize: FontSizes.base,
     fontWeight: FontWeights.bold as any,
     color: Colors.textDark,
-    paddingVertical: Spacing.sm,
-    paddingLeft: Spacing.xs,
   },
-  shortNote: { fontSize: FontSizes.xs, color: Colors.warning },
+  notePreviewText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textMedium,
+    fontStyle: 'italic',
+  },
   shortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,6 +214,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   shortText: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.semibold as any,
     color: Colors.warning,

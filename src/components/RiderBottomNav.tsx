@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Navigation, History, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Home, History, UserRound, type LucideIcon } from 'lucide-react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, FontFamily, scaledFontSize, moderateScale } from '../config/theme';
 
@@ -13,7 +13,6 @@ interface TabConfig {
 
 const TAB_CONFIGS: TabConfig[] = [
   { name: 'Home', label: 'Home', Icon: Home },
-  { name: 'Task', label: 'Task', Icon: Navigation },
   { name: 'History', label: 'My History', Icon: History },
   { name: 'Profile', label: 'Profile', Icon: UserRound },
 ];

@@ -46,6 +46,7 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   text: {
+    flexShrink: 1,
     color: '#F8FAFC',
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.semibold as any,

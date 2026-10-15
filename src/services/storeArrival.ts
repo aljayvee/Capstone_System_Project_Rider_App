@@ -59,22 +59,97 @@ export function radiusOf(stop: Pick<ErrandPinpoint, 'geofenceRadiusMeters'>): nu
   return typeof radius === 'number' && radius > 0 ? radius : DEFAULT_ARRIVAL_RADIUS_METERS;
 }
 
+export const STORE_DELAY_THRESHOLD_MS = 12 * 60 * 1000; // 12 minutes
+
 /**
- * The one stop the rider is currently heading for.
- *
- * Only this stop can be arrived at. Considering every stop at once is what makes
- * a rider passing the second shop on the way to the first register the wrong
- * arrival — the geofence circles genuinely overlap at this spacing, so the
- * ordering has to do the work the geometry cannot.
+ * Supermarket & Grocery stores are exempt from the dwell delay timeout
+ * because riders take time browsing aisles and lining up at checkout.
  */
-export function nextOutstandingStop(stops: ErrandPinpoint[] | undefined): ErrandPinpoint | null {
+export function isStoreExemptFromDelay(category?: string | null): boolean {
+  if (!category) return false;
+  const lower = category.toLowerCase();
+  return lower.includes('supermarket') || lower.includes('grocery');
+}
+
+/**
+ * Pharmacy, Cafe & Restaurant, and other stores have a 12-minute threshold
+ * where the rider is prompted to switch to another store if service is taking too long.
+ */
+export function isStoreEligibleForDelay(category?: string | null): boolean {
+  return !isStoreExemptFromDelay(category);
+}
+
+/**
+ * The stop the rider is currently heading for.
+ *
+ * Dynamically picks the store pin that is nearest to the rider's current location,
+ * replacing static chronological sequence (0, 1, 2...).
+ *
+ * Supports deferring delayed stores (e.g. Cafe/Pharmacy taking >12m).
+ * If non-deferred candidates exist, deferred stops are skipped; if all
+ * remaining stops are deferred, it falls back to the deferred pool so the
+ * rider routes back to them.
+ */
+export function nearestOutstandingStop(
+  stops: ErrandPinpoint[] | undefined,
+  currentLocation?: { latitude: number; longitude: number } | null,
+  deferredStopIds?: Set<number> | number[],
+  completedStopIds?: Set<number> | number[],
+  options: { includeArrived?: boolean } = {}
+): ErrandPinpoint | null {
   if (!stops || stops.length === 0) return null;
 
-  return (
-    [...stops]
-      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-      .find((stop) => !stop.arrivedAt && !stop.departedAt) ?? null
+  const deferredSet =
+    deferredStopIds instanceof Set
+      ? deferredStopIds
+      : new Set(deferredStopIds ?? []);
+
+  const completedSet =
+    completedStopIds instanceof Set
+      ? completedStopIds
+      : new Set(completedStopIds ?? []);
+
+  const outstanding = stops.filter(
+    (s) =>
+      (!s.arrivedAt || deferredSet.has(s.id) || options.includeArrived) &&
+      !s.departedAt &&
+      !completedSet.has(s.id)
   );
+  if (outstanding.length === 0) return null;
+
+  const nonDeferred = outstanding.filter((s) => !deferredSet.has(s.id));
+  const pool = nonDeferred.length > 0 ? nonDeferred : outstanding;
+
+  if (!currentLocation) {
+    return (
+      [...pool].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))[0] ?? null
+    );
+  }
+
+  return pool.reduce((closest, s) => {
+    const distS = metersBetween(currentLocation, {
+      latitude: s.latitude,
+      longitude: s.longitude,
+    });
+    const distClosest = metersBetween(currentLocation, {
+      latitude: closest.latitude,
+      longitude: closest.longitude,
+    });
+    return distS < distClosest ? s : closest;
+  }, pool[0]);
+}
+
+/**
+ * Backwards-compatible delegating function for nearestOutstandingStop.
+ */
+export function nextOutstandingStop(
+  stops: ErrandPinpoint[] | undefined,
+  currentLocation?: { latitude: number; longitude: number } | null,
+  deferredStopIds?: Set<number> | number[],
+  completedStopIds?: Set<number> | number[],
+  options: { includeArrived?: boolean } = {}
+): ErrandPinpoint | null {
+  return nearestOutstandingStop(stops, currentLocation, deferredStopIds, completedStopIds, options);
 }
 
 /**
@@ -88,9 +163,13 @@ export function nextOutstandingStop(stops: ErrandPinpoint[] | undefined): Errand
  */
 export function nextWaypoint(
   stops: ErrandPinpoint[] | undefined,
-  destination: { latitude: number; longitude: number } | null | undefined
+  destination: { latitude: number; longitude: number } | null | undefined,
+  currentLocation?: { latitude: number; longitude: number } | null,
+  deferredStopIds?: Set<number> | number[],
+  completedStopIds?: Set<number> | number[],
+  options: { includeArrived?: boolean } = {}
 ): ErrandPinpoint | null {
-  const stop = nextOutstandingStop(stops);
+  const stop = nearestOutstandingStop(stops, currentLocation, deferredStopIds, completedStopIds, options);
   if (stop) return stop;
   if (!destination) return null;
 

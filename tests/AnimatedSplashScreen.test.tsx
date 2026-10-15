@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, cleanup, act } from '@testing-library/react-native';
+import { render, cleanup, act, fireEvent } from '@testing-library/react-native';
 import AnimatedSplashScreen from '../src/components/AnimatedSplashScreen';
 import { ThemeProvider } from '../src/context/ThemeContext';
 
@@ -26,6 +26,26 @@ describe('Rider AnimatedSplashScreen component', () => {
     expect(res.getByText('SUGO RIDER')).toBeTruthy();
     expect(res.getByText('Fleet Operations & Dispatch')).toBeTruthy();
     expect(res.getByText('Tacurong City Logistics')).toBeTruthy();
+  });
+
+  it('lets go of the system splash once, as soon as it has drawn', async () => {
+    // The system splash is blank (app.json); this one must be the first the
+    // rider sees, not wait under it until its own animation has finished.
+    const onFirstFrame = jest.fn();
+    const res: any = await render(
+      <ThemeProvider>
+        <AnimatedSplashScreen isAppReady={false} onAnimationComplete={jest.fn()} onFirstFrame={onFirstFrame} />
+      </ThemeProvider>
+    );
+    expect(onFirstFrame).not.toHaveBeenCalled();
+
+    const layout = { nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } } };
+    await act(async () => {
+      fireEvent(res.getByTestId('animated-splash'), 'layout', layout);
+      // Rotating or resizing lays it out again; the handover happens once.
+      fireEvent(res.getByTestId('animated-splash'), 'layout', layout);
+    });
+    expect(onFirstFrame).toHaveBeenCalledTimes(1);
   });
 
   it('completes the animated dismissal workflow when rider session is ready', async () => {
@@ -58,7 +78,7 @@ describe('Rider AnimatedSplashScreen component', () => {
     const onComplete = jest.fn();
     await render(
       <ThemeProvider>
-        <AnimatedSplashScreen isAppReady={false} onAnimationComplete={onComplete} />
+        <AnimatedSplashScreen isAppReady={true} onAnimationComplete={onComplete} />
       </ThemeProvider>
     );
 

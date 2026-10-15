@@ -96,6 +96,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxxl,
   },
   title: {
+    flexShrink: 1,
     fontSize: FontSizes.xl,
     fontWeight: FontWeights.bold as any,
     color: Colors.textDark,

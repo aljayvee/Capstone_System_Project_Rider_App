@@ -148,3 +148,168 @@ export function pathLength(path: MapCoordinate[]): number {
   for (let i = 1; i < path.length; i++) total += metresBetween(path[i - 1], path[i]);
   return total;
 }
+
+/** Distance from the start of `path` to each of its vertices, in metres. */
+export function cumulativeLengths(path: MapCoordinate[]): number[] {
+  const out = new Array<number>(path.length);
+  let total = 0;
+  for (let i = 0; i < path.length; i++) {
+    if (i > 0) total += metresBetween(path[i - 1], path[i]);
+    out[i] = total;
+  }
+  return out;
+}
+
+/** How far along `path` a projection lies, in metres from its start. */
+export function alongDistance(path: MapCoordinate[], cumulative: number[], projection: PathProjection): number {
+  const start = path[projection.segmentIndex];
+  if (!start) return 0;
+  return cumulative[projection.segmentIndex] + metresBetween(start, projection.point);
+}
+
+/** The point `metres` along `path` from its start, as a projection with no offset. */
+export function projectionAtDistance(path: MapCoordinate[], cumulative: number[], metres: number): PathProjection {
+  const last = Math.max(0, path.length - 2);
+  let i = 0;
+  while (i < last && cumulative[i + 1] <= metres) i++;
+  const segment = (cumulative[i + 1] ?? cumulative[i]) - cumulative[i];
+  const t = segment > 0 ? Math.max(0, Math.min(1, (metres - cumulative[i]) / segment)) : 0;
+  const point = path.length > 1 ? lerpCoordinate(path[i], path[i + 1], t) : path[0];
+  return { point, segmentIndex: i, t, distanceMeters: 0 };
+}
+
+/**
+ * The part of `path` from `metres` along it to its end. The line drawn ahead
+ * of the rider, trimmed at an exact distance rather than at a projection.
+ */
+export function pathFromDistance(path: MapCoordinate[], cumulative: number[], metres: number): MapCoordinate[] {
+  if (path.length < 2 || metres <= 0) return path;
+  const total = cumulative[cumulative.length - 1];
+  // Past the end: nothing left to draw. One point, which no polyline draws.
+  if (metres >= total) return [path[path.length - 1]];
+
+  let i = 0;
+  while (i < path.length - 2 && cumulative[i + 1] <= metres) i++;
+  const segment = cumulative[i + 1] - cumulative[i];
+  const t = segment > 0 ? (metres - cumulative[i]) / segment : 0;
+  return [lerpCoordinate(path[i], path[i + 1], t), ...path.slice(i + 1)];
+}
+
+/** Where the rider is along the route, as the line trimming understands it. */
+export interface RouteProgress {
+  projection: PathProjection;
+  /** Metres from the route's start to the projection. */
+  alongMeters: number;
+}
+
+/** How far behind the last position a fix is searched for. */
+const PROGRESS_BACK_WINDOW_METERS = 60;
+/**
+ * Metres of along-route distance that cost as much as one metre off the road,
+ * when choosing where on the route a fix belongs. At a corner, or where the
+ * route runs back beside itself, two stretches can be equally near a scattered
+ * fix; the one that does not ask the rider to have leapt along the route wins.
+ */
+const PROGRESS_CONTINUITY_WEIGHT = 0.25;
+/** Only a fix this much nearer elsewhere on the route beats continuity: the rider is really there. */
+const PROGRESS_ELSEWHERE_MARGIN_METERS = 25;
+/**
+ * A step back smaller than this is GPS scatter along the road, not the rider
+ * reversing, and is held rather than drawn. Held, the line never regrows behind
+ * the rider every other second. Wider for a rider who is not moving, whose
+ * every apparent step is drift.
+ */
+export const PROGRESS_BACKTRACK_TOLERANCE_METERS = 25;
+const PROGRESS_BACKTRACK_TOLERANCE_STILL_METERS = 60;
+/** Doppler speed below this is a rider standing still, whatever the fix says. */
+const STILL_SPEED_MPS = 0.5;
+/** How far a standing rider's progress may creep forward per fix. */
+const STILL_CREEP_METERS = 3;
+
+/**
+ * The rider's progress along the route for a new fix, given the last one.
+ *
+ * Two things the plain nearest-point projection did wrong, both visible as a
+ * line whose start jumped about under a rider riding steadily:
+ *   - it chose the nearest stretch of the whole route, so at a corner, or where
+ *     the route passes near itself, scatter flipped it to the other stretch and
+ *     back;
+ *   - it followed every fix, so along-track scatter moved the start of the line
+ *     backwards as often as forwards.
+ * So a fix is placed where it is near the road AND near where the rider was a
+ * moment ago, unless they are plainly elsewhere now, small steps backwards are
+ * held, and a rider whose own speed says they are standing does not drift.
+ */
+export function followRouteProgress(
+  point: MapCoordinate & { speed?: number | null },
+  path: MapCoordinate[],
+  cumulative: number[],
+  previous: RouteProgress | null
+): RouteProgress | null {
+  const global = projectOntoPath(point, path);
+  if (!global) return null;
+  const globalAlong = alongDistance(path, cumulative, global);
+  if (path.length < 2) return { projection: global, alongMeters: globalAlong };
+
+  const speed = typeof point.speed === 'number' && point.speed >= 0 ? point.speed : null;
+  const still = speed != null && speed < STILL_SPEED_MPS;
+  // Where the rider should be about now, and how far ahead to look for them.
+  // With no history, the start: every route is asked for from the rider's own
+  // position, so a fix that could be on the way out or the way back is on the
+  // way out. The rule below still moves them if they are plainly elsewhere.
+  const expected = previous ? previous.alongMeters + (speed ?? 0) : 0;
+  const from = previous ? previous.alongMeters - PROGRESS_BACK_WINDOW_METERS : -Infinity;
+  const to = previous ? previous.alongMeters + 60 + (speed ?? 8) * 6 : Infinity;
+
+  let best: { projection: PathProjection; along: number; score: number } | null = null;
+  const scale = Math.cos(point.latitude * (Math.PI / 180));
+  for (let i = 0; i < path.length - 1; i++) {
+    if (cumulative[i + 1] < from) continue;
+    if (cumulative[i] > to) break;
+    const a = path[i];
+    const b = path[i + 1];
+    const vx = (b.longitude - a.longitude) * scale;
+    const vy = b.latitude - a.latitude;
+    const lengthSq = vx * vx + vy * vy;
+    const t =
+      lengthSq === 0
+        ? 0
+        : Math.max(
+            0,
+            Math.min(1, ((point.longitude - a.longitude) * scale * vx + (point.latitude - a.latitude) * vy) / lengthSq)
+          );
+    const candidate = lerpCoordinate(a, b, t);
+    const distanceMeters = metresBetween(point, candidate);
+    const along = cumulative[i] + metresBetween(a, candidate);
+    const score = distanceMeters + PROGRESS_CONTINUITY_WEIGHT * Math.abs(along - expected);
+    if (!best || score < best.score) {
+      best = { projection: { point: candidate, segmentIndex: i, t, distanceMeters }, along, score };
+    }
+  }
+
+  // Nothing nearby, or the route elsewhere is plainly where the rider is now
+  // (a shortcut, a fix catching up after a tunnel).
+  const elsewhere =
+    !best || best.projection.distanceMeters > global.distanceMeters + PROGRESS_ELSEWHERE_MARGIN_METERS;
+  let projection = elsewhere ? global : best!.projection;
+  let alongMeters = elsewhere ? globalAlong : best!.along;
+  if (!previous) return { projection, alongMeters };
+
+  if (!elsewhere && still && alongMeters - previous.alongMeters > STILL_CREEP_METERS) {
+    // Standing, by the phone's own Doppler speed: forward "movement" is drift.
+    alongMeters = previous.alongMeters + STILL_CREEP_METERS;
+    projection = { ...projectionAtDistance(path, cumulative, alongMeters), distanceMeters: projection.distanceMeters };
+  }
+
+  const backwards = previous.alongMeters - alongMeters;
+  const tolerance = still ? PROGRESS_BACKTRACK_TOLERANCE_STILL_METERS : PROGRESS_BACKTRACK_TOLERANCE_METERS;
+  if (!elsewhere && backwards > 0 && backwards < tolerance) {
+    // Held where it was along the road, but still reporting how far off the
+    // road this fix is, which the caller uses to decide whether to trim at all.
+    return {
+      projection: { ...previous.projection, distanceMeters: projection.distanceMeters },
+      alongMeters: previous.alongMeters,
+    };
+  }
+  return { projection, alongMeters };
+}

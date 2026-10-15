@@ -7,14 +7,14 @@ import {
   StyleSheet,
   ActivityIndicator,
   Modal,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   useWindowDimensions,
   Animated,
   StatusBar,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import {
   User,
   Lock,
@@ -34,6 +34,7 @@ export const LoginScreen = () => {
   const { login, pendingChallenge, verifyLoginOtp, resendLoginOtp, cancelChallenge } = useRiderAuth();
   const { height: screenHeight, isCompact, isTablet } = useResponsive();
   const scrollViewRef = useRef<ScrollView>(null);
+  const isSubmittingRef = useRef(false);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -78,6 +79,8 @@ export const LoginScreen = () => {
   };
 
   const handleLogin = async () => {
+    if (isSubmittingRef.current) return;
+
     let hasError = false;
     setUsernameError(null);
     setPasswordError(null);
@@ -97,11 +100,22 @@ export const LoginScreen = () => {
 
     if (hasError) return;
 
+    Keyboard.dismiss();
+    isSubmittingRef.current = true;
     setIsLoading(true);
     try {
       await login(username.trim(), password.trim());
     } catch (err: any) {
-      const msg = err?.message || 'Invalid username or password';
+      let msg = err?.message || 'Invalid username or password';
+      // Defensive: strip raw transport exceptions from user view
+      if (
+        msg.includes('fetch failed') ||
+        msg.includes('canceled') ||
+        msg.includes('cancelled') ||
+        msg.includes('Network request failed')
+      ) {
+        msg = 'Connection timed out or was interrupted. Please check your signal and try again.';
+      }
       if (
         msg.includes('Access denied') ||
         msg.includes('permitted') ||
@@ -118,17 +132,21 @@ export const LoginScreen = () => {
         triggerShake(shakePassword);
       }
     } finally {
+      isSubmittingRef.current = false;
       setIsLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
+    if (isSubmittingRef.current) return;
     const code = otpCode.trim();
     if (code.length !== 6) {
       setOtpError('Enter the 6-digit code from your email.');
       return;
     }
 
+    Keyboard.dismiss();
+    isSubmittingRef.current = true;
     setOtpError(null);
     setIsVerifying(true);
     try {
@@ -137,11 +155,14 @@ export const LoginScreen = () => {
       setOtpError(err?.message || 'Incorrect verification code.');
       setOtpCode('');
     } finally {
+      isSubmittingRef.current = false;
       setIsVerifying(false);
     }
   };
 
   const handleResendOtp = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setOtpError(null);
     setIsResending(true);
     try {
@@ -150,6 +171,7 @@ export const LoginScreen = () => {
     } catch (err: any) {
       setOtpError(err?.message || 'Could not send a new code.');
     } finally {
+      isSubmittingRef.current = false;
       setIsResending(false);
     }
   };
@@ -168,11 +190,12 @@ export const LoginScreen = () => {
       {/* Clean White Tactical Vector Grid Background */}
       <TacticalGridBackground />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
+      {/* keyboard-controller's view, which reads the keyboard's real height.
+          React Native's own, with 'height' on Android, waited for a window
+          resize that edge-to-edge never sends, so the fields stayed under the
+          keyboard. Padding shrinks the scroll area to the space above it and
+          the onFocus scrollTo calls below do the rest. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
           ref={scrollViewRef}
           style={{ flex: 1 }}
@@ -421,11 +444,13 @@ export const LoginScreen = () => {
         transparent
         animationType="fade"
         onRequestClose={handleCancelChallenge}
+        // Full-screen from the very top, so the view below measures the
+        // keyboard against the whole screen and lifts the code field exactly.
+        statusBarTranslucent
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        {/* Was behavior={undefined} on Android: no avoidance at all, so the
+            code field sat under the number pad. */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.otpIconBadge}>
@@ -636,6 +661,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   inlineErrorText: {
+    flexShrink: 1,
     color: Colors.primary,
     fontSize: scaledFontSize(FontSizes.xxs, 0.20),
     fontWeight: FontWeights.bold,
@@ -722,6 +748,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   loginButtonText: {
+    flexShrink: 1,
+    textAlign: 'center',
     color: Colors.textWhite,
     fontWeight: FontWeights.black,
     fontSize: scaledFontSize(FontSizes.md, 0.20),

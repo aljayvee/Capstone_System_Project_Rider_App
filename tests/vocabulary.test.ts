@@ -22,12 +22,12 @@ import { STEP_META, STATUS_STEPS } from "../src/types/rider";
  */
 
 const BANNED: Array<{ word: RegExp; why: string }> = [
-  { word: /\bmission\b/i, why: 'invented flavour for an errand — say "errand"' },
-  { word: /\bwaypoint\b/i, why: 'navigation jargon for a shop — say "store"' },
-  { word: /\bassignment\b/i, why: 'a second name for an errand — say "errand"' },
+  { word: /\bmissions?\b/i, why: 'invented flavour for an errand — say "errand"' },
+  { word: /\bwaypoints?\b/i, why: 'navigation jargon for a shop — say "store"' },
+  { word: /\bassignments?\b/i, why: 'a second name for an errand — say "errand"' },
   { word: /\bmark as\b/i, why: "updates a record rather than saying what happened" },
-  { word: /\bcached\b/i, why: "implementation detail; nobody thinks in caches" },
-  { word: /\bdestination\b/i, why: 'say who is there — "customer"' },
+  { word: /\bcached?\b/i, why: "implementation detail; nobody thinks in caches" },
+  { word: /\bdestinations?\b/i, why: 'say who is there — "customer"' },
 ];
 
 function sourceFiles(dir: string, out: string[] = []): string[] {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { AlertCircle } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 
@@ -29,8 +30,12 @@ export function DeclineModal({
   const handleConfirm = onConfirm || onSubmit || (() => {});
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
+    // statusBarTranslucent: the overlay then starts at the very top of the
+    // screen, so its padding below is exactly the keyboard's height.
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      {/* The card is centred, which put the reason box and Confirm under the
+          keyboard. Padding by the keyboard re-centres it in the space above. */}
+      <KeyboardAvoidingView behavior="padding" style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.iconContainer}>
             <AlertCircle size={32} color={Colors.primary} />
@@ -66,7 +71,7 @@ export function DeclineModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

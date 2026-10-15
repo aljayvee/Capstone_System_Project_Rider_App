@@ -4,8 +4,8 @@ import { riderApiService } from "../config/apiConfig";
 const PENDING_SETTLEMENTS_KEY = "@sugo_rider_pending_settlements";
 
 export type SettlementPayload =
-  | { collectedInFull: true }
-  | { collectedAmount: number; shortReason?: string };
+  | { collectedInFull: true; proofImageId?: number }
+  | { collectedAmount: number; shortReason?: string; proofImageId?: number };
 
 interface PendingSettlement {
   errandId: string;

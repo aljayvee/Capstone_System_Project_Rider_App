@@ -103,6 +103,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepLabel: {
+    // Shares its row with the CURRENT badge; without this a long step name
+    // pushed the badge past the panel's edge on a narrow screen.
+    flexShrink: 1,
     fontSize: scaledFontSize(FontSizes.sm, 0.20),
   },
   checkIcon: {

@@ -3,7 +3,11 @@ import {
   DELIVERY_ARRIVAL_RADIUS_METERS,
   IDLE_WATCH,
   REQUIRED_PRESENCE_MS,
+  STORE_DELAY_THRESHOLD_MS,
   isDeliveryWaypoint,
+  isStoreEligibleForDelay,
+  isStoreExemptFromDelay,
+  nearestOutstandingStop,
   nextOutstandingStop,
   nextWaypoint,
   observeFix,
@@ -227,3 +231,162 @@ describe("the customer's door as the last waypoint", () => {
     expect(observeFix({ stopId: -1, insideSince: 0 }, door, vague).arrived).toBe(false);
   });
 });
+
+describe("nearest-store dynamic routing (Rule 1 & 2)", () => {
+  it("picks the nearest store pin based on rider GPS rather than sequence number", () => {
+    // Jollibee is seq 0, Savemore is seq 1.
+    // Place rider right at Savemore's coordinates:
+    const atSavemore = { latitude: SAVEMORE.latitude, longitude: SAVEMORE.longitude };
+    const target = nearestOutstandingStop([JOLLIBEE, SAVEMORE], atSavemore);
+    expect(target?.id).toBe(SAVEMORE.id);
+  });
+
+  it("picks Jollibee when the rider is closer to Jollibee", () => {
+    const atJollibee = { latitude: JOLLIBEE.latitude, longitude: JOLLIBEE.longitude };
+    const target = nearestOutstandingStop([SAVEMORE, JOLLIBEE], atJollibee);
+    expect(target?.id).toBe(JOLLIBEE.id);
+  });
+
+  it("falls back to sequence order when no currentLocation is supplied", () => {
+    expect(nearestOutstandingStop([SAVEMORE, JOLLIBEE], null)?.id).toBe(JOLLIBEE.id);
+    expect(nearestOutstandingStop([SAVEMORE, JOLLIBEE], undefined)?.id).toBe(JOLLIBEE.id);
+  });
+
+  it("skips deferred stops when non-deferred candidates exist (Rule 6)", () => {
+    // Both stops available; rider at Jollibee. If Jollibee is deferred, pick Savemore.
+    const atJollibee = { latitude: JOLLIBEE.latitude, longitude: JOLLIBEE.longitude };
+    const target = nearestOutstandingStop([JOLLIBEE, SAVEMORE], atJollibee, new Set([JOLLIBEE.id]));
+    expect(target?.id).toBe(SAVEMORE.id);
+  });
+
+  it("falls back to deferred stop once all other stops are completed/departed", () => {
+    // Savemore completed (or departed). Jollibee was deferred.
+    const atSavemore = { latitude: SAVEMORE.latitude, longitude: SAVEMORE.longitude };
+    const target = nearestOutstandingStop(
+      [JOLLIBEE, SAVEMORE],
+      atSavemore,
+      new Set([JOLLIBEE.id]),
+      new Set([SAVEMORE.id])
+    );
+    // Even though Jollibee is in deferred set, it's the only remaining outstanding stop
+    expect(target?.id).toBe(JOLLIBEE.id);
+  });
+
+  it("supports array and Set types for deferredStopIds and completedStopIds", () => {
+    const atJollibee = { latitude: JOLLIBEE.latitude, longitude: JOLLIBEE.longitude };
+    const target = nearestOutstandingStop(
+      [JOLLIBEE, SAVEMORE],
+      atJollibee,
+      [JOLLIBEE.id],
+      []
+    );
+    expect(target?.id).toBe(SAVEMORE.id);
+  });
+
+  it("falls back to deferred stop even if arrivedAt was recorded prior to deferral", () => {
+    // Rider arrived at Jollibee, waited >12m, and deferred Jollibee after arrivedAt was stamped.
+    const arrivedJollibee = {
+      ...JOLLIBEE,
+      arrivedAt: "2026-08-25T01:00:00Z",
+    };
+    const atSavemore = { latitude: SAVEMORE.latitude, longitude: SAVEMORE.longitude };
+
+    // While Savemore is outstanding, Jollibee is deferred -> Savemore chosen
+    const target1 = nearestOutstandingStop(
+      [arrivedJollibee, SAVEMORE],
+      atSavemore,
+      new Set([JOLLIBEE.id]),
+      new Set()
+    );
+    expect(target1?.id).toBe(SAVEMORE.id);
+
+    // Once Savemore is departed, Jollibee MUST be chosen even though arrivedAt is set
+    const target2 = nearestOutstandingStop(
+      [arrivedJollibee, SAVEMORE],
+      atSavemore,
+      new Set([JOLLIBEE.id]),
+      new Set([SAVEMORE.id])
+    );
+    expect(target2?.id).toBe(JOLLIBEE.id);
+  });
+
+  it("routes through 3+ stops where store A is deferred, store B completed, store C completed, then falls back to store A", () => {
+    const STORE_C: ErrandPinpoint = {
+      id: 103,
+      storeName: "Mercury Drug",
+      latitude: 6.691,
+      longitude: 124.676,
+      sequence: 2,
+    };
+    const arrivedJollibee = {
+      ...JOLLIBEE,
+      arrivedAt: "2026-08-25T01:00:00Z",
+    };
+
+    const locationNearSavemore = { latitude: SAVEMORE.latitude, longitude: SAVEMORE.longitude };
+    const deferred = new Set([JOLLIBEE.id]);
+    const completed = new Set<number>();
+
+    // Step 1: Jollibee is deferred. Savemore and Mercury are candidates. Nearest is Savemore.
+    const next1 = nearestOutstandingStop([arrivedJollibee, SAVEMORE, STORE_C], locationNearSavemore, deferred, completed);
+    expect(next1?.id).toBe(SAVEMORE.id);
+
+    // Step 2: Savemore completed. Next nearest non-deferred is Mercury.
+    completed.add(SAVEMORE.id);
+    const next2 = nearestOutstandingStop([arrivedJollibee, SAVEMORE, STORE_C], locationNearSavemore, deferred, completed);
+    expect(next2?.id).toBe(STORE_C.id);
+
+    // Step 3: Mercury completed. All non-deferred completed. System must route back to Jollibee!
+    completed.add(STORE_C.id);
+    const next3 = nearestOutstandingStop([arrivedJollibee, SAVEMORE, STORE_C], locationNearSavemore, deferred, completed);
+    expect(next3?.id).toBe(JOLLIBEE.id);
+  });
+
+  it("supports includeArrived option so active store is maintained while shopping inside it", () => {
+    const arrivedJollibee = {
+      ...JOLLIBEE,
+      arrivedAt: "2026-08-25T01:00:00Z",
+    };
+    const atJollibee = { latitude: JOLLIBEE.latitude, longitude: JOLLIBEE.longitude };
+
+    // With includeArrived: false (default waypoint navigation), arrived store is skipped
+    expect(nearestOutstandingStop([arrivedJollibee, SAVEMORE], atJollibee)?.id).toBe(SAVEMORE.id);
+
+    // With includeArrived: true (TaskScreen active store evaluation), current arrived store is maintained
+    expect(
+      nearestOutstandingStop([arrivedJollibee, SAVEMORE], atJollibee, undefined, undefined, {
+        includeArrived: true,
+      })?.id
+    ).toBe(JOLLIBEE.id);
+  });
+});
+
+describe("establishment dwell delay rules (Rule 6)", () => {
+  it("defines the delay threshold as exactly 12 minutes (720,000 ms)", () => {
+    expect(STORE_DELAY_THRESHOLD_MS).toBe(12 * 60 * 1000);
+    expect(STORE_DELAY_THRESHOLD_MS).toBe(720_000);
+  });
+
+  it("exempts Supermarkets and Groceries from delay alert", () => {
+    expect(isStoreExemptFromDelay("Supermarket")).toBe(true);
+    expect(isStoreExemptFromDelay("supermarket")).toBe(true);
+    expect(isStoreExemptFromDelay("Grocery")).toBe(true);
+    expect(isStoreExemptFromDelay("Local Grocery Store")).toBe(true);
+    expect(isStoreEligibleForDelay("Supermarket")).toBe(false);
+    expect(isStoreEligibleForDelay("Grocery")).toBe(false);
+  });
+
+  it("flags Pharmacies, Cafes, Restaurants and other stores as eligible for delay", () => {
+    expect(isStoreExemptFromDelay("Pharmacy")).toBe(false);
+    expect(isStoreExemptFromDelay("Cafe")).toBe(false);
+    expect(isStoreExemptFromDelay("Restaurant")).toBe(false);
+    expect(isStoreExemptFromDelay("Fast Food")).toBe(false);
+    expect(isStoreExemptFromDelay(null)).toBe(false);
+    expect(isStoreExemptFromDelay(undefined)).toBe(false);
+
+    expect(isStoreEligibleForDelay("Pharmacy")).toBe(true);
+    expect(isStoreEligibleForDelay("Cafe")).toBe(true);
+    expect(isStoreEligibleForDelay("Restaurant")).toBe(true);
+  });
+});
+

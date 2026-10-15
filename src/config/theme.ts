@@ -185,14 +185,14 @@ export const DarkColors: Record<keyof typeof LightColors, string> = {
   textLight: "#A9B0BD",
   textWhite: "#FFFFFF",
 
-  bgWhite: "#1F2937",
-  bgLight: "#111827",
-  bgGray: "#374151",
-  bgDark: "#0B1220",
-  card: "#1F2937",
+  bgWhite: "#121212",
+  bgLight: "#000000",
+  bgGray: "#1E1E1E",
+  bgDark: "#000000",
+  card: "#121212",
 
-  border: "#374151",
-  borderLight: "#1F2937",
+  border: "#262626",
+  borderLight: "#1A1A1A",
 
   overlayDark: "rgba(0,0,0,0.60)",
   overlayHeavy: "rgba(0,0,0,0.75)",
@@ -314,6 +314,16 @@ export const Shadows = {
     shadowOffset: { width: 0, height: -4 },
     elevation: 8,
   },
+} as const;
+
+/**
+ * Android resolves overlapping views by `elevation`, not `zIndex`.
+ * `bottomSheet` is elevated higher than `floatingControls` so that the expanded
+ * errand sheet always cleanly covers the map controls and overlays.
+ */
+export const Elevation = {
+  bottomSheet: 20,
+  floatingControls: 16,
 } as const;
 
 /**

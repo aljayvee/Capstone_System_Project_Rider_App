@@ -1,13 +1,16 @@
 {
   "expo": {
-    "name": "RiderMobileApp",
+    "name": "Sugo Rider",
     "slug": "RiderMobileApp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "CFBundleDisplayName": "Sugo Rider"
+      }
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
@@ -18,7 +21,8 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
-        "android.permission.SCHEDULE_EXACT_ALARM"
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#DC2626",
@@ -26,7 +30,12 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,17 +45,17 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#ffffff",
-          "image": "./assets/splash-icon.png",
+          "image": "./assets/splash-blank.png",
           "imageWidth": 120,
           "dark": {
-            "backgroundColor": "#0B1220"
+            "backgroundColor": "#000000"
           }
         }
       ],
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow RiderMobileApp to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow Sugo Rider to use your location."
         }
       ],
       "expo-secure-store",
@@ -54,7 +63,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/android-icon-foreground.png",
           "color": "#ffffff"
         }
       ],

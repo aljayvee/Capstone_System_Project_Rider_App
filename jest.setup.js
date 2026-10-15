@@ -12,6 +12,12 @@ jest.mock('react-native-safe-area-context', () =>
   require('react-native-safe-area-context/jest/mock').default
 );
 
+// The library's own shipped mock. The real module is native and has no JS
+// implementation under the test renderer; the CustomerApp uses the same one.
+jest.mock('react-native-keyboard-controller', () =>
+  require('react-native-keyboard-controller/jest')
+);
+
 // ─── maps ────────────────────────────────────────────────────────────────────
 jest.mock('react-native-maps', () => {
   const React = require('react');
@@ -21,13 +27,28 @@ jest.mock('react-native-maps', () => {
   // to frame a route. Without these the ref is a plain View and every
   // mapRef.current?.fitToCoordinates(...) throws on mount.
   const MockMapView = React.forwardRef((props, ref) => {
-    React.useImperativeHandle(ref, () => ({
-      animateToRegion: jest.fn(),
-      animateCamera: jest.fn(),
-      fitToCoordinates: jest.fn(),
-      fitToElements: jest.fn(),
-      getCamera: jest.fn(() => Promise.resolve({ center: { latitude: 0, longitude: 0 }, zoom: 15 })),
-    }));
+    // One handle per map, left on global.__mapHandle so a test can see which
+    // camera calls were made: setCamera is instant, animateCamera is not.
+    const handle = React.useRef(null);
+    if (!handle.current) {
+      handle.current = {
+        animateToRegion: jest.fn(),
+        animateCamera: jest.fn(),
+        setCamera: jest.fn(),
+        fitToCoordinates: jest.fn(),
+        fitToElements: jest.fn(),
+        getCamera: jest.fn(() => Promise.resolve({ center: { latitude: 0, longitude: 0 }, zoom: 15 })),
+      };
+      global.__mapHandle = handle.current;
+    }
+    React.useImperativeHandle(ref, () => handle.current);
+    // The real map reports ready some time after mounting. A test can hold it
+    // back with global.__holdMapReady to see what is sent before then, which is
+    // what crashed the Task tab on Android (see LiveErrandMap's MapView props).
+    const { onMapReady } = props;
+    React.useEffect(() => {
+      if (!global.__holdMapReady && onMapReady) onMapReady();
+    }, []);
     return React.createElement(View, { ...props, testID: props.testID || 'mock-map-view' }, props.children);
   });
   MockMapView.displayName = 'MockMapView';
@@ -46,6 +67,7 @@ jest.mock('react-native-maps', () => {
     Polyline: passthrough('mock-polyline'),
     Circle: passthrough('mock-circle'),
     Callout: passthrough('mock-callout'),
+    UrlTile: passthrough('mock-url-tile'),
     PROVIDER_GOOGLE: 'google',
   };
 });
@@ -129,9 +151,11 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   getExpoPushTokenAsync: jest.fn(() => Promise.resolve({ data: 'ExponentPushToken[mock]' })),
+  getDevicePushTokenAsync: jest.fn(() => Promise.resolve({ type: 'android', data: 'fcm-device-token-mock' })),
   addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
+  scheduleNotificationAsync: jest.fn(() => Promise.resolve('mock-notif-id')),
   AndroidImportance: { MAX: 5 },
 }));
 

@@ -1,4 +1,5 @@
 import { apiClient } from "../services/apiClient";
+import { freshFlight, singleFlight } from "../services/requestCache";
 import { API_BASE_URL } from "./apiBaseUrl";
 import { mapApiErrandToDomain, type ApiErrand } from "../services/errandMapper";
 import type { Errand } from "../types/rider";
@@ -10,12 +11,32 @@ export { API_BASE_URL };
 // which runs before a session token exists for apiClient's interceptor to
 // attach. Every other call goes through the apiClient singleton below, per
 // the project's single-axios-instance rule.
-export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 10000): Promise<Response> {
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 20000): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     return res;
+  } catch (err: any) {
+    if (
+      timedOut ||
+      err?.name === 'AbortError' ||
+      err?.message?.includes('canceled') ||
+      err?.message?.includes('cancelled')
+    ) {
+      const abortErr = new Error(
+        timedOut
+          ? 'Connection timed out while contacting authentication server.'
+          : 'Network request was interrupted or canceled. Please try again.'
+      );
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -44,6 +65,11 @@ export interface RiderBeacon {
   beaconIntervalMs?: number;
   /** Sent once, on the way down, so the server need not guess at silence. */
   shuttingDown?: boolean;
+  /**
+   * When this shift started, epoch ms. Lets the server end every shift at
+   * 12:00 AM Manila time even if this phone missed the moment.
+   */
+  dutySince?: number | null;
 }
 
 /** The server's reading of that beacon, echoed back so the rider can be told. */
@@ -54,6 +80,11 @@ export interface RiderBeaconResult {
   impediments: Array<"background_location" | "notifications" | "exact_alarms">;
   beaconAgeMs: number | null;
   presumed: boolean;
+  /** The status the dispatcher sees. Absent from servers older than 2026-09-23. */
+  riderStatus?: "AVAILABLE_ONLINE" | "AVAILABLE_SIGNAL_LOST" | "OFFLINE";
+  riderStatusReason?: string;
+  /** Set when the server ended this shift at midnight: stop and go offline. */
+  forcedOffline?: "midnight_reset" | null;
 }
 
 /** One proof photo as the list endpoint describes it — no bytes. */
@@ -68,10 +99,20 @@ export interface ProofImageMeta {
   declaredTotal?: number | null;
 }
 
+// Every call below that can be asked twice at once is deduplicated
+// (services/requestCache). Mutations use singleFlight: a double tap sent one
+// twice, and identical ones in flight now share one request. The reads a
+// socket event or reconnect asks for again use freshFlight: a burst shares
+// one follow-up request that starts after any already out, so the answer is
+// never older than the event. The key names everything that makes two calls
+// different; photo uploads are left out, since two different photos for the
+// same slot are not the same request.
 export const riderApiService = {
   async fetchRiderProfile(riderId: number): Promise<any> {
     try {
-      const res = await apiClient.get(`/riders/profile/${riderId}`);
+      const res = await freshFlight(`GET /riders/profile/${riderId}`, () =>
+        apiClient.get(`/riders/profile/${riderId}`)
+      );
       return res.data?.user || res.data?.rider || res.data;
     } catch (err) {
       console.warn("Fetch rider profile error:", err);
@@ -81,7 +122,9 @@ export const riderApiService = {
 
   async fetchRiderErrands(riderId: number): Promise<Errand[]> {
     try {
-      const res = await apiClient.get(`/errands/rider/${riderId}`);
+      const res = await freshFlight(`GET /errands/rider/${riderId}`, () =>
+        apiClient.get(`/errands/rider/${riderId}`)
+      );
       const data: ApiErrand[] = Array.isArray(res.data) ? res.data : [];
       return data.map(mapApiErrandToDomain);
     } catch (err) {
@@ -95,7 +138,9 @@ export const riderApiService = {
   // signal came back.
   async acceptErrand(errandId: string, occurredAt?: string): Promise<any> {
     try {
-      const res = await apiClient.post(`/errands/${errandId}/accept`, occurredAt ? { occurredAt } : {});
+      const res = await singleFlight(`POST /errands/${errandId}/accept|${occurredAt ?? ""}`, () =>
+        apiClient.post(`/errands/${errandId}/accept`, occurredAt ? { occurredAt } : {})
+      );
       return res.data;
     } catch (err) {
       console.warn("Error accepting errand:", err);
@@ -105,7 +150,9 @@ export const riderApiService = {
 
   async declineErrand(errandId: string, reason?: string): Promise<any> {
     try {
-      const res = await apiClient.post(`/errands/${errandId}/decline`, reason ? { reason } : {});
+      const res = await singleFlight(`POST /errands/${errandId}/decline|${reason ?? ""}`, () =>
+        apiClient.post(`/errands/${errandId}/decline`, reason ? { reason } : {})
+      );
       return res.data;
     } catch (err) {
       console.warn("Error declining errand:", err);
@@ -115,11 +162,35 @@ export const riderApiService = {
 
   async updateErrandStatus(errandId: string, status: ApiErrandStatus, occurredAt?: string): Promise<boolean> {
     try {
-      await apiClient.patch(`/errands/${errandId}/status`, occurredAt ? { status, occurredAt } : { status });
+      await singleFlight(`PATCH /errands/${errandId}/status|${status}|${occurredAt ?? ""}`, () =>
+        apiClient.patch(`/errands/${errandId}/status`, occurredAt ? { status, occurredAt } : { status })
+      );
       return true;
     } catch (err) {
       console.warn("Failed to update errand status:", err);
       return false;
+    }
+  },
+
+  /**
+   * Holding every item, ask for the customer's 50% before heading to them.
+   *
+   * The server's refusal reasons are written for the rider ("File the receipts
+   * for what you bought first", "already settled. Head to the customer"), so
+   * they are passed back rather than replaced with a generic failure.
+   */
+  async requestHalfPayment(
+    errandId: string
+  ): Promise<{ ok: true; dueUpFront: number | null } | { ok: false; message: string | null }> {
+    try {
+      const res = await singleFlight(`POST /errands/${errandId}/payments/request-half`, () =>
+        apiClient.post(`/errands/${errandId}/payments/request-half`)
+      );
+      return { ok: true, dueUpFront: res.data?.ledger?.dueUpFront ?? null };
+    } catch (err: any) {
+      console.warn("Failed to request the half-payment:", err);
+      const message = err?.response?.data?.error;
+      return { ok: false, message: typeof message === "string" ? message : null };
     }
   },
 
@@ -130,10 +201,30 @@ export const riderApiService = {
         body.receiptTotal = receiptTotal;
       }
       if (occurredAt) body.occurredAt = occurredAt;
-      await apiClient.patch(`/errands/${errandId}/items-purchased`, body);
+      await singleFlight(`PATCH /errands/${errandId}/items-purchased|${JSON.stringify(body)}`, () =>
+        apiClient.patch(`/errands/${errandId}/items-purchased`, body)
+      );
       return true;
     } catch (err) {
       console.warn("Failed to mark items purchased:", err);
+      return false;
+    }
+  },
+
+  async updateItemFulfillmentStatus(
+    errandId: string,
+    itemId: number,
+    fulfillmentStatus: "PENDING" | "PURCHASED" | "OUT_OF_STOCK"
+  ): Promise<boolean> {
+    try {
+      await singleFlight(`PATCH /errands/${errandId}/items/${itemId}/status|${fulfillmentStatus}`, () =>
+        apiClient.patch(`/errands/${errandId}/items/${itemId}/status`, {
+          fulfillmentStatus,
+        })
+      );
+      return true;
+    } catch (err) {
+      console.warn("Failed to update item fulfillment status:", err);
       return false;
     }
   },
@@ -146,7 +237,9 @@ export const riderApiService = {
    */
   async fetchProofImages(errandId: string): Promise<ProofImageMeta[]> {
     try {
-      const res = await apiClient.get(`/errands/${errandId}/proof-images`);
+      const res = await singleFlight(`GET /errands/${errandId}/proof-images|`, () =>
+        apiClient.get(`/errands/${errandId}/proof-images`)
+      );
       return Array.isArray(res.data) ? res.data : (res.data?.images ?? []);
     } catch (err) {
       console.warn("Failed to fetch proof images:", err);
@@ -168,7 +261,9 @@ export const riderApiService = {
    */
   async fetchProofImage(errandId: string, imageId: number): Promise<string | null> {
     try {
-      const res = await apiClient.get(`/errands/${errandId}/proof-images/${imageId}`);
+      const res = await singleFlight(`GET /errands/${errandId}/proof-images/${imageId}`, () =>
+        apiClient.get(`/errands/${errandId}/proof-images/${imageId}`)
+      );
       const imageData: string | undefined = res.data?.imageData;
       if (!imageData) return null;
       if (imageData.startsWith("data:")) return imageData;
@@ -205,7 +300,7 @@ export const riderApiService = {
   /** The avatar bytes, or null when the rider has not set one. */
   async fetchProfilePhoto(riderId: string | number): Promise<string | null> {
     try {
-      const res = await apiClient.get(`/riders/${riderId}/photo`);
+      const res = await freshFlight(`GET /riders/${riderId}/photo`, () => apiClient.get(`/riders/${riderId}/photo`));
       return res.data?.photoData ?? null;
     } catch (err: any) {
       // 404 is the ordinary "no photo set" answer, not a failure worth logging.
@@ -237,7 +332,7 @@ export const riderApiService = {
 
   async registerPushToken(token: string): Promise<boolean> {
     try {
-      await apiClient.post(`/riders/push-token`, { token });
+      await singleFlight(`POST /riders/push-token|${token}`, () => apiClient.post(`/riders/push-token`, { token }));
       return true;
     } catch (err) {
       console.warn("Failed to register push token:", err);
@@ -301,15 +396,52 @@ export const riderApiService = {
    */
   async submitSettlement(
     errandId: string,
-    settlement: { collectedInFull: true } | { collectedAmount: number; shortReason?: string },
+    settlement:
+      | { collectedInFull: true; proofImageId?: number }
+      | { collectedAmount: number; shortReason?: string; proofImageId?: number },
     occurredAt?: string
   ): Promise<boolean> {
     try {
-      await apiClient.post(`/errands/${errandId}/settle`, { ...settlement, ...(occurredAt ? { occurredAt } : {}) });
+      const body = { ...settlement, ...(occurredAt ? { occurredAt } : {}) };
+      await singleFlight(`POST /errands/${errandId}/settle|${JSON.stringify(body)}`, () =>
+        apiClient.post(`/errands/${errandId}/settle`, body)
+      );
       return true;
     } catch (err) {
       console.warn("Failed to submit settlement:", err);
       return false;
+    }
+  },
+
+  /** Metadata for every proof image on an errand — a receipt, a handover
+   * photo, or a payment confirmation. Optionally scoped to one kind. */
+  async listProofImages(errandId: string, kind?: string): Promise<any[]> {
+    try {
+      const res = await freshFlight(`GET /errands/${errandId}/proof-images|${kind ?? ""}`, () =>
+        apiClient.get(`/errands/${errandId}/proof-images`, {
+          params: kind ? { kind } : undefined,
+        })
+      );
+      return Array.isArray(res.data) ? res.data : [];
+    } catch (err) {
+      console.warn("Failed to list proof images:", err);
+      return [];
+    }
+  },
+
+  /** One image's actual bytes, fetched only when a viewer is about to show it. */
+  async getProofImage(
+    errandId: string,
+    imageId: number
+  ): Promise<{ id: number; mimeType: string; imageData: string; capturedAt: string } | null> {
+    try {
+      const res = await singleFlight(`GET /errands/${errandId}/proof-images/${imageId}`, () =>
+        apiClient.get(`/errands/${errandId}/proof-images/${imageId}`)
+      );
+      return res.data;
+    } catch (err) {
+      console.warn("Failed to fetch proof image:", err);
+      return null;
     }
   },
 };

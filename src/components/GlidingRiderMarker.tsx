@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Marker } from 'react-native-maps';
-import RiderDotMarker from './RiderDotMarker';
 import type { MapCoordinate } from '../utils/coords';
 import {
   advanceAlongPath,
@@ -9,22 +8,24 @@ import {
   metresBetween,
   projectOntoPath,
 } from '../utils/routeGeometry';
+import { markerSnapMeters } from '../utils/navigationCamera';
 
 /**
  * How long the dot takes to travel from its last drawn spot to a new fix.
  *
- * Matched to the ~2 s fix cadence the foreground watcher uses, so the dot is
- * still moving when the next fix lands and never sits waiting. Slightly longer
- * than the gap on purpose: arriving a fraction late reads as smooth, arriving
- * early reads as a stutter followed by a pause.
+ * Matched to the 1 s fix cadence the foreground watcher uses (it was 2 s, and
+ * this was 2200; left there, every glide was cut short by the next fix and
+ * the dot trailed the rider), so the dot is still moving when the next fix
+ * lands and never sits waiting. Slightly longer than the gap on purpose:
+ * arriving a fraction late reads as smooth, arriving early reads as a stutter
+ * followed by a pause. The navigation camera animates over the same span.
  */
-const GLIDE_MS = 2200;
-
-/** Above this the fix is not on the route any more — the rider has gone their own way. */
-const MAX_SNAP_METERS = 40;
+export const GLIDE_MS = 1100;
 
 /** ~30 fps. Sixty would be smoother in theory and is indistinguishable here. */
 const FRAME_MS = 33;
+
+const RIDER_PUCK = require('../../assets/rider-puck.png');
 
 interface Props {
   /** The latest raw GPS fix. */
@@ -33,6 +34,12 @@ interface Props {
   route: MapCoordinate[] | null;
   /** Device heading when known; the direction of travel is used when it is not. */
   headingDeg?: number | null;
+  /**
+   * Ground speed in m/s. Decides how far off the road a fix may be and still be
+   * drawn on it (utils/navigationCamera.markerSnapMeters): riding, GPS scatter
+   * is pulled back onto the road; standing in a store, it is not.
+   */
+  speedMps?: number | null;
 }
 
 /**
@@ -49,7 +56,7 @@ interface Props {
  * Self-contained on purpose. Animating at 30 fps in the parent would re-render
  * the MapView, every Marker and the Polylines on every frame.
  */
-export default function GlidingRiderMarker({ target, route, headingDeg }: Props) {
+export default function GlidingRiderMarker({ target, route, headingDeg, speedMps }: Props) {
   const [position, setPosition] = useState<MapCoordinate | null>(target);
   const [bearing, setBearing] = useState(0);
 
@@ -73,9 +80,10 @@ export default function GlidingRiderMarker({ target, route, headingDeg }: Props)
     const destination = (() => {
       if (!path) return target;
       const projected = projectOntoPath(target, path);
-      // Off-route: the rider is on a side street the route does not use, or the
-      // route is stale. Drawing them on the line would be a confident lie.
-      if (!projected || projected.distanceMeters > MAX_SNAP_METERS) return target;
+      // Off-route: the rider is on a side street the route does not use, the
+      // route is stale, or they are standing inside a store. Drawing them on the
+      // line would be a confident lie.
+      if (!projected || projected.distanceMeters > markerSnapMeters(speedMps)) return target;
       return projected.point;
     })();
 
@@ -141,13 +149,19 @@ export default function GlidingRiderMarker({ target, route, headingDeg }: Props)
       coordinate={position}
       anchor={{ x: 0.5, y: 0.5 }}
       flat
-      rotation={headingDeg ?? bearing}
-      // The dot is decoration over a map the rider is reading; letting it take a
-      // tap only puts a callout in the way of the road underneath.
-      tracksViewChanges={false}
+      // The phone's heading when it has one; otherwise the direction the dot
+      // is gliding. A heading of -1 means "unknown", not "nearly north".
+      rotation={typeof headingDeg === 'number' && headingDeg >= 0 ? headingDeg : bearing}
+      // An image, never a child view. On Android's new architecture
+      // react-native-maps turns a child view into a bitmap once, and loses it:
+      // after switching between Google and OpenStreetMap the rider's dot came
+      // back blank and stayed gone (react-native-maps #5877, #5728; and
+      // tracksViewChanges is no longer passed to Android at all). A bundled
+      // image is loaded from the app's resources and has nothing to lose.
+      // assets/rider-puck*.png: an arrow puck, so it also shows which way the
+      // rider is heading. Its source is assets/rider-puck.svg.
+      image={RIDER_PUCK}
       title="You"
-    >
-      <RiderDotMarker />
-    </Marker>
+    />
   );
 }

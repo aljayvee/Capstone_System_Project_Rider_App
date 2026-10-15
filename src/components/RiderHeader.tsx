@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Bike } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, Gradients, FontFamily, scaledFontSize, moderateScale } from '../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, FontFamily, scaledFontSize, moderateScale } from '../config/theme';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { NotificationBell } from './NotificationBell';
 
@@ -32,20 +31,15 @@ export function RiderHeader({
   const initials = mission ? mission.riderProfile?.initials ?? '?' : propInitials ?? '?';
 
   return (
-    <LinearGradient
-      colors={Gradients.header}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <View style={styles.topRow}>
         <View style={styles.brandContainer}>
           <View style={styles.logoBox}>
             <Bike size={20} color={Colors.primary} strokeWidth={2.4} />
           </View>
           <View>
-            <Text style={styles.companyName} maxFontSizeMultiplier={1.15}>Sugo Express</Text>
-            <Text style={styles.dutyStatus} maxFontSizeMultiplier={1.15}>{isOffline ? 'Off Duty' : 'On Duty'}</Text>
+            <Text style={styles.companyName} maxFontSizeMultiplier={1.25}>Sugo Express</Text>
+            <Text style={styles.dutyStatus} maxFontSizeMultiplier={1.25}>{isOffline ? 'Offline' : 'Available Online'}</Text>
           </View>
         </View>
         
@@ -56,14 +50,14 @@ export function RiderHeader({
 
       <View style={styles.riderInfoRow}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText} maxFontSizeMultiplier={1.15}>{initials}</Text>
+          <Text style={styles.avatarText} maxFontSizeMultiplier={1.25}>{initials}</Text>
         </View>
         <View style={styles.riderMetaColumn}>
-          <Text style={styles.riderName} numberOfLines={1} maxFontSizeMultiplier={1.2}>{riderName}</Text>
-          <Text style={styles.riderIdText} maxFontSizeMultiplier={1.15}>{riderId}</Text>
-          
-          {/* Non-Clickable Live Location Indicator */}
-          <View style={styles.statusIndicatorContainer}>
+          <Text style={styles.riderName} maxFontSizeMultiplier={1.25}>{riderName}</Text>
+          <View style={styles.riderMetaBottom}>
+            <Text style={styles.riderIdText} maxFontSizeMultiplier={1.25}>{riderId}</Text>
+            <View style={styles.idStatusDot} />
+            {/* Non-Clickable Live Location Indicator */}
             <View
               style={[
                 styles.liveIndicatorBadge,
@@ -76,28 +70,31 @@ export function RiderHeader({
                   { backgroundColor: isOffline ? Colors.offlineDot : Colors.onlineDot }
                 ]}
               />
-              <Text style={styles.liveIndicatorText} maxFontSizeMultiplier={1.15}>
+              <Text style={styles.liveIndicatorText} maxFontSizeMultiplier={1.25}>
                 {isOffline ? 'OFFLINE' : 'LIVE'}
               </Text>
             </View>
           </View>
         </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: Colors.navy,
     paddingHorizontal: Spacing.lg,
-    paddingTop: moderateScale(36, 0.2),
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   brandContainer: {
     flexDirection: 'row',
@@ -138,24 +135,24 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   avatarCircle: {
-    width: moderateScale(52, 0.2),
-    height: moderateScale(52, 0.2),
-    borderRadius: moderateScale(26, 0.2),
+    width: moderateScale(48, 0.2),
+    height: moderateScale(48, 0.2),
+    borderRadius: moderateScale(24, 0.2),
     borderWidth: 2,
-    borderColor: Colors.bgWhite,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 3,
+    elevation: 2,
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 3,
   },
   avatarText: {
     fontFamily: FontFamily.bold,
     color: Colors.textWhite,
-    fontSize: scaledFontSize(FontSizes.lg, 0.2),
+    fontSize: scaledFontSize(FontSizes.base, 0.2),
   },
   riderMetaColumn: {
     flex: 1,
@@ -165,26 +162,33 @@ const styles = StyleSheet.create({
     color: Colors.textWhite,
     fontSize: scaledFontSize(FontSizes.base, 0.2),
   },
+  riderMetaBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: 3,
+  },
   riderIdText: {
     fontFamily: FontFamily.mono,
     color: Colors.whiteOverlayText,
     fontSize: scaledFontSize(FontSizes.xs, 0.2),
   },
-  statusIndicatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.xs,
+  idStatusDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   liveIndicatorBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2.5,
+    gap: 5,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   pulseDot: {
     width: 6,

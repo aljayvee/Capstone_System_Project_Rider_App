@@ -1,4 +1,4 @@
-import type { Errand, MergedErrand } from '../types/rider';
+import type { Errand, ErrandItemEntry, MergedErrand } from '../types/rider';
 
 /** One block of the shopping list, as the rider sees it. */
 export interface RequestSection {
@@ -6,6 +6,8 @@ export interface RequestSection {
   title: string | null;
   /** Body lines. Bulleted beneath a title; rendered as-is without one. */
   lines: string[];
+  /** Structured item rows with database IDs and fulfillment status when available. */
+  itemEntries?: ErrandItemEntry[];
   /** What this section is called when a receipt is filed against it. */
   name: string;
   /** The stop this list was pinned to, when the items carry one. */
@@ -38,6 +40,7 @@ export function requestSections(errand?: MergedErrand | Errand | null): RequestS
     return errand.payload.map((group) => ({
       title: group.name,
       lines: group.items,
+      itemEntries: group.itemEntries,
       name: group.name,
       pinpointId: group.pinpointId ?? null,
       storeCategory: group.storeCategory ?? null,

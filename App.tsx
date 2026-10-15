@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useFonts } from 'expo-font';
@@ -23,10 +24,20 @@ import { LoginScreen } from './src/modules/auth/LoginScreen';
 import { AuthedNavigator } from './src/navigation/AuthedNavigator';
 
 import { RiderAuthProvider, useRiderAuth } from './src/context/RiderAuthContext';
-import { ThemeProvider } from './src/context/ThemeContext';
+import { ThemeProvider, useThemeContext } from './src/context/ThemeContext';
+import * as NavigationBar from 'expo-navigation-bar';
 import { Colors } from './src/config/theme';
 
+// Held until the animated splash has drawn, so nothing flashes between the two.
+// The system splash shows no logo (app.json points it at a transparent image,
+// on the animated splash's own background colour): Android 12+ always shows
+// one at launch and it cannot be switched off, so it is made invisible instead,
+// and AnimatedSplashScreen is the only splash the rider sees.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const hideSystemSplash = () => {
+  SplashScreen.hideAsync().catch(() => {});
+};
 
 export type RootStackParamList = {
   Login: undefined;
@@ -37,7 +48,18 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 function AppContent() {
   const { rider, token, isLoading } = useRiderAuth();
+  const { isDark } = useThemeContext();
   const [isSplashComplete, setIsSplashComplete] = React.useState(false);
+
+  React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      try {
+        NavigationBar.setStyle(isDark ? 'light' : 'dark');
+      } catch {
+        // Fallback gracefully if not supported
+      }
+    }
+  }, [isDark]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -54,8 +76,12 @@ function AppContent() {
       {!isSplashComplete && (
         <AnimatedSplashScreen
           isAppReady={!isLoading}
+          // Let go of the system splash the moment this one is on screen. It
+          // used to be held until this one had finished, which left the old
+          // logo splash covering the animated one.
+          onFirstFrame={hideSystemSplash}
           onAnimationComplete={() => {
-            SplashScreen.hideAsync().catch(() => {});
+            hideSystemSplash();
             setIsSplashComplete(true);
           }}
         />
@@ -116,6 +142,12 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        {/* Feeds the keyboard's real height to every KeyboardAvoidingView in the
+            app. Android edge-to-edge (forced from Expo SDK 54) leaves
+            adjustResize inert, so React Native's own KeyboardAvoidingView had
+            nothing to react to and text fields sat under the keyboard. Above
+            the navigator so the value survives screen changes. */}
+        <KeyboardProvider>
         <ErrorBoundary>
           {/* Outside RiderAuthProvider: the login screen needs the theme too,
               and the theme has nothing to do with who is signed in. */}
@@ -125,6 +157,7 @@ export default function App() {
             </RiderAuthProvider>
           </ThemeProvider>
         </ErrorBoundary>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -115,6 +115,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   nextText: {
+    flexShrink: 1,
+    textAlign: 'center',
     color: '#FFFFFF',
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.bold as any,

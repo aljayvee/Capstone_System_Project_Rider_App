@@ -1,17 +1,16 @@
 import React from 'react';
-import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Switch, View, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Switch, View, Text, TouchableOpacity } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { LogOut, Camera, Pencil, BellRing, ChevronRight } from 'lucide-react-native';
+import { LogOut, Camera, Pencil, Crosshair, ChevronRight } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import { useRiderAuth } from '../../context/RiderAuthContext';
 import type { AuthedStackParamList } from '../../navigation/AuthedNavigator';
 import { riderApiService } from '../../config/apiConfig';
-import { openExactAlarmSettings } from '../../services/offerAlarm';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
 
 /** The server's cap, mirrored here so a rider is told before the upload, not after. */
@@ -26,9 +25,34 @@ export default function ProfileScreen() {
   const { riderProfile, phase, refresh } = useRiderMissionContext();
   const { logout, isOnline, toggleShiftStatus } = useRiderAuth();
   const navigation = useNavigation<StackNavigationProp<AuthedStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   const [avatarUri, setAvatarUri] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
+  const [soundsEnabled, setSoundsEnabled] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem('@sugo_rider_sounds_enabled')
+      .then((val) => {
+        if (!cancelled && val !== null) {
+          setSoundsEnabled(val !== 'false');
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleToggleSounds = React.useCallback(async (nextVal: boolean) => {
+    setSoundsEnabled(nextVal);
+    try {
+      await AsyncStorage.setItem('@sugo_rider_sounds_enabled', nextVal ? 'true' : 'false');
+    } catch {
+      // soft-handle storage failure
+    }
+  }, []);
 
   // Fetched separately from the profile: the bytes are large and only this screen
   // needs them, so the profile read carries a timestamp instead.
@@ -66,6 +90,12 @@ export default function ProfileScreen() {
     if (picked.canceled || !picked.assets?.[0]) return;
 
     const asset = picked.assets[0];
+    // Optimistic: the picture they chose is their picture now, shown faded
+    // until the server has it, and put back the way it was if it refuses.
+    // There used to be a spinner in its place for the whole upload.
+    const previousUri = avatarUri;
+    const revert = () => setAvatarUri(previousUri);
+    setAvatarUri(asset.uri);
     setUploading(true);
     try {
       // Resized and re-encoded before it is measured. A straight-from-camera
@@ -82,6 +112,7 @@ export default function ProfileScreen() {
       );
 
       if (!processed.base64) {
+        revert();
         Alert.alert('That picture could not be read', 'Try another photo.');
         return;
       }
@@ -89,6 +120,7 @@ export default function ProfileScreen() {
       // base64 inflates by 4/3; measure what actually goes over the wire.
       const byteSize = Math.ceil((processed.base64.length * 3) / 4);
       if (byteSize > MAX_PHOTO_BYTES) {
+        revert();
         Alert.alert(
           'That picture is too large',
           'Profile pictures must be under 5MB. Try a smaller photo.'
@@ -110,6 +142,7 @@ export default function ProfileScreen() {
       setAvatarUri(dataUri);
       refresh();
     } catch (err: any) {
+      revert();
       const message =
         err?.response?.data?.message ??
         err?.response?.data?.error ??
@@ -118,7 +151,7 @@ export default function ProfileScreen() {
     } finally {
       setUploading(false);
     }
-  }, [riderProfile, refresh]);
+  }, [riderProfile, refresh, avatarUri]);
 
   if (phase === 'loading' || !riderProfile) {
     return (
@@ -129,21 +162,21 @@ export default function ProfileScreen() {
   }
 
   const infoRows = [
-    { label: 'Phone Number', value: riderProfile.phone || '—' },
-    { label: 'Email', value: riderProfile.email || '—' },
+    { label: 'Phone Number', value: riderProfile.phone || '-' },
+    { label: 'Email', value: riderProfile.email || '-' },
     { label: 'Account Status', value: riderProfile.status },
     { label: 'Join Date', value: riderProfile.joinDate },
   ];
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <LinearGradient
-          colors={[Colors.primaryGradientStart, Colors.primaryGradientEnd]}
-          style={styles.profileCard}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md },
+        ]}
+      >
+        <View style={styles.profileCard}>
           <TouchableOpacity
             onPress={handleChangePhoto}
             disabled={uploading}
@@ -154,10 +187,12 @@ export default function ProfileScreen() {
             testID="change-photo"
           >
             <View style={styles.avatar}>
-              {uploading ? (
-                <ActivityIndicator color={Colors.textWhite} />
-              ) : avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              {avatarUri ? (
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={[styles.avatarImage, uploading && styles.avatarSaving]}
+                  testID="avatar-image"
+                />
               ) : (
                 <Text style={styles.avatarText}>{riderProfile.initials}</Text>
               )}
@@ -168,19 +203,29 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <Text style={styles.name} maxFontSizeMultiplier={1.2}>{riderProfile.name}</Text>
-          <Text style={styles.riderId} maxFontSizeMultiplier={1.15}>Rider ID: {riderProfile.riderId}</Text>
-        </LinearGradient>
+          <View style={styles.riderIdChip}>
+            <Text style={styles.riderIdText} maxFontSizeMultiplier={1.15}>
+              {riderProfile?.riderId
+                ? riderProfile.riderId.startsWith('RIDER-')
+                  ? riderProfile.riderId
+                  : `RIDER-${riderProfile.riderId}`
+                : 'RIDER'}
+            </Text>
+          </View>
+        </View>
 
         {/* The duty switch. toggleShiftStatus has existed on the auth context all
             along with nothing calling it — the header could only ever report the
             state, so a rider had no way to go off duty from inside the app. */}
         <View style={styles.dutyRow}>
           <View style={styles.dutyText}>
-            <Text style={styles.dutyLabel} maxFontSizeMultiplier={1.15}>{isOnline ? 'On Duty' : 'Off Duty'}</Text>
+            <Text style={styles.dutyLabel} maxFontSizeMultiplier={1.15}>{isOnline ? 'Available Online' : 'Offline'}</Text>
             <Text style={styles.dutyHint} maxFontSizeMultiplier={1.15}>
+              {/* Worded as the dispatcher sees it, so the rider and the dispatch
+                  board use the same three statuses. */}
               {isOnline
-                ? 'You can be given errands and your location is shared.'
-                : 'You will not be given new errands.'}
+                ? 'You can be given errands, even with the app closed, while location is set to "Allow all the time". Your shift ends at 12:00 AM.'
+                : 'You will not be given errands, and location sharing is stopped.'}
             </Text>
           </View>
           <Switch
@@ -188,35 +233,48 @@ export default function ProfileScreen() {
             onValueChange={toggleShiftStatus}
             trackColor={{ false: Colors.border, true: Colors.successAccent }}
             thumbColor={Colors.bgWhite}
-            accessibilityLabel={isOnline ? 'Go off duty' : 'Go on duty'}
+            accessibilityLabel={isOnline ? 'Go offline' : 'Go online'}
           />
         </View>
 
-        {/* Android 14 denies this by default to anything that is not a clock or a
-            calendar, so it cannot be requested with a dialog — the rider has to
-            turn it on themselves, and this is the only screen that can take them
-            there. Android-only: iOS has no equivalent restriction. */}
-        {Platform.OS === 'android' && (
-          <TouchableOpacity
-            style={styles.permissionRow}
-            onPress={openExactAlarmSettings}
-            accessibilityRole="button"
-            accessibilityLabel="Open alarms and reminders settings"
-            testID="exact-alarm-settings"
-          >
-            <BellRing size={18} color={Colors.primary} />
-            <View style={styles.permissionText}>
-              <Text style={styles.permissionLabel} maxFontSizeMultiplier={1.15}>
-                Alarms &amp; reminders
-              </Text>
-              <Text style={styles.permissionHint} maxFontSizeMultiplier={1.15}>
-                Lets us wake your phone the moment an errand is given to you. Without
-                it the alert can arrive minutes late, after the errand has gone.
-              </Text>
-            </View>
-            <ChevronRight size={18} color={Colors.textGray} />
-          </TouchableOpacity>
-        )}
+        {/* Audible Alert Chimes preference for dispatcher chats and errand offers */}
+        <View style={styles.dutyRow}>
+          <View style={styles.dutyText}>
+            <Text style={styles.dutyLabel} maxFontSizeMultiplier={1.15}>Audible Alert Chimes</Text>
+            <Text style={styles.dutyHint} maxFontSizeMultiplier={1.15}>
+              {soundsEnabled
+                ? 'Play sound and chime for incoming dispatcher chats and errand alerts.'
+                : 'Mute sounds. Visual banners and vibrations will still arrive.'}
+            </Text>
+          </View>
+          <Switch
+            value={soundsEnabled}
+            onValueChange={handleToggleSounds}
+            trackColor={{ false: Colors.border, true: Colors.successAccent }}
+            thumbColor={Colors.bgWhite}
+            accessibilityLabel="Audible Alert Chimes"
+            testID="toggle-sounds-switch"
+          />
+        </View>
+
+        {/* The GPS check: measures how far this phone's GPS wanders standing
+            still, and sets the live pin to ignore that much. */}
+        <TouchableOpacity
+          style={styles.dutyRow}
+          onPress={() => navigation.navigate('GpsCalibration')}
+          accessibilityRole="button"
+          accessibilityLabel="GPS Calibration. Test your GPS and steady your map pin."
+          testID="gps-calibration"
+        >
+          <Crosshair size={20} color={Colors.textDark} />
+          <View style={styles.dutyText}>
+            <Text style={styles.dutyLabel} maxFontSizeMultiplier={1.15}>GPS Calibration</Text>
+            <Text style={styles.dutyHint} maxFontSizeMultiplier={1.15}>
+              Test your GPS in 30 seconds and stop your pin from jumping around while you stand still.
+            </Text>
+          </View>
+          <ChevronRight size={20} color={Colors.textGray} />
+        </TouchableOpacity>
 
         <View style={styles.infoContainer}>
           {infoRows.map((item, index) => (
@@ -273,9 +331,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   profileCard: {
+    backgroundColor: Colors.navy,
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   avatarWrap: {
     marginBottom: Spacing.md,
@@ -295,6 +356,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  /** The chosen picture while it is still on its way to the server. */
+  avatarSaving: {
+    opacity: 0.6,
   },
   avatarImage: {
     width: '100%',
@@ -323,33 +388,18 @@ const styles = StyleSheet.create({
     fontSize: scaledFontSize(FontSizes.xl, 0.20),
     fontWeight: FontWeights.bold as any,
   },
-  riderId: {
-    color: Colors.whiteOverlayText,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+  riderIdChip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
     marginTop: Spacing.xs,
   },
-  permissionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
-    minHeight: 48,
-  },
-  permissionText: {
-    flex: 1,
-    gap: 2,
-  },
-  permissionLabel: {
-    color: Colors.textDark,
-    fontSize: FontSizes.base,
+  riderIdText: {
+    color: Colors.whiteOverlayText,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.semibold as any,
-  },
-  permissionHint: {
-    color: Colors.textGray,
-    fontSize: FontSizes.sm,
-    lineHeight: 18,
+    letterSpacing: 0.5,
   },
   dutyRow: {
     flexDirection: 'row',
@@ -358,6 +408,8 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     backgroundColor: Colors.bgWhite,
     borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.lg,
     minHeight: 48,
   },
@@ -377,6 +429,8 @@ const styles = StyleSheet.create({
   infoContainer: {
     backgroundColor: Colors.bgWhite,
     borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     paddingHorizontal: Spacing.lg,
   },
   infoRow: {
@@ -392,6 +446,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   infoLabel: {
+    flexShrink: 1,
     color: Colors.textGray,
     fontSize: scaledFontSize(FontSizes.sm, 0.20),
   },
@@ -413,6 +468,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   editText: {
+    flexShrink: 1,
+    textAlign: 'center',
     color: Colors.onPrimary,
     fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.bold as any,
@@ -428,6 +485,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   signOutText: {
+    flexShrink: 1,
+    textAlign: 'center',
     color: Colors.primary,
     fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.semibold as any,

@@ -43,14 +43,91 @@ export type ErrandStatus =
   | "Delivered"
   | "Cancelled";
 export type ErrandType = "Pabili" | "Padala" | "Bills Payment";
-export type PaymentMode = "Cash on Delivery" | "GCash" | "Bank Transfer";
+/**
+ * The literals the server's PaymentMode catalogue actually holds.
+ *
+ * Copied from `payment_modes.name` exactly, because every comparison against
+ * these is a string match. This union said "GCash" while the catalogue said
+ * "GCash / PayMaya" — harmless only for as long as that mode stayed inactive,
+ * and silently wrong the moment it was switched on: isCashCollected would have
+ * missed it and the rider would have been shown no amount to collect.
+ *
+ * A non-COD errand changes what the rider does: the customer has already paid
+ * half through the company's Facebook Page, so the figure to collect at the door
+ * is the BALANCE, not the total. See paymentPlan below and CashCollectionInput.
+ */
+export type PaymentMode =
+  | "Cash on Delivery"
+  | "GCash / PayMaya"
+  | "Bank Transfer"
+  | "Debit/Credit Card";
+
+/**
+ * The channels settled half up front, balance at the door.
+ *
+ * There was briefly a fifth catalogue entry called "Non-COD — 50% Downpayment",
+ * on the mistaken reading that the downpayment was a payment METHOD. It is the
+ * ARRANGEMENT these two channels run on — nobody hands money to "50%
+ * downpayment" — and it has been removed.
+ */
+export const NON_COD_MODES: PaymentMode[] = ["GCash / PayMaya", "Bank Transfer"];
+
+/**
+ * Where this errand's money stands, straight from the server.
+ *
+ * The rider is never asked to work any of it out. `balanceDue` is the one figure
+ * they collect, and `state` is the one thing that decides whether they may hand
+ * the goods over at all.
+ */
+export interface PaymentPlan {
+  /** Half the goods: half of what the rider actually paid, asked for mid-way. */
+  dueUpFront: number;
+  /** The goods figure the half is taken on: the rider's own receipts. */
+  goodsTotal?: number;
+  /**
+   * When this rider, holding every item, asked for the half. Null until then.
+   * Before it the rider has to ask; after it they wait for the customer.
+   */
+  halfPaymentRequestedAt?: string | null;
+  amountPaid: number;
+  /** What the rider collects at the door. */
+  balanceDue: number;
+  state:
+    | "AWAITING_UPFRONT"
+    | "OVERAGE_PENDING"
+    | "AWAITING_BALANCE"
+    | "SETTLED"
+    | "REFUNDED"
+    | "CANCELLED";
+  /** False on COD, where there is no ledger at all. */
+  hasLedger: boolean;
+}
+
+export type ItemFulfillmentStatus = "PENDING" | "PURCHASED" | "OUT_OF_STOCK";
+
+export interface ErrandItemEntry {
+  id?: number;
+  label: string;
+  itemName: string;
+  /** How big one of them is ("5 kg"); `label` already includes it. */
+  size?: string | null;
+  /** What the customer asked the rider to mind about it ("walang bulok"). */
+  notes?: string | null;
+  quantity: number;
+  fulfillmentStatus: ItemFulfillmentStatus;
+}
 
 export interface PabiliDetail {
   id: number;
   itemName: string;
+  /** How big one of them is ("5 kg"). Show it with formatItemLabel. */
+  size?: string | null;
+  /** What the customer asked the rider to mind about it. */
+  notes?: string | null;
   quantity: number;
   unitPrice: number;
   estimatedSubtotal: number;
+  fulfillmentStatus?: ItemFulfillmentStatus;
   /** The store category this item is bought under, as the dispatcher filed it. */
   storeCategory?: string | null;
   /** Which pinned stop it is bought at. Null until the dispatcher pins stores. */
@@ -105,14 +182,71 @@ export interface RiderEarnings {
 export interface Errand {
   id: string;
   type: ErrandType;
+  /** The dispatcher who claimed this errand. Null on payloads without dispatch logs. */
+  dispatcherId?: number | null;
+  dispatcherName?: string | null;
   customer: string;
   customerPhone: string;
   address: string;
   deliveryLatitude?: number | null;
   deliveryLongitude?: number | null;
+  /**
+   * What the customer saved for the door: a street name, a landmark, and notes
+   * for the rider. Copied onto the errand when it was placed, so they are the
+   * customer's words for THIS delivery. Null when left blank, and on errands
+   * placed before the app asked for them.
+   */
+  deliveryStreetName?: string | null;
+  deliveryLandmark?: string | null;
+  deliveryNotes?: string | null;
   pinpoints?: ErrandPinpoint[];
-  paymentMode: PaymentMode;
+  /**
+   * The mode the customer confirmed, exactly as `payment_modes.name` holds it.
+   *
+   * Typed `string`, not the PaymentMode union: the catalogue is an owner-editable
+   * table, and a renamed row must still reach the rider's badge verbatim rather
+   * than be laundered into a literal it no longer matches. PaymentMode names the
+   * values BEHAVIOUR keys off; this is what gets DISPLAYED.
+   *
+   * Null until the customer confirms — paymentSelectionService refuses the
+   * choice until the dispatcher sets paymentEnabledAt, and an errand can reach a
+   * rider before either happens. Shown as "not confirmed" rather than assumed to
+   * be cash: this field was hardcoded to "Cash on Delivery" in the mapper, so a
+   * GCash errand reached the rider as COD while the dispatcher board showed the
+   * truth. The cash step does not depend on knowing — see isCashCollected.
+   */
+  paymentMode: string | null;
+  /** Where this errand's money stands, server-derived. Null on COD. */
+  paymentPlan?: PaymentPlan | null;
+  /**
+   * The merchant categories this errand's stores are filed under, in visiting
+   * order, de-duplicated. "Grocery", "Pharmacy", "Fast Food & Restaurant".
+   *
+   * NOT `type`. `type` is the SERVICE type, which the server pins to the single
+   * literal "Pabili" (ERRAND_CATEGORIES has cardinality one), so it tells a rider
+   * nothing about the shop — and it was being rendered where the shop's category
+   * belonged, which is how a badge came to read "pabili".
+   *
+   * A list rather than a joined label because merged errands join `type` with
+   * " & " and catalogue names contain "&" of their own: "Grocery" plus "Fast Food
+   * & Restaurant" would join to a string nothing can read back. Presentation
+   * lives in merchantCategoryLabel, in one place.
+   *
+   * Empty when nothing is known — a stop pinned off the catalogue, or no store
+   * pinned yet — and rendered as no line rather than a guess, the same rule
+   * requestSections already applies per stop.
+   */
+  merchantCategories: string[];
   status: ErrandStatus;
+  /**
+   * When the rider confirmed they had everything, or null while they still do
+   * not. The backend keeps Traveling, At Store and Delivering all as a single
+   * IN_TRANSIT status, so `status` alone cannot say which of the three an
+   * errand is on; this timestamp is what makes that step survive a re-login.
+   * Read by missionProgress.deriveErrandProgress, and by the customer app's own
+   * stepper, so both apps change at the same instant.
+   */
+  itemsPurchasedAt?: string | null;
   riderId?: number;
   riderName?: string;
   /** What the customer pays in total. Not the rider's, and not earnings. */
@@ -150,10 +284,19 @@ export interface Errand {
   };
   createdAt: string;
   updatedAt: string;
+  /**
+   * When the dispatcher offered it to this rider, and when they said yes. What
+   * orders the rider's queue (services/errandQueue.ts): first accepted, first
+   * run. createdAt cannot do that job, since an errand created earlier can be
+   * assigned later.
+   */
+  assignedAt?: string | null;
+  acceptedAt?: string | null;
   pabiliDetails?: PabiliDetail[];
   payload?: {
     name: string;
     items: string[];
+    itemEntries?: ErrandItemEntry[];
     pinpointId: number | null;
     /** The stop's merchant category, shown between the store name and its items. */
     storeCategory: string | null;
@@ -186,9 +329,10 @@ export interface RiderProfile {
 export type ChatRole = "customer" | "dispatcher" | "rider";
 
 export interface ChatMessage {
-  id: number;
+  id: number | string;
   from: ChatRole;
   text: string;
+  imageUrl?: string;
   timestamp: string;
 }
 

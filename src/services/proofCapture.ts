@@ -1,8 +1,20 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { apiClient } from './apiClient';
+import { describeUploadFailure, PHOTO_UPLOAD_TIMEOUT_MS, uploadFraction } from './uploadFailure';
 
-export type ProofImageKind = 'RECEIPT' | 'TRANSFER' | 'PROOF_OF_DELIVERY' | 'NO_RECEIPT';
+export type ProofImageKind =
+  | 'RECEIPT'
+  | 'TRANSFER'
+  | 'PROOF_OF_DELIVERY'
+  | 'NO_RECEIPT'
+  // The rider's photo of the customer's GCash/Maya receipt at the door —
+  // read with the same reference-number/amount/same-day rigor the
+  // customer's own upload gets.
+  | 'RIDER_BALANCE_PROOF'
+  // The rider's photo of physical cash in hand. No OCR — the rider's typed
+  // figure is the amount, exactly like NO_RECEIPT.
+  | 'CASH_COLLECTED';
 
 export interface ProofExtraction {
   id: number;
@@ -42,10 +54,41 @@ const JPEG_QUALITY = 0.8;
  */
 const MIN_LEGIBLE_CHARACTERS = 40;
 
+/**
+ * A receipt the server has read and is holding, unsaved, for the rider to check.
+ * Nothing is stored until saveScannedReceipt, so a retake leaves no copy behind.
+ */
+export interface ScannedProof {
+  scanId: string;
+  kind: 'RECEIPT' | 'TRANSFER';
+  clarityVerdict: string | null;
+  extraction: Omit<ProofExtraction, 'id'>;
+}
+
+/** Share of the photo sent so far, 0 to 1; null when the size is unknown. */
+export type UploadProgress = (fraction: number | null) => void;
+
 export class ProofCaptureError extends Error {
-  constructor(message: string, readonly retryable = true) {
+  constructor(message: string, readonly retryable = true, readonly status: number | null = null) {
     super(message);
     this.name = 'ProofCaptureError';
+  }
+}
+
+/** Every photo goes up with room to finish on a slow line, reporting as it goes. */
+async function postPhoto<T>(path: string, body: unknown, onProgress?: UploadProgress): Promise<T> {
+  try {
+    const response = await apiClient.post(path, body, {
+      timeout: PHOTO_UPLOAD_TIMEOUT_MS,
+      onUploadProgress: onProgress ? (event: any) => onProgress(uploadFraction(event)) : undefined,
+    });
+    return response.data;
+  } catch (err: any) {
+    // The server distinguishes "we couldn't read it" (422) from "the service is
+    // down" (503) and writes copy for each. Pass it through rather than
+    // flattening both into a generic failure: they need different actions.
+    const failure = describeUploadFailure(err);
+    throw new ProofCaptureError(failure.message, failure.retryable, failure.status);
   }
 }
 
@@ -118,7 +161,9 @@ export async function captureAndUpload(
   kind: ProofImageKind,
   photoUri: string,
   pinpointId?: number | null,
-  declaredTotal?: number
+  declaredTotal?: number,
+  onProgress?: UploadProgress,
+  riderNote?: string
 ): Promise<UploadedProof> {
   const { uri, base64 } = await downscale(photoUri);
 
@@ -128,8 +173,9 @@ export async function captureAndUpload(
   // NO_RECEIPT is a picture of the GOODS from a sari-sari store or a market
   // stall — there is no printed text in it by definition, and this gate was
   // exactly what told riders their sharp photo was "too blurry" and left them
-  // unable to finish the errand. PROOF_OF_DELIVERY is a doorstep.
-  const hasTextToRead = kind === 'RECEIPT' || kind === 'TRANSFER';
+  // unable to finish the errand. PROOF_OF_DELIVERY is a doorstep. CASH_COLLECTED
+  // is a photo of banknotes — also nothing to read.
+  const hasTextToRead = kind === 'RECEIPT' || kind === 'TRANSFER' || kind === 'RIDER_BALANCE_PROOF';
 
   const deviceText = hasTextToRead ? await readOnDevice(uri) : '';
   if (hasTextToRead && !isLegible(deviceText)) {
@@ -141,42 +187,85 @@ export async function captureAndUpload(
     );
   }
 
-  try {
-    const response = await apiClient.post(`/errands/${errandId}/proof-images`, {
+  return postPhoto<UploadedProof>(
+    `/errands/${errandId}/proof-images`,
+    {
       kind,
       imageData: base64,
       mimeType: 'image/jpeg',
       fileSize: Math.round((base64.length * 3) / 4),
       pinpointId: pinpointId ?? null,
-      // Only sent for transfers; the server reads receipts itself. Null means
-      // the phone could not read it at all, so there is nothing to send and the
-      // server falls back to Cloud Vision.
+      // Only sent for TRANSFER; the server reads RECEIPT and RIDER_BALANCE_PROOF
+      // itself. RIDER_BALANCE_PROOF deliberately never sends on-device text —
+      // it exists specifically to be an independently-read check on money, so
+      // it always pays for the real Cloud Vision call rather than trusting
+      // what the phone read for free.
       deviceText: kind === 'TRANSFER' ? (deviceText ?? undefined) : undefined,
-      // The rider's own figure, and the only one available for a shop that
-      // prints nothing.
-      declaredTotal: kind === 'NO_RECEIPT' ? declaredTotal : undefined,
-    });
-    return response.data;
-  } catch (err: any) {
-    // The server distinguishes "we couldn't read it" (422) from "the service is
-    // down" (503) and writes copy for each. Pass it through rather than
-    // flattening both into a generic failure — they need different actions.
-    const message = err?.response?.data?.message;
-    if (message) throw new ProofCaptureError(message, err?.response?.status === 503);
-    throw new ProofCaptureError(
-      'No signal. Move toward the road and try again — your errand is saved.',
-      true
-    );
-  }
+      // The rider's own figure — the only one available for a shop that
+      // prints nothing, or for cash nobody else can corroborate.
+      declaredTotal: kind === 'NO_RECEIPT' || kind === 'CASH_COLLECTED' ? declaredTotal : undefined,
+      riderNote: riderNote?.trim() || undefined,
+    },
+    onProgress
+  );
 }
 
-/** The rider accepts the extracted figure or corrects it. */
-export async function confirmProofTotal(
+/**
+ * Capture -> downscale -> on-device check -> the server reads it and holds it.
+ *
+ * For the kinds whose total the rider confirms. Uploading straight into the
+ * record (captureAndUpload) stored every retake of the same receipt, so the
+ * server now keeps the photo aside until saveScannedReceipt, and a retake
+ * simply replaces it.
+ */
+export async function scanReceipt(
   errandId: string,
-  imageId: number,
-  confirmedTotal: number
-): Promise<void> {
-  await apiClient.patch(`/errands/${errandId}/proof-images/${imageId}/confirm`, {
-    confirmedTotal,
-  });
+  kind: 'RECEIPT' | 'TRANSFER',
+  photoUri: string,
+  pinpointId?: number | null,
+  onProgress?: UploadProgress
+): Promise<ScannedProof> {
+  const { uri, base64 } = await downscale(photoUri);
+
+  const deviceText = await readOnDevice(uri);
+  if (!isLegible(deviceText)) {
+    throw new ProofCaptureError(
+      'That photo came out too blurry to read. Move into better light, hold the phone steady, and fit the whole receipt in the frame.',
+      false
+    );
+  }
+
+  return postPhoto<ScannedProof>(
+    `/errands/${errandId}/proof-images/scan`,
+    {
+      kind,
+      imageData: base64,
+      mimeType: 'image/jpeg',
+      fileSize: Math.round((base64.length * 3) / 4),
+      pinpointId: pinpointId ?? null,
+      // As in captureAndUpload: a transfer screenshot is read on the phone.
+      deviceText: kind === 'TRANSFER' ? (deviceText ?? undefined) : undefined,
+    },
+    onProgress
+  );
+}
+
+/**
+ * The rider accepts the extracted figure or corrects it, and only now is the
+ * photo saved. Safe to press again after a lost reply: the server applies the
+ * total to the photo it already saved instead of saving it twice.
+ */
+export async function saveScannedReceipt(
+  errandId: string,
+  scanId: string,
+  confirmedTotal: number,
+  riderNote?: string
+): Promise<{ id: number }> {
+  return postPhoto<{ id: number }>(
+    `/errands/${errandId}/proof-images/scans/${encodeURIComponent(scanId)}/confirm`,
+    {
+      confirmedTotal,
+      riderNote: riderNote?.trim() || undefined,
+    }
+  );
 }

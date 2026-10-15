@@ -1,37 +1,48 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useRiderDoubleTapBackToExit } from '../../hooks/useRiderBackHandler';
+import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import { Navigation, ChevronRight } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
-import type { MainTabParamList } from '../../navigation/AuthedNavigator';
+import type { AuthedStackParamList, MainTabParamList } from '../../navigation/AuthedNavigator';
 import RiderHeader from '../../components/RiderHeader';
 import { StatusBanner } from '../../components/StatusBanner';
+import { MaintenanceNoticeBanner } from '../../components/MaintenanceNoticeBanner';
+import { useMaintenanceNotice } from '../../hooks/useMaintenanceNotice';
 import { FeeBreakdownPanel } from '../../components/FeeBreakdownPanel';
 import { WaybillModal } from '../../components/WaybillModal';
 import { OfflineCard, WaitingCard, NewTaskCard, CompletedCard, DeclineModal } from './components';
-import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
+import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, FontFamily, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
 import { formatErrandId } from '../../utils/formatErrandId';
+
+type HomeScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, 'Home'>,
+  StackNavigationProp<AuthedStackParamList>
+>;
 
 /**
  * The decision screen: what has been offered, and whether to take it.
  *
- * This used to be the whole app. Six hundred lines switching on `phase` to be,
- * in turn, the offer card, the queue switcher, the customer panel, the shopping
- * list, the fee breakdown, the progress stepper, the cash input and the advance
- * button — so a rider halfway to a store scrolled past an accept/decline card
- * for a different errand, and a rider deciding whether to accept scrolled past a
- * progress stepper for one already in hand.
- *
- * Everything a rider does after saying yes now lives on the Task tab. What is
- * left here is the one question this screen exists to ask.
+ * Everything a rider does after saying yes now lives on the dedicated full-screen
+ * Task view. When an errand is accepted, a floating action button appears on Home
+ * allowing quick re-entry into navigation.
  */
 export default function HomeScreen() {
   const mission = useRiderMissionContext();
-  // The nearest navigator here is the TAB navigator, not the outer stack —
-  // useNavigation resolves to whichever encloses this screen. Typing it as the
-  // stack compiled only because the jump below was cast to `never`.
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const navigation = useNavigation<HomeScreenNavigationProp>();
+  const maintenanceNotice = useMaintenanceNotice();
+  const insets = useSafeAreaInsets();
+
+  useRiderDoubleTapBackToExit(
+    true,
+    mission.isMissionAccepted
+      ? 'Active errand in progress. Press back again to exit.'
+      : 'Press back again to exit'
+  );
 
   const {
     phase,
@@ -46,10 +57,18 @@ export default function HomeScreen() {
   // Accepting means the rider is about to start driving, so the map is the next
   // thing they need. Navigation lives here rather than in useRiderMission so the
   // hook stays free of routing concerns.
-  const handleAccept = React.useCallback(async () => {
-    await mission.acceptMission();
-    navigation.navigate('Task');
-  }, [mission, navigation]);
+  //
+  // Takes the specific offer's id — this used to be a no-arg closure shared by
+  // every offer card, so accepting one of two simultaneous offers silently
+  // accepted both, and doing this while an earlier errand was already in
+  // progress reset that errand's status too.
+  const handleAccept = React.useCallback(
+    (offerId: string) => {
+      mission.acceptMission(offerId);
+      navigation.navigate('Task');
+    },
+    [mission, navigation]
+  );
 
   const handleDecline = React.useCallback(() => {
     mission.setShowDeclineModal(true);
@@ -85,7 +104,9 @@ export default function HomeScreen() {
     if (phase === 'completed' && errand) {
       return (
         <CompletedCard
-          errand={errand}
+          // The errand just delivered, not the merged card: with a second one
+          // still queued, that summed both payouts into one "you earned".
+          errand={mission.workingErrand ?? errand}
           riderFirstName={mission.riderProfile?.name?.split(' ')[0]}
           onAcceptNext={mission.resetForNextErrand}
         />
@@ -108,8 +129,9 @@ export default function HomeScreen() {
           <View key={offer.id} style={styles.offerBlock}>
             <NewTaskCard
               errand={offer}
-              onAccept={handleAccept}
+              onAccept={() => handleAccept(offer.id)}
               onDecline={handleDecline}
+              onExpire={() => mission.expireOffer(offer.id)}
               isAccepting={mission.isAccepting}
             />
             {/* The breakdown sits with the offer, not behind a tap. What the
@@ -132,7 +154,15 @@ export default function HomeScreen() {
       {/* Outside the ScrollView: a confirmation the rider has scrolled past is a
           confirmation they never saw. */}
       <StatusBanner banner={mission.banner} onDismiss={mission.dismissBanner} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>{renderBody()}</ScrollView>
+      <MaintenanceNoticeBanner notice={maintenanceNotice} />
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md },
+        ]}
+      >
+        {renderBody()}
+      </ScrollView>
 
       <DeclineModal
         visible={mission.showDeclineModal}
@@ -147,6 +177,29 @@ export default function HomeScreen() {
           onClose={() => setShowWaybill(false)}
           errand={errand}
         />
+      )}
+
+      {/* Floating Action Button: Appears only when an errand is accepted */}
+      {mission.isMissionAccepted && (
+        <TouchableOpacity
+          style={[
+            styles.floatingTaskFab,
+            { bottom: Math.max(insets.bottom, Spacing.sm) + 64 + Spacing.md },
+          ]}
+          onPress={() => navigation.navigate('Task')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Open active task in navigation"
+          testID="home-active-task-fab"
+        >
+          <View style={styles.fabIconWrap}>
+            <Navigation size={18} color={Colors.onPrimary} strokeWidth={2.4} />
+          </View>
+          <Text style={styles.fabText} maxFontSizeMultiplier={1.15}>
+            Active Task
+          </Text>
+          <ChevronRight size={18} color={Colors.onPrimary} strokeWidth={2.2} />
+        </TouchableOpacity>
       )}
     </SafeAreaView>
   );
@@ -210,5 +263,35 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold as any,
     color: Colors.textGray,
     letterSpacing: 0.4,
+  },
+  floatingTaskFab: {
+    position: 'absolute',
+    bottom: Spacing.xl,
+    right: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary,
+    paddingVertical: moderateScale(12, 0.20),
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    minHeight: 48,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 50,
+  },
+  fabIconWrap: {
+    marginRight: 2,
+  },
+  fabText: {
+    flexShrink: 1,
+    fontFamily: FontFamily.bold,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontWeight: FontWeights.bold as any,
+    color: Colors.onPrimary,
+    letterSpacing: 0.2,
   },
 });

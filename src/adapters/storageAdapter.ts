@@ -3,7 +3,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // Shared here (rather than inlined as a string literal at each call site) so
 // RiderAuthContext.tsx's logout() and useRiderMission.ts's cache read/write
 // can't drift apart on the key name.
-export const WAYBILL_CACHE_KEY = "@sugo_rider_waybill_cache";
+// Versioned, and the suffix is load-bearing.
+//
+// This cache stores errands that have ALREADY been through errandMapper, so a
+// rider upgrading with a warm cache would replay objects built by the old
+// mapper: paymentMode baked to "Cash on Delivery" from the hardcode, and no
+// merchantCategories at all. A stale COD is indistinguishable from a real one,
+// so the entry is dropped rather than silently trusted. Bump this again whenever
+// the mapper's output shape changes.
+export const WAYBILL_CACHE_KEY = "@sugo_rider_waybill_cache_v2";
 
 // Adapter over AsyncStorage's raw string API — scoped to the offline waybill
 // cache and pending connectivity-incident record (RiderAuthContext.tsx keeps

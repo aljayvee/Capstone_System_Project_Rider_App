@@ -2,6 +2,14 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
+# 🌐 Dual-Agent Handshake & Collaboration Invariant (Claude App ◄► Antigravity 2.0)
+> **ALWAYS ACTIVE IN ALL SESSIONS**: Both Claude App and Antigravity 2.0 operate as a unified engineering team.
+1. **Boot-Time Handshake Check (Step 0)**: In every single session, ALWAYS inspect `AGENT_HANDSHAKE.md` in this directory before modifying rider mobile code.
+2. **Locked Contract Invariant**: NEVER rename, refactor, or delete telemetry, GPS, or UI components marked `[LOCKED]` in `AGENT_HANDSHAKE.md`.
+3. **Surgical Delta Edits**: Apply changes strictly as minimal deltas using surgical replace tools.
+4. **Session Handoff Logging**: After completing any modification, update `AGENT_HANDSHAKE.md` with modified file paths, compiler verification (`npx tsc --noEmit`), and directives for the next session.
+5. **Gemini Non-Autonomous Execution & Claude Cognitive Alignment**: Gemini models (Gemini 3.x Pro, Gemini 3.8 Flash High) MUST NOT act autonomously or execute sweeping unilateral changes. Gemini must strictly adopt the 6-stage Claude Cognitive Thinking Process (Context Grounding -> Hypothesis & Trade-offs -> User Consultation Gate -> Surgical Delta -> Defensive Rigor -> Empirical Verification).
+
 # Expo & Android Build Rules
 
 ## Package Installation
@@ -60,5 +68,37 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   - `StatusBanner`: Positioned at `top: insets.top + 138` when HUD is mounted.
   - Floating ETA badge: Positioned at bottom-left (`left: 12, bottom: 18`) opposite bottom-right camera controls.
 - **Strict Road-Network Centerline Snapping**: All route anchors (`origin`, store `waypoints`, and customer `destination`) MUST be snapped to the nearest road network centerline via `routingProvider.snap()` before routing. Polylines MUST be pure road-network geometry without artificial corner-cutting bezier curves.
+
+
+# Impeccable UI/UX Design Standards & Strict Anti-AI-Slop Invariants
+
+> **ENFORCEMENT LEVEL: ABSOLUTE & UNIVERSAL**
+> Applies whenever designing, creating, editing, refactoring, or suggesting UI/UX layouts.
+> Generic "AI Slop" visual design patterns are STRICTLY BANNED in production engineering.
+
+## 1. The Anti-AI-Slop Bans (The 15 Absolute Refusals)
+1. **NO Identical Card Grid Scaffolds**: NEVER structure screens out of repetitive, same-size card boxes containing `[Icon + Heading + Paragraph]`. Replace boxes with generous whitespace, typographic rhythm, and clear sectional flow. Nested cards are strictly banned.
+2. **NO Hero-Metric Templates**: Refuse repetitive dashboard clichés (giant number, tiny label, supporting percentage badge, colored accent bar). Structure metrics according to real domain utility.
+3. **NO Decorative Kickers or Eyebrows (Absolute Ban)**: NEVER place tiny uppercase kickers or category tags above headings as visual crutches. A heading carries its own weight.
+4. **NO Generic Purple / Indigo Gradients**: Stick strictly to authentic brand colors: Deep Navy (`#0F2035`, `#0B132B`), bone (`#F2EEE4`), SUGO Red (`#DC2626`, `#F62459`), and tinted neutrals.
+5. **NO Pill-Shaped Action Buttons**: Standard action buttons, CTAs, and inputs must use restrained ergonomic radii (8 to 12px). Full pills are strictly reserved for compact status indicator chips and action domes.
+6. **NO Glowing Colored Halo Shadows**: Zero-offset colored drop shadows or glowing halo rings are banned. Shadows must carry intentional vertical offset and soft blur.
+7. **NO Unicode Glyphs or Emojis as Structural UI Icons**: NEVER use emojis (🚀, ✨, 🔥, 🛵, 📦) in headers, buttons, status pills, or navigation bars. Use clean drawn vector SVGs (Lucide) in consistent stroke and weight.
+8. **NO Fake Reviews, Fake Counters, or Fabricated Urgency**: Never render simulated stats, animated count-ups, fake testimonials, or fabricated scarcity countdowns.
+9. **NO Gradient Text**: Emphasis comes from weight, size, and contrast, never rainbow/gradient text fills.
+10. **NO Glassmorphism or Blur as Lazy Decoration**: Use crisp, solid flat surfaces with intentional contrast.
+11. **NO Colored Border-Left / Border-Right Callouts**: Avoid 3px or 4px colored side borders on cards or alerts.
+12. **NO Monospace as Costume**: Monospace is for code, data, money, timers, and measurements only.
+13. **NO Low-Contrast Microcopy (WCAG 2.2 AA Violation)**: Body and placeholder text must clear >= 4.5:1, large text >= 3:1.
+14. **NO Em Dashes in UI Copy**: Use standard hyphens, colons, commas, or concise sentence breaks instead.
+15. **NO Vague Marketing Filler**: Write clear, concrete, human domain copy.
+
+## 2. Impeccable Mobile Craft Floor (Rider Console)
+- **High-Velocity Operational Ergonomics**: High-contrast, large touch targets (>= 48x48 dp), zero-friction glanceability under direct sunlight.
+- **Progressive Navigation**: Single active leg polyline only; future legs unrendered to eliminate map clutter.
+- **Asymmetric Vertical Rhythm**: Headings must always have significantly more spacing above them than below them (margin-top >= 1.5-2.5x margin-bottom).
+- **Tinted Neutrals (Zero Dead Gray)**: Never use dead black (`#000000`) or dead gray (`#808080`). Tint dark surfaces and text with ambient brand hue.
+- **Primary Action Law**: Red has exactly ONE legal meaning: **you must act**. Exactly one primary CTA per viewport.
+- **Preserve User Drafts & Telemetry**: Offline action queue, idempotent actions, and persistent draft survival.
 
 

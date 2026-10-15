@@ -15,6 +15,10 @@ interface UseStoreArrivalOptions {
   isActive: boolean;
   /** The existing advance, so arrival takes exactly the manual path. */
   onArrived: () => void;
+  /** Optional deferred stop IDs (delayed cafes/pharmacies) */
+  deferredStopIds?: Set<number> | number[];
+  /** Optional completed stop IDs */
+  completedStopIds?: Set<number> | number[];
 }
 
 export interface StoreArrivalState {
@@ -53,6 +57,8 @@ export function useStoreArrival({
   currentStatus,
   isActive,
   onArrived,
+  deferredStopIds,
+  completedStopIds,
 }: UseStoreArrivalOptions): StoreArrivalState {
   const watchRef = useRef<ArrivalWatch>(IDLE_WATCH);
   const [arrivingAt, setArrivingAt] = useState<ErrandPinpoint | null>(null);
@@ -62,12 +68,21 @@ export function useStoreArrival({
   const onArrivedRef = useRef(onArrived);
   onArrivedRef.current = onArrived;
 
-  // Watched through the whole run, not only while "Traveling".
-  //
-  // Gating on that one step meant arrival fired exactly once per errand: after
-  // the first shop the status was "At Store" and the watch stopped, so stores 2
-  // and 3 were never detected and neither was the customer's door.
-  const watching = isActive && currentStatus !== 'Delivered';
+  // Arrival is watched ONLY while actively in transit:
+  // - "Traveling": moving towards store pinpoints
+  // - "Delivering": moving towards the customer door
+  // It is explicitly paused while "At Store" (already inside) to prevent duplicate
+  // arrival triggers from advancing status to "Delivering" while shopping.
+  const watching =
+    isActive &&
+    (currentStatus === 'Traveling' || currentStatus === 'Delivering');
+
+  const deferredKey = Array.isArray(deferredStopIds)
+    ? deferredStopIds.join(',')
+    : Array.from(deferredStopIds ?? []).join(',');
+  const completedKey = Array.isArray(completedStopIds)
+    ? completedStopIds.join(',')
+    : Array.from(completedStopIds ?? []).join(',');
 
   useEffect(() => {
     if (!watching) {
@@ -81,7 +96,7 @@ export function useStoreArrival({
     // stop after it.
     setAdvancedAutomatically(false);
 
-    const stop = nextWaypoint(pinpoints, destination);
+    const stop = nextWaypoint(pinpoints, destination, location, deferredStopIds, completedStopIds);
     if (!stop || !location) return;
 
     // The door only counts once the shopping is done. Reaching it mid-errand —
@@ -113,6 +128,8 @@ export function useStoreArrival({
     destination?.latitude,
     destination?.longitude,
     currentStatus,
+    deferredKey,
+    completedKey,
   ]);
 
   return {

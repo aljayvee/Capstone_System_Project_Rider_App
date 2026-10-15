@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { MessageCircle } from 'lucide-react-native';
-import { Colors } from '../../config/theme';
+import { Colors, Elevation } from '../../config/theme';
 
 /** Clears the tab bar on screens with nothing else above it. */
 const DEFAULT_BOTTOM_OFFSET = 96;
@@ -59,7 +59,9 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 5,
+    // Must exceed BottomSheet's elevation (12) or Android paints the sheet
+    // over this button whenever their boxes intersect, regardless of zIndex.
+    elevation: Elevation.floatingControls,
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,

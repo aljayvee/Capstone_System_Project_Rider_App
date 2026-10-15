@@ -54,3 +54,22 @@ export function formatTimestamp(value: string | number | Date | null | undefined
     `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   );
 }
+
+/**
+ * How a pabili item reads: "Chicken · 5 kg".
+ *
+ * Mirrors server/src/services/patterns/itemLabel.ts and the copies in the web
+ * portal and CustomerApp. The size has its own column so "5 Kilo of Chicken
+ * 2qty" reaches the rider as Chicken, 5 kg, two of them. A name that already
+ * ends with its size (saved while the server folded sizes into names, or
+ * "Rice (5kg)") is left as it is.
+ */
+export function formatItemLabel(name: string | null | undefined, size?: string | null): string {
+  const cleanName = String(name ?? '').trim();
+  const cleanSize = String(size ?? '').trim();
+  if (!cleanSize) return cleanName;
+  if (!cleanName) return cleanSize;
+  const comparable = (text: string) => text.toLowerCase().replace(/[^a-z0-9.]+/g, '');
+  if (comparable(cleanName).endsWith(comparable(cleanSize))) return cleanName;
+  return `${cleanName} · ${cleanSize}`;
+}

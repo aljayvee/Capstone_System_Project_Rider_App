@@ -104,6 +104,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
+    flexShrink: 1,
     fontFamily: FontFamily.regular,
     color: Colors.textMedium,
     fontSize: FontSizes.base,
@@ -121,6 +122,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   totalLabel: {
+    flexShrink: 1,
     fontFamily: FontFamily.bold,
     color: Colors.success,
     fontSize: FontSizes.md,

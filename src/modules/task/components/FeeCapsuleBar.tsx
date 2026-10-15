@@ -4,11 +4,18 @@ import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, 
 import type { Errand } from '../../../types/rider';
 import { formatErrandId } from '../../../utils/formatErrandId';
 import { formatEarnings } from '../../../utils/earnings';
+import { queuePositionLabel } from '../../../services/errandQueue';
 
 interface FeeCapsuleBarProps {
   errands: Errand[];
   selectedIndex: number;
+  /** Opens that errand's task in full (TaskScreen). */
   onSelect: (index: number) => void;
+  /**
+   * Marks the first capsule with a dot for unread dispatcher messages, while
+   * the chat button (in the errand sheet's header) is out of sight.
+   */
+  showUnreadDot?: boolean;
 }
 
 /**
@@ -21,8 +28,11 @@ interface FeeCapsuleBarProps {
  *
  * Caps at three because that is what a rider may carry (the server enforces the
  * same number in acceptErrand), so the bar can never need to scroll far.
+ *
+ * `errands` arrives in run order (services/errandQueue.ts), so each capsule
+ * also says where it sits: "Now" for the errand in hand, then "2nd", "3rd".
  */
-export function FeeCapsuleBar({ errands, selectedIndex, onSelect }: FeeCapsuleBarProps) {
+export function FeeCapsuleBar({ errands, selectedIndex, onSelect, showUnreadDot = false }: FeeCapsuleBarProps) {
   if (errands.length === 0) return null;
 
   return (
@@ -34,6 +44,7 @@ export function FeeCapsuleBar({ errands, selectedIndex, onSelect }: FeeCapsuleBa
     >
       {errands.map((errand, index) => {
         const isSelected = index === selectedIndex;
+        const unread = showUnreadDot && index === 0;
         return (
           <TouchableOpacity
             key={errand.id}
@@ -42,11 +53,15 @@ export function FeeCapsuleBar({ errands, selectedIndex, onSelect }: FeeCapsuleBa
             style={[styles.capsule, isSelected ? styles.capsuleActive : styles.capsuleInactive]}
             accessibilityRole="button"
             accessibilityState={{ selected: isSelected }}
-            accessibilityLabel={`Errand ${formatErrandId(errand.id)}, you earn ${formatEarnings(errand)}`}
+            accessibilityLabel={`Errand ${formatErrandId(errand.id)}, ${
+              index === 0 ? 'your current errand' : `${queuePositionLabel(index)} in your queue`
+            }, you earn ${formatEarnings(errand)}${unread ? ', you have unread messages' : ''}`}
+            accessibilityHint="Opens this errand's task in full"
             testID={`fee-capsule-${index}`}
           >
+            {unread && <View style={styles.unreadDot} testID="fee-capsule-unread-dot" />}
             <Text style={[styles.id, isSelected && styles.idActive]} maxFontSizeMultiplier={1.15}>
-              {formatErrandId(errand.id)}
+              {queuePositionLabel(index)} · {formatErrandId(errand.id)}
             </Text>
             <Text style={[styles.amount, isSelected && styles.amountActive]} maxFontSizeMultiplier={1.2}>
               {formatEarnings(errand)}
@@ -65,12 +80,11 @@ export function FeeCapsuleBar({ errands, selectedIndex, onSelect }: FeeCapsuleBa
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    // Sits over a live map, so it must not eat touches outside the capsules.
-    maxHeight: 76,
+    // In flow, not absolute, and with no height cap. Absolute, it gave the
+    // layer around it no height, so the banners below were stacked as if the
+    // capsules were not there; capped at 76 dp, a capsule with the system font
+    // enlarged was cut off at its bottom edge.
+    flexGrow: 0,
   },
   row: {
     flexDirection: 'row',
@@ -98,6 +112,18 @@ const styles = StyleSheet.create({
   capsuleActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
+  },
+  // White with a navy ring, so it reads on the red capsule and the white one.
+  unreadDot: {
+    position: 'absolute',
+    top: 4,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.textWhite,
+    borderWidth: 1.5,
+    borderColor: Colors.navy,
   },
   capsuleInactive: {
     backgroundColor: Colors.bgWhite,

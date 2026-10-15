@@ -258,7 +258,13 @@ apiClient.interceptors.response.use(
         await setRiderRefreshToken(null);
         setRiderToken(null);
         onSessionExpired?.();
-        return Promise.reject(new Error('Your session has expired. Please sign in again.'));
+        // Tagged 401 so it classifies with every other expired-session failure
+        // rather than looking like a network fault a caller should retry.
+        const expired = new Error('Your session has expired. Please sign in again.') as Error & {
+          status?: number;
+        };
+        expired.status = 401;
+        return Promise.reject(expired);
       }
     }
 
@@ -267,6 +273,21 @@ apiClient.interceptors.response.use(
       error.response?.data?.message ||
       error.message ||
       'Network request failed';
-    return Promise.reject(new Error(message));
+
+    // The status is the only thing that tells a caller whether to retry, back
+    // off hard, or stop trying at all. Flattening every failure to a message
+    // string is why a 401, a 429 and a dead network were indistinguishable at
+    // every call site — the routing hook could not tell "your session ended"
+    // from "you are asking too fast", so it hammered on regardless.
+    //
+    // Strictly additive: `message` is unchanged, so every existing catch block
+    // behaves exactly as before. Note `response` itself is deliberately NOT
+    // attached — two call sites already read `err.response.status` on branches
+    // that are dead today, and reviving them silently would change offline-sync
+    // and receipt-capture behaviour outside the scope of this fix.
+    const wrapped = new Error(message) as Error & { status?: number; code?: string };
+    wrapped.status = error.response?.status;
+    wrapped.code = error.code;
+    return Promise.reject(wrapped);
   }
 );

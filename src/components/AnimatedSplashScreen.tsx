@@ -17,6 +17,12 @@ interface AnimatedSplashScreenProps {
   onAnimationComplete: () => void;
   /** True when core rider application prerequisites (session check, auth state) have resolved */
   isAppReady: boolean;
+  /**
+   * Called once, when this splash has drawn its first frame. The system splash
+   * underneath is only a blank screen in this one's background colour
+   * (app.json), and is let go here, so this is the only splash the rider sees.
+   */
+  onFirstFrame?: () => void;
 }
 
 // Timing Invariants
@@ -26,12 +32,14 @@ const HARD_TIMEOUT_MS = 3500;   // Safety circuit breaker to prevent infinite bo
 export default function AnimatedSplashScreen({
   onAnimationComplete,
   isAppReady,
+  onFirstFrame,
 }: AnimatedSplashScreenProps) {
   const { colors, isDark } = useThemeContext();
   const insets = useSafeAreaInsets();
 
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
   const hasFinishedRef = useRef(false);
+  const firstFrameRef = useRef(false);
 
   // Animation values
   const logoScale = useRef(new Animated.Value(0.75)).current;
@@ -107,15 +115,9 @@ export default function AnimatedSplashScreen({
       setMinTimeElapsed(true);
     }, MIN_PERCEPTION_MS);
 
-    // Hard timeout circuit breaker to avoid infinite splash freeze
-    const safetyTimer = setTimeout(() => {
-      triggerExit();
-    }, HARD_TIMEOUT_MS);
-
     return () => {
       pulseLoopRef.current?.stop();
       clearTimeout(minTimer);
-      clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -125,6 +127,15 @@ export default function AnimatedSplashScreen({
       triggerExit();
     }
   }, [isAppReady, minTimeElapsed]);
+
+  // Fallback safety circuit breaker: force exit after HARD_TIMEOUT_MS so the
+  // app never freezes indefinitely on the splash screen during poor network conditions
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      triggerExit();
+    }, HARD_TIMEOUT_MS);
+    return () => clearTimeout(safetyTimer);
+  }, []);
 
   const triggerExit = () => {
     if (hasFinishedRef.current) return;
@@ -175,6 +186,12 @@ export default function AnimatedSplashScreen({
       ]}
       renderToHardwareTextureAndroid
       pointerEvents="auto"
+      testID="animated-splash"
+      onLayout={() => {
+        if (firstFrameRef.current) return;
+        firstFrameRef.current = true;
+        onFirstFrame?.();
+      }}
     >
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}

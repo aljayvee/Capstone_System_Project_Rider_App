@@ -5,5 +5,7 @@ export * from './CustomerDetailsPanel';
 export * from './RequestItemsPanel';
 export * from './ProgressSteps';
 export * from './CashCollectionInput';
+export * from './PaymentProofViewer';
 export * from './UploadModal';
 export * from './FeeCapsuleBar';
+export * from './ErrandQueueList';

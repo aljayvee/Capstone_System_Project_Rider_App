@@ -7,13 +7,12 @@ import {
   TouchableOpacity, 
   ScrollView, 
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform
 } from 'react-native';
-import { MessageSquare } from 'lucide-react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Colors, FontWeights, BorderRadius } from '../../config/theme';
 import { ChatMessage } from '../../types/rider';
 import { formatErrandId } from '../../utils/formatErrandId';
+import DispatcherAvatar from '../../components/DispatcherAvatar';
 
 export interface DispatcherChatModalProps {
   visible: boolean;
@@ -21,6 +20,8 @@ export interface DispatcherChatModalProps {
   messages: ChatMessage[];
   errandId: string;
   errandType: string;
+  dispatcherId?: string | number | null;
+  dispatcherName?: string | null;
   onSendMessage?: (text: string) => void;
   onSend?: (text: string) => void;
 }
@@ -31,6 +32,8 @@ export function DispatcherChatModal({
   messages,
   errandId,
   errandType,
+  dispatcherId,
+  dispatcherName,
   onSendMessage,
   onSend,
 }: DispatcherChatModalProps) {
@@ -51,18 +54,20 @@ export function DispatcherChatModal({
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.bottomSheet}
-        >
+      {/* The full-screen overlay pads by the keyboard's height and the sheet,
+          anchored to its bottom, rides up on it. This used to be the sheet's
+          own KeyboardAvoidingView with behavior={undefined} on Android, which
+          did nothing, so the message field sat under the keyboard. */}
+      <KeyboardAvoidingView behavior="padding" style={styles.overlay}>
+        <View style={styles.bottomSheet}>
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <MessageSquare size={18} color={Colors.textWhite} />
+              <DispatcherAvatar dispatcherId={dispatcherId} size={32} />
               <View>
-                <Text style={styles.headerTitle}>Dispatcher</Text>
+                <Text style={styles.headerTitle}>{dispatcherName || 'Dispatcher'}</Text>
                 <Text style={styles.headerSubtitle}>Re: Errand #{formatErrandId(errandId)} – {errandType}</Text>
               </View>
             </View>
@@ -132,8 +137,8 @@ export function DispatcherChatModal({
               <Text style={styles.sendButtonText}>Send</Text>
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -151,6 +156,8 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     overflow: 'hidden',
     flexDirection: 'column',
+    // Gives way to the keyboard rather than pushing its header off the top.
+    flexShrink: 1,
   },
   header: {
     backgroundColor: Colors.navy,

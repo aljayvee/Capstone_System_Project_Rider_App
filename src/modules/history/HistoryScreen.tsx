@@ -1,12 +1,11 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Search, X, ArrowUpDown, PackageCheck, ChevronRight, MapPin } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import type { AuthedStackParamList } from '../../navigation/AuthedNavigator';
-import { Card } from '../../components/Card';
 import { Badge } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { Pagination } from '../../components/Pagination';
@@ -74,6 +73,7 @@ function searchHaystack(errand: Errand): string {
 export default function HistoryScreen() {
   const { deliveredErrands, phase } = useRiderMissionContext();
   const navigation = useNavigation<StackNavigationProp<AuthedStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   const [query, setQuery] = React.useState('');
   const [sort, setSort] = React.useState<SortKey>('date-desc');
@@ -137,41 +137,42 @@ export default function HistoryScreen() {
         </View>
 
         <View style={styles.controls}>
-          <View style={styles.searchBox}>
-            <Search size={16} color={Colors.textGray} />
-            <TextInput
-              style={styles.searchInput}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search by errand ID, customer, or store"
-              placeholderTextColor={Colors.textLight}
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="search"
-              accessibilityLabel="Search your delivered errands"
-            />
-            {query.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setQuery('')}
-                style={styles.clearBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Clear the search"
-              >
-                <X size={16} color={Colors.textGray} />
-              </TouchableOpacity>
-            )}
-          </View>
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <Search size={16} color={Colors.textGray} />
+              <TextInput
+                style={styles.searchInput}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search errand ID, customer, or store"
+                placeholderTextColor={Colors.textLight}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                accessibilityLabel="Search your delivered errands"
+              />
+              {query.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setQuery('')}
+                  style={styles.clearBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear the search"
+                >
+                  <X size={16} color={Colors.textGray} />
+                </TouchableOpacity>
+              )}
+            </View>
 
-          <TouchableOpacity
-            style={styles.sortBtn}
-            onPress={() => setSortOpen((open) => !open)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: sortOpen }}
-            accessibilityLabel={`Sort, currently ${activeSort.label}`}
-          >
-            <ArrowUpDown size={15} color={Colors.textMedium} />
-            <Text style={styles.sortBtnText} maxFontSizeMultiplier={1.15}>{activeSort.label}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.inlineSortBtn, sortOpen && styles.inlineSortBtnActive]}
+              onPress={() => setSortOpen((open) => !open)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: sortOpen }}
+              accessibilityLabel={`Sort, currently ${activeSort.label}`}
+            >
+              <ArrowUpDown size={18} color={sortOpen ? Colors.primary : Colors.textMedium} />
+            </TouchableOpacity>
+          </View>
 
           {sortOpen && (
             <View style={styles.sortMenu}>
@@ -204,7 +205,16 @@ export default function HistoryScreen() {
       </View>
 
       {/* Independent Scrolling List */}
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      {/* The search field sits above this list while the keyboard covers its
+          lower rows; a drag puts the keyboard away so every errand can be reached. */}
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {phase === 'loading' ? (
           <ActivityIndicator size="large" color={Colors.primary} style={styles.loading} />
         ) : deliveredErrands.length === 0 ? (
@@ -222,40 +232,44 @@ export default function HistoryScreen() {
         ) : (
           <>
             {visible.map((errand) => (
-              <Card key={errand.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardHeaderLeft}>
+              <TouchableOpacity
+                key={errand.id}
+                style={styles.historyRow}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('ErrandDetails', { errandId: errand.id })}
+                accessibilityRole="button"
+                accessibilityLabel={`See details for errand ${formatErrandId(errand.id)}`}
+                testID={`see-details-${errand.id}`}
+              >
+                <View style={styles.rowTop}>
+                  <View style={styles.rowLeft}>
                     <Text style={styles.errandId} maxFontSizeMultiplier={1.15}>{formatErrandId(errand.id)}</Text>
                     <Badge tone="success">Delivered</Badge>
                   </View>
-                  <View style={styles.cardHeaderRight}>
+                  <View style={styles.rowRight}>
                     <Text style={styles.amount} maxFontSizeMultiplier={1.2}>{formatEarnings(errand)}</Text>
                     <Text style={styles.amountLabel} maxFontSizeMultiplier={1.15}>your share</Text>
                   </View>
                 </View>
 
-                <View style={styles.cardBody}>
+                <View style={styles.rowBody}>
                   <Text style={styles.customerName} numberOfLines={1} maxFontSizeMultiplier={1.15}>{errand.customer}</Text>
                   <View style={styles.addressRow}>
                     <MapPin size={13} color={Colors.textLight} />
-                    <Text style={styles.address} numberOfLines={2} maxFontSizeMultiplier={1.15}>
+                    <Text style={styles.address} numberOfLines={1} maxFontSizeMultiplier={1.15}>
                       {errand.address}
                     </Text>
                   </View>
-                  <Text style={styles.timestamp} maxFontSizeMultiplier={1.15}>{formatTimestamp(errand.updatedAt)}</Text>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.detailsBtn}
-                  onPress={() => navigation.navigate('ErrandDetails', { errandId: errand.id })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`See details for errand ${formatErrandId(errand.id)}`}
-                  testID={`see-details-${errand.id}`}
-                >
-                  <Text style={styles.detailsBtnText} maxFontSizeMultiplier={1.15}>See Details</Text>
-                  <ChevronRight size={16} color={Colors.primary} />
-                </TouchableOpacity>
-              </Card>
+                <View style={styles.rowFooter}>
+                  <Text style={styles.timestamp} maxFontSizeMultiplier={1.15}>{formatTimestamp(errand.updatedAt)}</Text>
+                  <View style={styles.detailsLink}>
+                    <Text style={styles.detailsLinkText} maxFontSizeMultiplier={1.15}>See Details</Text>
+                    <ChevronRight size={14} color={Colors.primary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
             ))}
 
             <Pagination page={safePage} pageCount={pageCount} onChange={setPage} />
@@ -299,7 +313,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     zIndex: 10,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   searchBox: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
@@ -322,22 +342,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sortBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.md,
-    minHeight: 48,
+  inlineSortBtn: {
+    width: 48,
+    height: 48,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.bgWhite,
     borderWidth: 1,
     borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sortBtnText: {
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
-    fontWeight: FontWeights.semibold as any,
-    color: Colors.textMedium,
+  inlineSortBtnActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySurface,
   },
   sortMenu: {
     backgroundColor: Colors.bgWhite,
@@ -370,9 +387,8 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold as any,
   },
   scrollContent: {
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xs,
-    gap: Spacing.md,
     maxWidth: MAX_CONTENT_WIDTH,
     width: '100%',
     alignSelf: 'center',
@@ -381,69 +397,78 @@ const styles = StyleSheet.create({
   loading: {
     marginTop: Spacing.huge,
   },
-  card: {
-    gap: Spacing.sm,
+  historyRow: {
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.xs,
   },
-  cardHeader: {
+  rowTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  cardHeaderLeft: {
-    gap: Spacing.xs,
-    flex: 1,
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   errandId: {
     color: Colors.primary,
     fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.bold as any,
   },
-  cardHeaderRight: {
+  rowRight: {
     alignItems: 'flex-end',
   },
   amount: {
     color: Colors.success,
-    fontSize: scaledFontSize(FontSizes.lg, 0.20),
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.bold as any,
+    fontVariant: ['tabular-nums'],
   },
   amountLabel: {
     color: Colors.textLight,
     fontSize: scaledFontSize(FontSizes.xxs, 0.20),
   },
-  cardBody: {
-    gap: Spacing.xs,
+  rowBody: {
+    gap: 3,
+    marginVertical: 2,
   },
   customerName: {
     color: Colors.textDark,
-    fontSize: scaledFontSize(FontSizes.base, 0.20),
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.semibold as any,
   },
   addressRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: Spacing.xs,
   },
   address: {
     flex: 1,
     color: Colors.textGray,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+  },
+  rowFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
   },
   timestamp: {
+    flexShrink: 1,
     color: Colors.textLight,
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
   },
-  detailsBtn: {
+  detailsLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    minHeight: 48,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.primarySurface,
+    gap: 2,
   },
-  detailsBtnText: {
-    color: Colors.primaryStrong,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+  detailsLinkText: {
+    color: Colors.primary,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.bold as any,
   },
 });

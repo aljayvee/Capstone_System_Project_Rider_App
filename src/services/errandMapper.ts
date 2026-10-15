@@ -1,4 +1,21 @@
-import type { Errand as DomainErrand, ErrandStatus, PabiliDetail, RiderEarnings } from "../types/rider";
+import type {
+  Errand as DomainErrand,
+  ErrandStatus,
+  PabiliDetail,
+  PaymentPlan,
+  RiderEarnings,
+} from "../types/rider";
+import { formatItemLabel } from "../utils/format";
+
+/**
+ * The service types the domain union allows.
+ *
+ * Listed so `api.category` can be NARROWED against them instead of asserted into
+ * the union with `as`. That cast was laundering an arbitrary column value into
+ * ErrandType, which is how a lowercase "pabili" reached a badge meant to name
+ * the shop.
+ */
+const SERVICE_TYPES: readonly DomainErrand["type"][] = ["Pabili", "Padala", "Bills Payment"];
 
 // Shape returned by GET /errands/rider/:riderId (confirmed against
 // server/src/repositories/errandRepository.ts's ERRAND_INCLUDE +
@@ -11,16 +28,32 @@ export interface ApiErrandPinpoint {
   sequence: number;
   /** Flattened from the stop's category by the server's attachErrandNames. */
   storeCategory?: string | null;
+  /**
+   * This stop's own arrival radius, flattened from its category by
+   * attachErrandNames. A supermarket's circle has to reach across its car park
+   * while a carinderia's covers its whole frontage, which is why the server
+   * sends one per stop rather than letting the app assume a single number.
+   */
+  geofenceRadiusMeters?: number | null;
+  /** Set server-side from the rider's breadcrumb geofence crossings. */
+  arrivedAt?: string | null;
+  departedAt?: string | null;
 }
 
 export interface ApiErrand {
   id: string;
+  /** Latest first, one row: who claimed the errand (ERRAND_INCLUDE on the server). */
+  dispatchLogs?: Array<{ dispatcherId?: number | null; dispatcher?: { name?: string | null } | null }>;
   category: string;
   description: string;
   pickupAddress: string;
   deliveryAddress: string;
   deliveryLatitude: number | string | null;
   deliveryLongitude: number | string | null;
+  /** Scalar columns on `errands`. Absent from a server older than them. */
+  deliveryStreetName?: string | null;
+  deliveryLandmark?: string | null;
+  deliveryNotes?: string | null;
   estimatedCost: number | string;
   deliveryFee: number | string;
   tip: number | string;
@@ -34,6 +67,9 @@ export interface ApiErrand {
   riderId: number | null;
   createdAt: string;
   updatedAt: string;
+  /** Scalar columns on `errands`, sent by every errand response. */
+  assignedAt?: string | null;
+  acceptedAt?: string | null;
   customer?: { firstName?: string; lastName?: string; phone?: string; name?: string } | null;
   pabiliDetails?: PabiliDetail[];
   pinpoints?: ApiErrandPinpoint[];
@@ -43,16 +79,42 @@ export interface ApiErrand {
   pabiliItemRequests?: Array<{
     id: number;
     itemName: string;
+    size?: string | null;
+    notes?: string | null;
     quantity: number;
     storeCategory?: string | null;
     pinpointId?: number | null;
   }>;
+  /**
+   * The mode the customer confirmed. Null until they do.
+   *
+   * ERRAND_INCLUDE selects `paymentSelection: { paymentMode: { name } }` and
+   * attachErrandNames spreads it through untouched, so this is the very same
+   * field the dispatcher board reads. It was simply never declared here, so
+   * nothing flagged the mapper ignoring it.
+   */
+  paymentSelection?: { paymentMode: { name: string } } | null;
+  /** Where the money stands, derived server-side by derivePaymentPlan. Null on COD. */
+  paymentPlan?: PaymentPlan | null;
+  /**
+   * Stamped when the rider confirms they have everything (see
+   * errandService.markItemsPurchased). The backend's ErrandStatus enum keeps
+   * all three pre-delivery steps as IN_TRANSIT, so this timestamp is the ONLY
+   * persisted record of the Traveling/At Store -> Delivering boundary — which
+   * is what makes the rider's step survive a re-login. See missionProgress.ts.
+   */
+  itemsPurchasedAt?: string | null;
 }
 
 function toFiniteNumberOrNull(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined) return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+}
+
+function textOrNull(value: string | null | undefined): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 const API_TO_DOMAIN_STATUS: Record<ApiErrand["status"], ErrandStatus> = {
@@ -85,6 +147,15 @@ export function mapApiErrandToDomain(api: ApiErrand): DomainErrand {
       id: p.id,
       storeName: p.storeName,
       storeCategory: p.storeCategory ?? null,
+      // The server computes a radius per stop from its merchant category and
+      // sends it on every errand. Dropping it here meant radiusOf() and the
+      // map circle both silently fell back to the 75 m default for every stop
+      // in the system, so a supermarket and a carinderia were geofenced
+      // identically — and `arrivedAt`, which is derived from that geofence, is
+      // now read back by missionProgress to restore the "At Store" step.
+      geofenceRadiusMeters: p.geofenceRadiusMeters ?? null,
+      arrivedAt: p.arrivedAt ?? null,
+      departedAt: p.departedAt ?? null,
       latitude: Number(p.latitude),
       longitude: Number(p.longitude),
       sequence: p.sequence,
@@ -121,17 +192,66 @@ export function mapApiErrandToDomain(api: ApiErrand): DomainErrand {
 
   const itemsByStore = groupItemsByStore(itemSource, pinpoints);
 
+  // What KIND of shop each stop is: the merchant category the dispatcher filed
+  // it under, flattened onto each pinpoint by the server's attachErrandNames.
+  //
+  // Stops win over items. A stop's category is a MerchantCategory catalogue row;
+  // an item's is dispatcher free text. Items are read only when no stop carries a
+  // category at all, which is the shape of an errand whose stores are not pinned
+  // yet — exactly the case NewTaskCard's no-stops branch renders.
+  const distinctNames = (values: Array<string | null | undefined>): string[] =>
+    Array.from(new Set(values.map((v) => (v ?? "").trim()).filter((v) => v.length > 0)));
+
+  const stopCategories = distinctNames(pinpoints.map((p) => p.storeCategory));
+  const merchantCategories =
+    stopCategories.length > 0
+      ? stopCategories
+      : distinctNames(itemSource.map((i) => i.storeCategory));
+
   return {
     id: api.id,
-    type: (api.category as DomainErrand["type"]) || "Pabili",
+    // The dispatcher who claimed this errand: whom the rider's chat answers to.
+    dispatcherId: api.dispatchLogs?.[0]?.dispatcherId ?? null,
+    dispatcherName: api.dispatchLogs?.[0]?.dispatcher?.name ?? null,
+    // The SERVICE type, and only that. `api.category` is pinned server-side to
+    // the single literal "Pabili"; the `as` cast this replaces was laundering an
+    // arbitrary string into the ErrandType union, which is how a lowercase
+    // "pabili" reached a badge meant to name the shop. Matched
+    // case-insensitively because the column carries no casing guarantee.
+    type:
+      SERVICE_TYPES.find(
+        (t) => t.toLowerCase() === String(api.category ?? "").toLowerCase()
+      ) ?? "Pabili",
+    // What kind of shop the rider is walking into, from the same stop categories
+    // requestSections already reads for the per-store lines.
+    merchantCategories,
     customer: customerName,
     customerPhone: api.customer?.phone || "",
     address: api.deliveryAddress,
     deliveryLatitude: toFiniteNumberOrNull(api.deliveryLatitude),
     deliveryLongitude: toFiniteNumberOrNull(api.deliveryLongitude),
+    // Blank is the same as absent: a rider is shown nothing rather than an
+    // empty "Landmark:" line.
+    deliveryStreetName: textOrNull(api.deliveryStreetName),
+    deliveryLandmark: textOrNull(api.deliveryLandmark),
+    deliveryNotes: textOrNull(api.deliveryNotes),
     pinpoints,
-    paymentMode: "Cash on Delivery",
+    // The mode the customer actually confirmed. This was the bare literal
+    // "Cash on Delivery" — the API value was never read at all — so every errand
+    // reached the rider as COD however the customer had paid.
+    //
+    // Null until confirmed, and shown as such rather than assumed to be cash:
+    // assuming is what caused the bug. The cash step does not depend on it.
+    paymentMode: api.paymentSelection?.paymentMode?.name ?? null,
+    // Straight from the server, never derived here. Drives the balance the cash
+    // panel shows and the two holds errandGate applies at the door — both of
+    // which were unreachable for as long as this field was dropped in mapping,
+    // so a downpayment errand told the rider to collect the whole bill.
+    paymentPlan: api.paymentPlan ?? null,
     status: mapApiStatusToDomain(api.status),
+    // The one persisted signal that separates "still shopping" from "carrying
+    // the goods to the door" — the coarse status column cannot tell them apart.
+    itemsPurchasedAt: api.itemsPurchasedAt ?? null,
     riderId: api.riderId ?? undefined,
     amount: Number(api.totalCost) || 0,
     // Straight from the server, never derived here. This used to read
@@ -145,12 +265,14 @@ export function mapApiErrandToDomain(api: ApiErrand): DomainErrand {
     feeBreakdown: api.feeBreakdown,
     createdAt: api.createdAt,
     updatedAt: api.updatedAt,
+    assignedAt: api.assignedAt ?? null,
+    acceptedAt: api.acceptedAt ?? null,
     pabiliDetails,
     // A shopping list per stop, in visit order. Falls back to undefined when
     // there are no item requests, which leaves RequestItemsPanel showing the
     // flat `details` line exactly as before.
     payload: itemsByStore.length > 0 ? itemsByStore : undefined,
-    details: pabiliDetails.map((d) => `${d.itemName} x${d.quantity}`).join(" | ") || api.description,
+    details: pabiliDetails.map((d) => `${formatItemLabel(d.itemName, d.size)} x${d.quantity}`).join(" | ") || api.description,
   };
 }
 
@@ -167,9 +289,15 @@ export function mapApiErrandToDomain(api: ApiErrand): DomainErrand {
  * is better than a rider arriving without something the customer asked for.
  */
 interface GroupableItem {
+  id?: number;
   itemName: string;
+  size?: string | null;
+  notes?: string | null;
   quantity: number;
+  fulfillmentStatus?: "PENDING" | "PURCHASED" | "OUT_OF_STOCK";
   pinpointId?: number | null;
+  /** The dispatcher's free-text category, read only when no stop carries one. */
+  storeCategory?: string | null;
 }
 
 function groupItemsByStore(
@@ -178,8 +306,24 @@ function groupItemsByStore(
 ): NonNullable<DomainErrand["payload"]> {
   if (items.length === 0) return [];
 
-  const label = (item: (typeof items)[number]) =>
-    item.quantity > 1 ? `${item.itemName} x${item.quantity}` : item.itemName;
+  const label = (item: (typeof items)[number]) => {
+    // "Chicken · 5 kg x2": the size is what tells a rider which pack to take.
+    const name = formatItemLabel(item.itemName, item.size);
+    return item.quantity > 1 ? `${name} x${item.quantity}` : name;
+  };
+
+  const toEntry = (item: (typeof items)[number]) => ({
+    id: item.id,
+    label: label(item),
+    itemName: item.itemName,
+    size: item.size ?? null,
+    notes: item.notes ?? null,
+    quantity: item.quantity,
+    fulfillmentStatus:
+      item.fulfillmentStatus === "PURCHASED" || item.fulfillmentStatus === "OUT_OF_STOCK"
+        ? item.fulfillmentStatus
+        : ("PENDING" as const),
+  });
 
   const groups: NonNullable<DomainErrand["payload"]> = [];
 
@@ -192,6 +336,7 @@ function groupItemsByStore(
       groups.push({
         name: stop.storeName,
         items: forStop.map(label),
+        itemEntries: forStop.map(toEntry),
         pinpointId: stop.id,
         storeCategory: stop.storeCategory ?? null,
       });
@@ -207,6 +352,7 @@ function groupItemsByStore(
     groups.push({
       name: "Other items",
       items: unattached.map(label),
+      itemEntries: unattached.map(toEntry),
       pinpointId: null,
       storeCategory: null,
     });

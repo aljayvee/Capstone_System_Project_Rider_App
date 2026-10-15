@@ -1,6 +1,7 @@
 import React from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, Info } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
@@ -111,10 +112,11 @@ export default function EditProfileScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      {/* Was behavior={undefined} on Android: under edge-to-edge the window never
+          shrinks for the keyboard, so that meant no avoidance at all. Padding
+          keeps Save above the keyboard and shrinks the form, which scrolls
+          the focused field back into view. */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {formError && (
             <View style={styles.formError}>
@@ -123,41 +125,56 @@ export default function EditProfileScreen() {
             </View>
           )}
 
-          <Field
-            label="First Name"
-            value={firstName}
-            onChangeText={setFirstName}
-            error={errors.firstName}
-            autoCapitalize="words"
-            testID="edit-first-name"
-          />
-          <Field
-            label="Last Name"
-            value={lastName}
-            onChangeText={setLastName}
-            error={errors.lastName}
-            autoCapitalize="words"
-            testID="edit-last-name"
-          />
-          <Field
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            error={errors.email}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            testID="edit-email"
-          />
-          <Field
-            label="Phone Number"
-            value={phone}
-            onChangeText={setPhone}
-            error={errors.phone}
-            keyboardType="number-pad"
-            maxLength={11}
-            testID="edit-phone"
-          />
+          {/* Section: Personal Details */}
+          <View style={styles.section}>
+            <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Personal Details</Text>
+            <View style={styles.groupContainer}>
+              <Field
+                label="First Name"
+                value={firstName}
+                onChangeText={setFirstName}
+                error={errors.firstName}
+                autoCapitalize="words"
+                testID="edit-first-name"
+              />
+              <Field
+                label="Last Name"
+                value={lastName}
+                onChangeText={setLastName}
+                error={errors.lastName}
+                autoCapitalize="words"
+                testID="edit-last-name"
+              />
+            </View>
+          </View>
 
+          {/* Section: Contact Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Contact Information</Text>
+            <View style={styles.groupContainer}>
+              <Field
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                error={errors.email}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                testID="edit-email"
+              />
+              <Field
+                label="Phone Number"
+                value={phone}
+                onChangeText={setPhone}
+                error={errors.phone}
+                keyboardType="number-pad"
+                maxLength={11}
+                testID="edit-phone"
+              />
+            </View>
+          </View>
+        </ScrollView>
+
+        <View style={styles.actionDock}>
           <TouchableOpacity
             style={[styles.saveBtn, saving && styles.saveBtnBusy]}
             onPress={handleSave}
@@ -173,7 +190,7 @@ export default function EditProfileScreen() {
               <Text style={styles.saveText} maxFontSizeMultiplier={1.15}>Save Changes</Text>
             )}
           </TouchableOpacity>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -200,6 +217,7 @@ function Field({
         onChangeText={onChangeText}
         placeholderTextColor={Colors.textLight}
         accessibilityLabel={label}
+        maxFontSizeMultiplier={1.2}
         {...rest}
       />
       {/* Beneath the field it belongs to, not collected at the top — a rider
@@ -243,11 +261,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
-    gap: Spacing.md,
+    gap: Spacing.lg,
     maxWidth: MAX_CONTENT_WIDTH,
     width: '100%',
     alignSelf: 'center',
-    paddingBottom: moderateScale(110, 0.20),
+    paddingBottom: moderateScale(40, 0.20),
   },
   formError: {
     flexDirection: 'row',
@@ -262,6 +280,22 @@ const styles = StyleSheet.create({
     color: Colors.danger,
     fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.semibold as any,
+  },
+  section: {
+    gap: Spacing.sm,
+  },
+  sectionHeading: {
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
+    fontWeight: FontWeights.bold as any,
+    color: Colors.textDark,
+  },
+  groupContainer: {
+    backgroundColor: Colors.bgWhite,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.md,
   },
   field: {
     gap: Spacing.xs,
@@ -289,6 +323,16 @@ const styles = StyleSheet.create({
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.semibold as any,
   },
+  actionDock: {
+    backgroundColor: Colors.bgWhite,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    maxWidth: MAX_CONTENT_WIDTH,
+    width: '100%',
+    alignSelf: 'center',
+  },
   saveBtn: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -296,7 +340,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     minHeight: 48,
-    marginTop: Spacing.md,
   },
   saveBtnBusy: {
     opacity: 0.7,

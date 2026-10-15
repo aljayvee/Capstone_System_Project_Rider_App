@@ -5,7 +5,6 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import { ChevronLeft, ReceiptText, ImageOff } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import type { AuthedStackParamList } from '../../navigation/AuthedNavigator';
-import { Card } from '../../components/Card';
 import { Badge } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { riderApiService, type ProofImageMeta } from '../../config/apiConfig';
@@ -13,6 +12,13 @@ import { requestSections } from '../../services/requestSections';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
 import { formatErrandId } from '../../utils/formatErrandId';
 import { formatPeso, formatTimestamp } from '../../utils/format';
+
+/** In-memory cache for loaded proof metadata and downloaded base64 images */
+interface CachedProofData {
+  list: ProofImageMeta[];
+  images: Record<number, string | null>;
+}
+const proofImageCache = new Map<string, CachedProofData>();
 
 /** What each kind of photo is called on a screen a rider reads. */
 const PROOF_LABELS: Record<ProofImageMeta['kind'], string> = {
@@ -33,7 +39,7 @@ export default function ErrandDetailsScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<AuthedStackParamList, 'ErrandDetails'>>();
   const { errandId } = route.params;
-  const { deliveredErrands } = useRiderMissionContext();
+  const { deliveredErrands, phase } = useRiderMissionContext();
 
   const errand = React.useMemo(
     () => deliveredErrands.find((e) => e.id === errandId) ?? null,
@@ -47,21 +53,42 @@ export default function ErrandDetailsScreen() {
   React.useEffect(() => {
     let cancelled = false;
 
+    // Fast-path: Check in-memory cache first!
+    const cached = proofImageCache.get(errandId);
+    if (cached) {
+      setImages(cached.list);
+      setImageData(cached.images);
+      setLoadingImages(false);
+      return;
+    }
+
     (async () => {
       setLoadingImages(true);
-      const list = await riderApiService.fetchProofImages(errandId);
-      if (cancelled) return;
-      setImages(list);
-
-      // Sequential rather than Promise.all: these are megabyte-scale base64
-      // payloads over a rider's mobile connection, and firing four at once is
-      // how the whole screen ends up waiting on the slowest of them.
-      for (const meta of list) {
-        const data = await riderApiService.fetchProofImage(errandId, meta.id);
+      try {
+        const list = await riderApiService.fetchProofImages(errandId);
         if (cancelled) return;
-        setImageData((prev) => ({ ...prev, [meta.id]: data }));
+        setImages(list);
+
+        // Sequential rather than Promise.all: these are megabyte-scale base64
+        // payloads over a rider's mobile connection, and firing four at once is
+        // how the whole screen ends up waiting on the slowest of them.
+        const loadedImages: Record<number, string | null> = {};
+        for (const meta of list) {
+          const data = await riderApiService.fetchProofImage(errandId, meta.id).catch(() => null);
+          if (cancelled) return;
+          loadedImages[meta.id] = data;
+          setImageData((prev) => ({ ...prev, [meta.id]: data }));
+        }
+        if (!cancelled) {
+          setLoadingImages(false);
+          // Persist in-memory so returning to this screen is instant with zero network transfer
+          proofImageCache.set(errandId, { list, images: loadedImages });
+        }
+      } catch {
+        if (!cancelled) {
+          setLoadingImages(false);
+        }
       }
-      if (!cancelled) setLoadingImages(false);
     })();
 
     return () => {
@@ -88,7 +115,11 @@ export default function ErrandDetailsScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {!errand ? (
+      {phase === 'loading' && !errand ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : !errand ? (
         <EmptyState
           Icon={ImageOff}
           title="That errand is not in your history"
@@ -96,7 +127,8 @@ export default function ErrandDetailsScreen() {
         />
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Card style={styles.card}>
+          {/* 1. Errand Overview */}
+          <View style={styles.sectionBlock}>
             <View style={styles.summaryTop}>
               <View style={styles.summaryLeft}>
                 <Text style={styles.customer} maxFontSizeMultiplier={1.2}>{errand.customer}</Text>
@@ -105,89 +137,142 @@ export default function ErrandDetailsScreen() {
               <Badge tone="success">Delivered</Badge>
             </View>
             <Text style={styles.timestamp} maxFontSizeMultiplier={1.15}>{formatTimestamp(errand.updatedAt)}</Text>
-          </Card>
+          </View>
 
-          {/* ── What was bought ─────────────────────────────────────────── */}
-          <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Items bought</Text>
-          {sections.length === 0 ? (
-            <Card style={styles.card}>
+          {/* 2. Store Purchases & Receipts */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Store Purchases & Receipts</Text>
+            {sections.length === 0 ? (
               <Text style={styles.muted} maxFontSizeMultiplier={1.15}>No item list was filed for this errand.</Text>
-            </Card>
-          ) : (
-            sections.map((section, idx) => (
-              <Card key={idx} style={styles.card}>
-                {section.title && <Text style={styles.storeName} maxFontSizeMultiplier={1.2}>{section.title}</Text>}
-                {section.storeCategory && (
-                  <Text style={styles.storeCategory} maxFontSizeMultiplier={1.15}>{section.storeCategory}</Text>
-                )}
-                {section.lines.map((line, lineIdx) => (
-                  <Text key={lineIdx} style={styles.itemLine} maxFontSizeMultiplier={1.15}>
-                    {section.title ? `• ${line}` : line}
-                  </Text>
-                ))}
-              </Card>
-            ))
-          )}
-
-          {/* ── What was photographed ───────────────────────────────────── */}
-          <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Captured proof</Text>
-          {loadingImages && images.length === 0 ? (
-            <ActivityIndicator color={Colors.primary} style={styles.loading} />
-          ) : images.length === 0 ? (
-            <Card style={styles.card}>
-              <Text style={styles.muted} maxFontSizeMultiplier={1.15}>No photos were filed against this errand.</Text>
-            </Card>
-          ) : (
-            images.map((meta) => {
-              const data = imageData[meta.id];
-              return (
-                <Card key={meta.id} style={styles.card}>
-                  <View style={styles.proofHeader}>
-                    <ReceiptText size={14} color={Colors.textGray} />
-                    <Text style={styles.proofLabel} maxFontSizeMultiplier={1.15}>{PROOF_LABELS[meta.kind] ?? meta.kind}</Text>
-                    {/* An unverified figure is the rider's own word rather than
-                        a total read off a printed receipt. Saying so here is the
-                        difference between a record and a claim. */}
-                    {!meta.verified && <Badge tone="warning">Unverified</Badge>}
-                  </View>
-
-                  {data === undefined ? (
-                    <ActivityIndicator color={Colors.primary} style={styles.thumbLoading} />
-                  ) : data === null ? (
-                    <Text style={styles.muted} maxFontSizeMultiplier={1.15}>This photo could not be loaded.</Text>
-                  ) : (
-                    <Image
-                      source={{ uri: data }}
-                      style={styles.proofImage}
-                      // contain, not cover: a receipt is a tall narrow document
-                      // and cropping it to fill the box hides the totals, which
-                      // are the only reason a rider opens this screen.
-                      resizeMode="contain"
-                      accessibilityLabel={PROOF_LABELS[meta.kind] ?? 'Proof photo'}
-                    />
+            ) : (
+              sections.map((section, idx) => (
+                <View key={idx} style={styles.storeSection}>
+                  {section.title && <Text style={styles.storeName} maxFontSizeMultiplier={1.2}>{section.title}</Text>}
+                  {section.storeCategory && (
+                    <Text style={styles.storeCategory} maxFontSizeMultiplier={1.15}>{section.storeCategory}</Text>
                   )}
-
-                  <Text style={styles.proofMeta} maxFontSizeMultiplier={1.15}>{formatTimestamp(meta.capturedAt)}</Text>
-                  {meta.declaredTotal != null && meta.declaredTotal > 0 && (
-                    <Text style={styles.proofMeta} maxFontSizeMultiplier={1.15}>
-                      Declared total: {formatPeso(meta.declaredTotal)}
+                  {section.lines.map((line, lineIdx) => (
+                    <Text key={lineIdx} style={styles.itemLine} maxFontSizeMultiplier={1.15}>
+                      {section.title ? `• ${line}` : line}
                     </Text>
-                  )}
-                </Card>
-              );
-            })
-          )}
+                  ))}
+                </View>
+              ))
+            )}
 
-          {/* ── What it came to ─────────────────────────────────────────── */}
-          <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Totals</Text>
-          <Card style={styles.card}>
+            {loadingImages && images.length === 0 ? (
+              <ActivityIndicator color={Colors.primary} style={styles.loading} />
+            ) : (
+              (() => {
+                const storeImages = images.filter((m) => m.kind === 'RECEIPT' || m.kind === 'NO_RECEIPT');
+                if (storeImages.length === 0) {
+                  return (
+                    <Text style={styles.mutedPhoto} maxFontSizeMultiplier={1.15}>
+                      No store receipts filed.
+                    </Text>
+                  );
+                }
+                return storeImages.map((meta) => {
+                  const data = imageData[meta.id];
+                  return (
+                    <View key={meta.id} style={styles.proofContainer}>
+                      <View style={styles.proofHeader}>
+                        <ReceiptText size={14} color={Colors.textGray} />
+                        <Text style={styles.proofLabel} maxFontSizeMultiplier={1.15}>
+                          {PROOF_LABELS[meta.kind] ?? meta.kind}
+                        </Text>
+                        {!meta.verified && <Badge tone="warning">Unverified</Badge>}
+                      </View>
+
+                      {data === undefined ? (
+                        <ActivityIndicator color={Colors.primary} style={styles.thumbLoading} />
+                      ) : data === null ? (
+                        <Text style={styles.muted} maxFontSizeMultiplier={1.15}>This photo could not be loaded.</Text>
+                      ) : (
+                        <Image
+                          source={{ uri: data }}
+                          style={styles.proofImage}
+                          resizeMode="contain"
+                          accessibilityLabel={PROOF_LABELS[meta.kind] ?? 'Proof photo'}
+                        />
+                      )}
+
+                      <Text style={styles.proofMeta} maxFontSizeMultiplier={1.15}>{formatTimestamp(meta.capturedAt)}</Text>
+                      {meta.declaredTotal != null && meta.declaredTotal > 0 && (
+                        <Text style={styles.proofMeta} maxFontSizeMultiplier={1.15}>
+                          Declared total: {formatPeso(meta.declaredTotal)}
+                        </Text>
+                      )}
+                    </View>
+                  );
+                });
+              })()
+            )}
+          </View>
+
+          {/* 3. Handover & Delivery Proof */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Handover & Delivery Proof</Text>
+            {loadingImages && images.length === 0 ? (
+              <ActivityIndicator color={Colors.primary} style={styles.loading} />
+            ) : (
+              (() => {
+                const deliveryImages = images.filter((m) => m.kind === 'PROOF_OF_DELIVERY' || m.kind === 'TRANSFER');
+                if (deliveryImages.length === 0) {
+                  return (
+                    <Text style={styles.mutedPhoto} maxFontSizeMultiplier={1.15}>
+                      No handover or delivery proof photos captured.
+                    </Text>
+                  );
+                }
+                return deliveryImages.map((meta) => {
+                  const data = imageData[meta.id];
+                  return (
+                    <View key={meta.id} style={styles.proofContainer}>
+                      <View style={styles.proofHeader}>
+                        <ReceiptText size={14} color={Colors.textGray} />
+                        <Text style={styles.proofLabel} maxFontSizeMultiplier={1.15}>
+                          {PROOF_LABELS[meta.kind] ?? meta.kind}
+                        </Text>
+                        {!meta.verified && <Badge tone="warning">Unverified</Badge>}
+                      </View>
+
+                      {data === undefined ? (
+                        <ActivityIndicator color={Colors.primary} style={styles.thumbLoading} />
+                      ) : data === null ? (
+                        <Text style={styles.muted} maxFontSizeMultiplier={1.15}>This photo could not be loaded.</Text>
+                      ) : (
+                        <Image
+                          source={{ uri: data }}
+                          style={styles.proofImage}
+                          resizeMode="contain"
+                          accessibilityLabel={PROOF_LABELS[meta.kind] ?? 'Proof photo'}
+                        />
+                      )}
+
+                      <Text style={styles.proofMeta} maxFontSizeMultiplier={1.15}>{formatTimestamp(meta.capturedAt)}</Text>
+                      {meta.declaredTotal != null && meta.declaredTotal > 0 && (
+                        <Text style={styles.proofMeta} maxFontSizeMultiplier={1.15}>
+                          Declared total: {formatPeso(meta.declaredTotal)}
+                        </Text>
+                      )}
+                    </View>
+                  );
+                });
+              })()
+            )}
+          </View>
+
+          {/* 4. Financial Settlement */}
+          <View style={[styles.sectionBlock, styles.lastSection]}>
+            <Text style={styles.sectionHeading} maxFontSizeMultiplier={1.2}>Financial Settlement</Text>
             {breakdown && (
-              <>
+              <View style={styles.settlementTable}>
                 <Row label="Items" value={formatPeso(breakdown.itemsSubtotal)} />
                 <Row label="Delivery fees" value={formatPeso(breakdown.fees.subtotal)} />
                 {breakdown.tip > 0 && <Row label="Tip" value={formatPeso(breakdown.tip)} />}
                 <Row label="Customer paid" value={formatPeso(breakdown.grandTotal)} emphasis />
-              </>
+              </View>
             )}
             {earnings ? (
               <View style={styles.earningsBlock}>
@@ -203,7 +288,7 @@ export default function ErrandDetailsScreen() {
             ) : (
               <Text style={styles.muted} maxFontSizeMultiplier={1.15}>Earnings for this errand are not available.</Text>
             )}
-          </Card>
+          </View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -241,7 +326,7 @@ function Row({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bgGray,
+    backgroundColor: Colors.bgWhite,
   },
   header: {
     flexDirection: 'row',
@@ -268,15 +353,20 @@ const styles = StyleSheet.create({
     color: Colors.textDark,
   },
   scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: moderateScale(110, 0.20),
     maxWidth: MAX_CONTENT_WIDTH,
     width: '100%',
     alignSelf: 'center',
-    paddingBottom: moderateScale(110, 0.20),
   },
-  card: {
-    gap: Spacing.xs,
+  sectionBlock: {
+    paddingVertical: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  lastSection: {
+    borderBottomWidth: 0,
   },
   summaryTop: {
     flexDirection: 'row',
@@ -306,7 +396,7 @@ const styles = StyleSheet.create({
     fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.bold as any,
     color: Colors.textMedium,
-    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   storeName: {
     fontSize: scaledFontSize(FontSizes.base, 0.20),
@@ -326,9 +416,19 @@ const styles = StyleSheet.create({
     color: Colors.textDark,
     lineHeight: 20,
   },
+  storeSection: {
+    paddingVertical: Spacing.xs,
+    gap: 2,
+  },
   muted: {
     fontSize: scaledFontSize(FontSizes.sm, 0.20),
     color: Colors.textGray,
+  },
+  mutedPhoto: {
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    color: Colors.textLight,
+    fontStyle: 'italic',
+    marginTop: Spacing.xs,
   },
   loading: {
     marginVertical: Spacing.lg,
@@ -336,11 +436,15 @@ const styles = StyleSheet.create({
   thumbLoading: {
     marginVertical: Spacing.xxl,
   },
+  proofContainer: {
+    marginTop: Spacing.sm,
+    gap: Spacing.xs,
+  },
   proofHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   proofLabel: {
     flex: 1,
@@ -357,6 +461,10 @@ const styles = StyleSheet.create({
   proofMeta: {
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
     color: Colors.textLight,
+    marginTop: Spacing.xs,
+  },
+  settlementTable: {
+    gap: 2,
     marginTop: Spacing.xs,
   },
   row: {
@@ -399,5 +507,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderStyle: 'dashed',
     borderTopColor: Colors.successBorder,
+  },
+  centerLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

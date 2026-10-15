@@ -3,15 +3,31 @@ import * as Location from 'expo-location';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateRiderDutyStatus, saveRiderLocation } from '../firebase/location';
+import { emitLiveLocation } from '../services/liveLocationSocket';
+import {
+  BEACON_INTERVAL_ACTIVE_MS,
+  BEACON_INTERVAL_IDLE_MS,
+  beaconDue,
+  endShiftAtMidnight,
+  getDutySince,
+  noteBeaconSent,
+} from '../services/riderShift';
 import BackgroundLocationModal from '../components/BackgroundLocationModal';
 import {
   LOCATION_TRACKING_TASK,
   RIDER_ID_STORAGE_KEY,
   ACTIVE_ERRAND_STORAGE_KEY,
 } from '../tasks/locationTrackingTask';
-import { evaluateFix, distanceMeters, type Fix } from '../utils/locationQuality';
+import { distanceMeters, type Fix } from '../utils/locationQuality';
+import {
+  claimLivePublish,
+  liveStabilizer,
+  loadGpsCalibration,
+  resetLiveSteadying,
+} from '../services/gpsSteadying';
 import { createClientPointId, enqueuePoint } from '../services/locationQueue';
 import * as Notifications from 'expo-notifications';
+import * as Battery from 'expo-battery';
 import { riderApiService } from '../config/apiConfig';
 
 export interface RiderOwnLocation {
@@ -27,6 +43,15 @@ export interface RiderOwnLocation {
    * circle, and treating it as proof would advance the errand from across town.
    */
   accuracyMeters: number | null;
+  /**
+   * Ground speed in m/s, as the GPS steadier estimates it (utils/gpsStabilizer),
+   * 0 while the pin is held still. The map reads it to decide whether a fix
+   * belongs on the road (riding) or where it is (standing in a store); it was
+   * never filled in before, so the map always assumed the rider was standing.
+   */
+  speed?: number | null;
+  /** True while the pin is held in place because the phone is not moving. */
+  stationary?: boolean;
 }
 
 type TrackingMode = 'idle' | 'active';
@@ -42,29 +67,43 @@ type TrackingMode = 'idle' | 'active';
  * extra GPS draw at all — the location task is already running. That is the whole
  * price of making an idle rider visible to dispatch.
  */
-const BEACON_INTERVAL_IDLE_MS = 30000;
-const BEACON_INTERVAL_ACTIVE_MS = 10000;
+// BEACON_INTERVAL_IDLE_MS / BEACON_INTERVAL_ACTIVE_MS now live in
+// services/riderShift, shared with the background task, which beacons too.
+
+// How often the heartbeat wakes to ask whether a beacon is due. Shorter than
+// either cadence above so the same timer serves both, and so the answer is never
+// late by more than a tick when a delivery starts and the cadence tightens.
+const BEACON_HEARTBEAT_TICK_MS = 5000;
 
 // Idle cadence (on-duty, no active delivery) trades precision for battery —
 // riders can stay on-duty for a whole shift. Active-delivery cadence matches
 // the original foreground-only implementation's values.
+// distanceInterval 0 in both profiles: the background task is also the
+// presence heartbeat once the app is closed, and any distance threshold means
+// Android delivers nothing to a rider standing still, so a rider waiting for
+// work would stop beaconing and show as "signal lost" while ready. timeInterval
+// alone paces it.
 const IDLE_OPTIONS: Location.LocationTaskOptions = {
-  accuracy: Location.Accuracy.Balanced,
-  timeInterval: 30000,
-  distanceInterval: 50,
+  accuracy: Location.Accuracy.High,
+  timeInterval: 10000,
+  distanceInterval: 0,
+  pausesUpdatesAutomatically: false,
   foregroundService: {
-    notificationTitle: 'RiderMobileApp',
+    notificationTitle: 'Sugo Rider',
     notificationBody: 'Tracking your location while on duty',
+    notificationColor: '#DC2626',
   },
 };
 
 const ACTIVE_DELIVERY_OPTIONS: Location.LocationTaskOptions = {
   accuracy: Location.Accuracy.High,
-  timeInterval: 5000,
-  distanceInterval: 15,
+  timeInterval: 2000,
+  distanceInterval: 0,
+  pausesUpdatesAutomatically: false,
   foregroundService: {
-    notificationTitle: 'RiderMobileApp',
+    notificationTitle: 'Sugo Rider',
     notificationBody: 'Tracking your location for an active delivery',
+    notificationColor: '#DC2626',
   },
 };
 
@@ -132,6 +171,8 @@ export function useRiderLocationBroadcast(
   const lastAcceptedFixRef = useRef<Fix | null>(null);
   const lastTrailPointRef = useRef<Fix | null>(null);
   const stationarySinceRef = useRef<number | null>(null);
+  // The newest steadied fix already shown on this phone's own map.
+  const lastShownAtRef = useRef(0);
 
   // True while the OS background task owns the Firebase writes, so the
   // foreground watcher stands down rather than writing the same node twice.
@@ -164,17 +205,34 @@ export function useRiderLocationBroadcast(
         // A permissions probe that throws is not a granted permission.
       }
 
-      await riderApiService.sendBeacon({
+      // Granted AND running. The permission alone is not evidence the OS let
+      // the task survive, and this whole mechanism exists because Android kills
+      // things that look permitted.
+      //
+      // Except in development, where applyMode deliberately never starts the
+      // background task (it fights Metro's HMR loader). Reporting task-liveness
+      // there sends `false` on every beacon however the device is configured, so
+      // the server marks the rider NEEDS_PERMISSIONS and auto-assign answers "no
+      // rider can take this errand" for a fleet that is on duty, beaconing, and
+      // holding "Allow all the time". Dev falls back to the permission itself;
+      // production keeps the stricter test.
+      let backgroundLocation = backgroundTaskActiveRef.current;
+      if (__DEV__ && !backgroundLocation) {
+        try {
+          backgroundLocation = (await Location.getBackgroundPermissionsAsync()).granted;
+        } catch {
+          // A permissions probe that throws is not a granted permission.
+        }
+      }
+
+      const result = await riderApiService.sendBeacon({
         latitude: fix?.latitude ?? null,
         longitude: fix?.longitude ?? null,
         accuracyMeters: fix?.accuracyMeters ?? null,
         headingDeg: fix?.headingDeg ?? null,
         recordedAt: fix ? new Date(fix.timestamp).toISOString() : null,
         onDuty: isOnDutyRef.current,
-        // Granted AND running. The permission alone is not evidence the OS let
-        // the task survive, and this whole mechanism exists because Android kills
-        // things that look permitted.
-        backgroundLocation: backgroundTaskActiveRef.current,
+        backgroundLocation,
         notifications,
         // PLACEHOLDER, and knowingly so: Expo exposes no API to query
         // SCHEDULE_EXACT_ALARM, so this cannot yet be measured. Sent as true so
@@ -192,7 +250,16 @@ export function useRiderLocationBroadcast(
           : BEACON_INTERVAL_IDLE_MS,
         connectivity: connectivityRef.current,
         shuttingDown,
+        // Lets the server end the shift at 12:00 AM if this phone misses it.
+        dutySince: isOnDutyRef.current ? await getDutySince() : null,
       });
+      await noteBeaconSent();
+
+      // The server ended this shift at midnight. Going offline here flips the
+      // duty switch, which stops tracking through the effect below.
+      if (result?.forcedOffline && riderIdRef.current) {
+        await endShiftAtMidnight(riderIdRef.current);
+      }
     },
     []
   );
@@ -230,6 +297,63 @@ export function useRiderLocationBroadcast(
     return () => unsubscribe();
   }, []);
 
+  const batteryLevelRef = useRef<number | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    const sampleBattery = async () => {
+      try {
+        const level = await Battery.getBatteryLevelAsync();
+        if (mounted && level != null && level >= 0) {
+          batteryLevelRef.current = level;
+        }
+      } catch {
+        // Battery read is best-effort
+      }
+    };
+    void sampleBattery();
+    const timer = setInterval(sampleBattery, 30_000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  // Heartbeat: a beacon on a timer, not on movement.
+  //
+  // The beacon in the watcher below is sent from inside the GPS fix callback, so
+  // it can only fire when a fix arrives — and both watcher configs carry a
+  // distanceInterval, which on Android means a phone that is not moving produces
+  // no updates at all. A rider parked waiting for work therefore stopped
+  // beaconing, aged past the server's signal-lost window (2.5x the cadence they
+  // themselves reported) and dropped out of auto-assign: undispatchable
+  // precisely because they were idle, which is the state dispatch exists to
+  // serve. Measured gaps of 82s, 148s and 1033s against a declared 30s cadence.
+  //
+  // Ticks faster than either cadence and lets lastBeaconAtRef decide, so the
+  // interval survives a delivery starting or ending without being rebuilt. Both
+  // paths share that marker, so a rider who IS moving is not beaconed twice.
+  useEffect(() => {
+    if (!riderId || !isOnDuty) return;
+
+    const timer = setInterval(() => {
+      const beaconEvery = isActiveDeliveryRef.current
+        ? BEACON_INTERVAL_ACTIVE_MS
+        : BEACON_INTERVAL_IDLE_MS;
+      if (Date.now() - lastBeaconAtRef.current < beaconEvery) return;
+      lastBeaconAtRef.current = Date.now();
+      // The last good fix, which may be null before the first one lands. The
+      // server takes a positionless beacon as presence without a location
+      // rather than as absence, and ranks that rider by load instead.
+      //
+      // Skipped when the background task beaconed moments ago; one is enough.
+      void beaconDue(isActiveDeliveryRef.current).then((due) => {
+        if (due) void sendBeacon(lastAcceptedFixRef.current);
+      });
+    }, BEACON_HEARTBEAT_TICK_MS);
+
+    return () => clearInterval(timer);
+  }, [riderId, isOnDuty, sendBeacon]);
+
   const applyMode = useCallback(async (mode: TrackingMode, currentRiderId: number) => {
     await AsyncStorage.setItem(RIDER_ID_STORAGE_KEY, String(currentRiderId));
 
@@ -263,6 +387,9 @@ export function useRiderLocationBroadcast(
   const stopAll = useCallback(async (currentRiderId: number | undefined) => {
     currentModeRef.current = null;
     backgroundTaskActiveRef.current = false;
+    // The next shift starts from fresh fixes, not from where this one stopped.
+    resetLiveSteadying();
+    lastShownAtRef.current = 0;
     const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TRACKING_TASK).catch(() => false);
     if (running) {
       await Location.stopLocationUpdatesAsync(LOCATION_TRACKING_TASK).catch(() => {});
@@ -364,12 +491,23 @@ export function useRiderLocationBroadcast(
           });
         }
 
+        // This phone's measured GPS noise, from the Profile GPS check, if it
+        // has been run: it sets how far the pin may wander before it moves.
+        await loadGpsCalibration();
+        if (isCancelled) return;
+
         // 2. Stream continuous high-accuracy live GPS ticks
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
-            timeInterval: 2000,
-            distanceInterval: 3,
+            // One fix a second while the app is open, streamed over the
+            // socket to the dispatcher, owner and customer maps (the server
+            // relays at most one per rider per second). No distance
+            // threshold: a stationary rider still reports, so their pin reads
+            // as live rather than frozen. The quality gate below still holds
+            // a parked rider's pin still against GPS jitter.
+            timeInterval: 1000,
+            distanceInterval: 0,
           },
           (loc) => {
             if (isCancelled) return;
@@ -387,14 +525,29 @@ export function useRiderLocationBroadcast(
               timestamp: loc.timestamp,
             };
 
-            // Drop junk fixes before they reach the map, Firebase, or the trail.
-            // 'hold' means the device has not really moved: keep the previous
-            // coordinate so the customer does not watch the pin twitch around a
-            // car park for the whole time the rider is inside a store.
-            const verdict = evaluateFix(candidate, lastAcceptedFixRef.current);
-            if (verdict.kind === 'reject') return;
+            // Steadied before it reaches the map, Firebase, or the trail
+            // (utils/gpsStabilizer): held in place while the phone is still,
+            // Kalman-smoothed while it moves, junk fixes dropped.
+            const verdict = liveStabilizer.push(candidate);
+            // 'out_of_order': the background task, in this same JS context,
+            // fed this fix first. Show what it produced rather than nothing.
+            const steadied =
+              verdict.kind === 'reject'
+                ? verdict.reason === 'out_of_order'
+                  ? liveStabilizer.current()
+                  : null
+                : verdict.fix;
+            if (!steadied || steadied.timestamp <= lastShownAtRef.current) return;
+            lastShownAtRef.current = steadied.timestamp;
 
-            const fix = verdict.fix;
+            const fix: Fix = {
+              latitude: steadied.latitude,
+              longitude: steadied.longitude,
+              accuracyMeters: steadied.accuracyMeters,
+              speedMps: steadied.speedMps,
+              headingDeg: steadied.headingDeg,
+              timestamp: steadied.timestamp,
+            };
             lastAcceptedFixRef.current = fix;
 
             // Adaptive cadence. A rider queueing inside a store is stationary
@@ -404,7 +557,7 @@ export function useRiderLocationBroadcast(
             // Downshift to the idle profile, and restore the active one the
             // moment they move off again.
             if (riderIdRef.current) {
-              const moving = verdict.kind === 'accept';
+              const moving = !steadied.locked;
               if (moving) {
                 stationarySinceRef.current = null;
                 if (isActiveDeliveryRef.current && currentModeRef.current === 'idle') {
@@ -428,13 +581,22 @@ export function useRiderLocationBroadcast(
               heading: fix.headingDeg,
               updatedAt: fix.timestamp,
               accuracyMeters: fix.accuracyMeters,
+              speed: fix.speedMps,
+              stationary: steadied.locked,
             });
 
-            // Live pin for the customer's and dispatcher's maps. Skipped while
-            // the background task is running, which writes the same node — two
-            // concurrent writers to riders/{id} was producing an interleaved,
-            // partly stale stream.
-            if (!backgroundTaskActiveRef.current) {
+            // Live pin for the customer's and dispatcher's maps.
+            // Stream directly to Firebase RTDB every 2s (active) or 10s (idle) when foregrounded
+            // to bypass background task sleep delays on test hardware.
+            // claimLivePublish is shared with the background task, so the two
+            // never write the same node with different positions.
+            const minRtdbGap = !backgroundTaskActiveRef.current
+              ? 0
+              : isActiveDeliveryRef.current
+                ? 2000
+                : 10000;
+
+            if (claimLivePublish(fix.timestamp, minRtdbGap)) {
               void saveRiderLocation(riderId, {
                 latitude: fix.latitude,
                 longitude: fix.longitude,
@@ -443,8 +605,22 @@ export function useRiderLocationBroadcast(
                 online: true,
                 status: isActiveDeliveryRef.current ? 'BUSY' : 'AVAILABLE',
                 activeErrandId: activeErrandIdRef.current ?? null,
+                batteryLevel: batteryLevelRef.current ?? undefined,
               }).catch(() => {});
             }
+
+            // The same fix over Socket.IO, so viewers have a second live path
+            // when RTDB is slow or refused. Sent even while the background task
+            // owns the RTDB node: it is a separate channel, and the server
+            // drops anything older than what it has already relayed.
+            emitLiveLocation({
+              latitude: fix.latitude,
+              longitude: fix.longitude,
+              heading: fix.headingDeg,
+              accuracyMeters: fix.accuracyMeters,
+              speedMps: fix.speedMps,
+              recordedAt: fix.timestamp,
+            });
 
             // Presence beacon: sent whether or not an errand exists.
             //
