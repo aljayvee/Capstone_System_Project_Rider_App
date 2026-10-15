@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import {
   User,
   Lock,
@@ -25,13 +27,17 @@ import {
   Bike,
   ArrowRight,
   MailCheck,
+  CircleCheck,
 } from 'lucide-react-native';
+import type { RootStackParamList } from '../../../App';
 import { useRiderAuth } from '../../context/RiderAuthContext';
 import { TacticalGridBackground } from '../../components/TacticalGridBackground';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, Gradients, useResponsive, moderateScale, scaledFontSize, MAX_CONTENT_WIDTH } from '../../config/theme';
 
 export const LoginScreen = () => {
   const { login, pendingChallenge, verifyLoginOtp, resendLoginOtp, cancelChallenge } = useRiderAuth();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'Login'>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Login'>>();
   const { height: screenHeight, isCompact, isTablet } = useResponsive();
   const scrollViewRef = useRef<ScrollView>(null);
   const isSubmittingRef = useRef(false);
@@ -49,6 +55,28 @@ export const LoginScreen = () => {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Shown on return from a finished password reset (ForgotPasswordScreen).
+  const [resetNotice, setResetNotice] = useState(false);
+
+  useEffect(() => {
+    if (!route.params?.passwordReset) return;
+    setResetNotice(true);
+    setApiError(null);
+    setPassword('');
+    if (route.params.email) setUsername(route.params.email);
+    // Consumed once, so returning to this screen later does not replay it.
+    navigation.setParams({ passwordReset: undefined, email: undefined });
+  }, [route.params?.passwordReset, route.params?.email, navigation]);
+
+  const openForgotPassword = () => {
+    Keyboard.dismiss();
+    setApiError(null);
+    const typed = username.trim();
+    // The reset looks accounts up by email or mobile number, not username.
+    const prefill = typed.includes('@') || typed.replace(/\D/g, '').length >= 10 ? typed : undefined;
+    navigation.navigate('ForgotPassword', { prefill });
+  };
 
   // Access Restriction Modal for Non-Rider Accounts
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
@@ -103,6 +131,7 @@ export const LoginScreen = () => {
     Keyboard.dismiss();
     isSubmittingRef.current = true;
     setIsLoading(true);
+    setResetNotice(false);
     try {
       await login(username.trim(), password.trim());
     } catch (err: any) {
@@ -249,6 +278,15 @@ export const LoginScreen = () => {
 
           {/* CLEAN SEAMLESS FORM CONTAINER (NO CARD) */}
           <View style={styles.formContainer}>
+            {resetNotice ? (
+              <View style={styles.successBanner} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                <CircleCheck size={18} color={Colors.success} strokeWidth={2.2} />
+                <Text style={styles.successBannerText} testID="password-reset-notice">
+                  Password changed. Sign in with your new password.
+                </Text>
+              </View>
+            ) : null}
+
             {/* API / Auth Error Banner */}
             {apiError ? (
               <View style={styles.errorBanner}>
@@ -370,6 +408,20 @@ export const LoginScreen = () => {
                 </View>
               </Animated.View>
             </View>
+
+            <TouchableOpacity
+              style={styles.forgotButton}
+              onPress={openForgotPassword}
+              disabled={isLoading}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Forgot password"
+              testID="forgot-password-link"
+            >
+              <Text style={styles.forgotText} maxFontSizeMultiplier={1.2}>
+                Forgot password?
+              </Text>
+            </TouchableOpacity>
 
             {/* HIGH-IMPACT ERGONOMIC SIGN IN BUTTON */}
             <TouchableOpacity
@@ -638,6 +690,36 @@ const styles = StyleSheet.create({
   fieldBlock: {
     width: '100%',
   },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.successBg,
+    borderWidth: 1,
+    borderColor: Colors.successBorder,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  successBannerText: {
+    color: Colors.success,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontWeight: FontWeights.semibold,
+    marginLeft: Spacing.md,
+    flex: 1,
+  },
+  forgotButton: {
+    alignSelf: 'flex-end',
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  forgotText: {
+    color: Colors.primary,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontWeight: FontWeights.bold,
+  },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -724,7 +806,7 @@ const styles = StyleSheet.create({
     minWidth: 48,
   },
   loginButtonContainer: {
-    marginTop: Spacing.xl,
+    marginTop: Spacing.sm,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     shadowColor: Colors.shadow,

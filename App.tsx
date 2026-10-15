@@ -21,6 +21,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import AnimatedSplashScreen from './src/components/AnimatedSplashScreen';
 
 import { LoginScreen } from './src/modules/auth/LoginScreen';
+import { ForgotPasswordScreen } from './src/modules/auth/ForgotPasswordScreen';
 import { AuthedNavigator } from './src/navigation/AuthedNavigator';
 
 import { RiderAuthProvider, useRiderAuth } from './src/context/RiderAuthContext';
@@ -40,7 +41,10 @@ const hideSystemSplash = () => {
 };
 
 export type RootStackParamList = {
-  Login: undefined;
+  // Set when coming back from a finished password reset: shows the success
+  // message and, when the account was found by email, fills it in.
+  Login: { passwordReset?: boolean; email?: string } | undefined;
+  ForgotPassword: { prefill?: string } | undefined;
   Main: undefined;
 };
 
@@ -66,7 +70,10 @@ function AppContent() {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!rider || !token ? (
-            <Stack.Screen name="Login" component={LoginScreen} />
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            </>
           ) : (
             <Stack.Screen name="Main" component={AuthedNavigator} />
           )}

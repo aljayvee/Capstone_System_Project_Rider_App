@@ -667,3 +667,29 @@
   - `npx tsc --noEmit`: PASS (0 errors)
   - `npm test -- --run` (vitest): PASS (22/22 test suites, 376/376 tests passed)
 
+---
+
+### Session Log: 2026-10-16 - Rider "Forgot password" (email code) and its dedicated screen
+* **Driver**: Claude (Opus 5.5)
+* **Status**: Complete & verified by tests and tsc. Not device-verified (no emulator on this machine). Not committed: this repo's working tree is ~150 files ahead of git.
+* **No `[LOCKED]` contract touched.** No telemetry, GPS, map or fleet-presence code changed. Typography uses `scaledFontSize(size, 0.2)`, layout uses `moderateScale`, `TOUCH_TARGET` and `MAX_CONTENT_WIDTH`.
+* **Server contract** (C:\Capstone_Server\server, commits `180b97f` + `37b0052`, NOT yet deployed):
+  - `POST /api/riders/password-reset/find` `{identifier, website?}` -> `{resetSessionToken, fullName, maskedEmail|null, maskedPhone|null, expiresInSeconds}`. RIDER accounts only; anyone else gets 404.
+  - `POST /api/riders/password-reset/send-code` `{resetSessionToken, channel: "EMAIL"}` (6-digit code, 15 min, 5 tries, 60 s resend, 429 `RESEND_COOLDOWN`).
+  - `POST /api/riders/password-reset/verify` `{resetSessionToken, code}` -> `{resetToken}`.
+  - `POST /api/riders/password-reset/complete` `{resetToken, password}`. Policy: 8+, upper, lower, number, special, no spaces, not the current password. Revokes every session; the next sign-in sends "your new password was just used to sign in".
+  - Tokens carry `aud: "RIDER_APP"` and are refused by the web portal's `/auth/password-reset/*`, and the other way round. These endpoints never answer 401, so the apiClient refresh interceptor never fires on them.
+* **Files**:
+  - NEW `src/modules/auth/ForgotPasswordScreen.tsx`: FIND -> CONFIRM (full name, masked email) -> CODE -> NEW_PASSWORD -> `navigate('Login', { passwordReset: true, email })`. Hardware back walks the steps. Drafts survive stepping back. No verified email -> empty state telling the rider to ask the owner.
+  - NEW `src/services/passwordReset.ts` (API client, resolves `{ ok: false, error }` instead of throwing), `src/services/passwordRules.ts` (pure rules + identifier check).
+  - `App.tsx`: `ForgotPassword` stack screen in the signed-out branch; `RootStackParamList.Login` now takes `{ passwordReset?, email? }`.
+  - `src/modules/auth/LoginScreen.tsx`: "Forgot password?" link (48dp) under the password field, handing over the typed text only when it is an email or mobile number; success banner on return, then `setParams` clears the flag. Sign-in button `marginTop` xl -> sm, as the link now fills that gap.
+  - NEW tests: `tests/passwordRules.test.ts` (vitest, 7), `tests/ForgotPasswordScreen.test.tsx` (jest, 10), `tests/LoginForgotPassword.test.tsx` (jest, 4).
+* **SMS is deliberately absent**: the server can verify a Firebase phone sign-in, but this app ships only the Firebase JS SDK, whose phone sign-in needs a browser reCAPTCHA. Adding it means `@react-native-firebase/auth` (native module, new APK) or a WebView reCAPTCHA.
+* **Verification Ledger**:
+  - `npx tsc --noEmit`: PASS (0 errors)
+  - `vitest run`: PASS (31 files, 512/512)
+  - `jest --config jest.config.js`: PASS (18 suites, 156/156, including both new suites; re-run 14/14 for those two after the final resend-button tidy)
+  - `node scripts/uiAudit.mjs`: new screen has no unlabelled controls and no contrast failures; the new login link is 48dp.
+* **Directives for the next session**: deploy the server before shipping an APK with this screen, or "Find my account" answers 404. Verify on a device: keyboard lift on the code and password steps, and the hardware back button.
+
