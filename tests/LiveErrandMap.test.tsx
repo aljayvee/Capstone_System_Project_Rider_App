@@ -169,6 +169,28 @@ describe('the map under the line, as the server decided', () => {
     expect(google.getByTestId('mock-map-view').props.customMapStyle).toBeUndefined();
   });
 
+  it('lays plain paper under the tiles, so a tile still loading shows no other map', async () => {
+    // The Petal map ignored "none" and the style alike: panning showed its
+    // roads in every gap until our tiles arrived over them.
+    const osm = await renderMap({ mapStyle: 'osm' });
+    const paper = osm.getByTestId('osm-paper');
+    const tiles = osm.getByTestId('osm-tiles');
+    expect(paper.props.fillColor).toBe('#F2EFE9');
+    expect(paper.props.strokeWidth).toBe(0);
+    expect(paper.props.zIndex).toBeLessThan(tiles.props.zIndex);
+    // Under every other line and circle on the map, which sit at 0.
+    expect(paper.props.zIndex).toBeLessThan(0);
+    // Added first too, for a map that stacks by order rather than zIndex.
+    const order = React.Children.toArray(osm.getByTestId('mock-map-view').props.children).map(
+      (child) => (React.isValidElement(child) ? (child.props as { testID?: string }).testID : undefined)
+    );
+    expect(order.indexOf('osm-paper')).toBe(0);
+    expect(order.indexOf('osm-tiles')).toBe(1);
+
+    const google = await renderMap({ mapStyle: 'google' });
+    expect(google.queryByTestId('osm-paper')).toBeNull();
+  });
+
   it('draws no map at all until the server has said which', async () => {
     const view = await renderMap({ mapStyle: null });
     expect(view.queryByTestId('mock-map-view')).toBeNull();

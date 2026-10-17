@@ -21,6 +21,12 @@ export const OSM_MAX_ZOOM = 20;
 export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 
 /**
+ * The colour of land on our tiles (openstreetmap-carto's background). Laid
+ * under them, so a tile still loading shows plain paper and not another map.
+ */
+export const OSM_PAPER_COLOR = '#F2EFE9';
+
+/**
  * Where tiles are kept on the phone, so a street already seen loads with no
  * signal and costs no data the second time. The app's own cache directory,
  * which Android clears first under storage pressure. Null when the package

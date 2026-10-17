@@ -36,6 +36,7 @@ import {
   OSM_ATTRIBUTION,
   OSM_MAX_NATIVE_ZOOM,
   OSM_MAX_ZOOM,
+  OSM_PAPER_COLOR,
   OSM_TILE_CACHE_MAX_AGE_SECONDS,
   OSM_TILE_CACHE_PATH,
   OSM_TILE_URL,
@@ -166,6 +167,20 @@ const COMPASS_CAMERA_MS = 300;
 
 /** Every base map feature hidden, roads and labels included: OpenStreetMap only. */
 const BLANK_BASE_MAP_STYLE = [{ stylers: [{ visibility: 'off' }] }];
+
+/**
+ * Plain paper under the OpenStreetMap tiles and over whatever base map the
+ * phone still draws. A map that ignores both 'none' and the blank style (a
+ * Huawei phone's Petal map) showed its own roads in every tile still loading,
+ * and OpenStreetMap covered them only once it arrived.
+ *
+ * A circle, not a polygon: on the new architecture react-native-maps passes
+ * zIndex to circles and tiles but not to polygons, and the paper has to stay
+ * under the tiles. Wide enough that no rider pans off it.
+ */
+const OSM_PAPER_RADIUS_METERS = 3_000_000;
+const OSM_PAPER_Z_INDEX = -2;
+const OSM_TILES_Z_INDEX = -1;
 
 /** How the camera is framed: 3D Third-Person Chase, 2D Flat Plane, or Full Route Overview. */
 export type MapCameraMode = '3d' | '2d' | 'overview';
@@ -671,6 +686,19 @@ export function LiveErrandMap({
             .catch(() => {});
         }}
       >
+        {/* First child as well as lowest zIndex, for a map that stacks in
+            the order things are added rather than by zIndex. */}
+        {showOsm && (
+          <Circle
+            center={DEFAULT_CENTER}
+            radius={OSM_PAPER_RADIUS_METERS}
+            fillColor={OSM_PAPER_COLOR}
+            strokeWidth={0}
+            zIndex={OSM_PAPER_Z_INDEX}
+            testID="osm-paper"
+          />
+        )}
+
         {showOsm && (
           <UrlTile
             urlTemplate={OSM_TILE_URL}
@@ -679,7 +707,7 @@ export function LiveErrandMap({
             tileCachePath={OSM_TILE_CACHE_PATH ?? undefined}
             tileCacheMaxAge={OSM_TILE_CACHE_MAX_AGE_SECONDS}
             shouldReplaceMapContent
-            zIndex={-1}
+            zIndex={OSM_TILES_Z_INDEX}
             testID="osm-tiles"
           />
         )}

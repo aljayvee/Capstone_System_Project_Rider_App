@@ -19,6 +19,23 @@
 * `[LOCKED]` `4-State Fleet Presence Persistence` (`AVAILABLE`, `BUSY`, `DISCONNECTED`, `OFF_DUTY` synced to Firebase RTDB and MariaDB)
 * `[LOCKED]` `Damped Moderate Scaling` ($W=375, H=812$ baseline, `factor=0.5`, clamped typography $[0.85x, 1.35x]$)
 
+## 2026-10-17 - OpenStreetMap paper: no base map in loading tiles (Claude, Opus 5.5)
+* **Status**: [Executed by Claude - tsc 0, jest 18 suites / 157 tests. JS only, no native change. NOT device-verified.]
+* **Bug (reported on a phone)**: on the OpenStreetMap map, panning showed the phone's own base map (roads, labels) in every tile
+  still loading, and OSM covered it only once the tile arrived. The 2026-10-01 contract was in place: the native map is created
+  with `mapType 'none'` (Fabric `MapViewManager.optionsForInitialProps` puts it in `GoogleMapOptions`) plus the all-off
+  `customMapStyle`. The phone's map honours neither (the Huawei Petal case), so a second flag would not help.
+* **Fix** (`LiveErrandMap.tsx`, `config/mapTiles.ts`): in OSM mode an opaque `Circle` of paper (`OSM_PAPER_COLOR` `#F2EFE9`,
+  openstreetmap-carto's land colour, 3,000 km radius around Tacurong, `strokeWidth 0`) sits at zIndex -2, under the tiles (-1)
+  and every route line and geofence (0). It is also the FIRST child of `MapView`, for a map that stacks by insertion order.
+  A loading tile now shows plain paper, as on any tile map.
+* **Why a Circle and not a Polygon**: react-native-maps 1.27's Fabric `PolygonManager` has no `setZIndex` override, so a
+  polygon's zIndex never reaches the native map and it would sit at 0, over the tiles. `CircleManager` and `UrlTileManager`
+  both apply zIndex. Do not "simplify" the paper into a world polygon.
+* **Directive**: keep `mapType 'none'` and the blank style as well; the paper is a third guard, not a replacement. Verify on
+  the Huawei phone: pan fast on OSM and confirm beige gaps, not Petal roads, and that the route lines and geofences still draw
+  over the tiles. If the paper ever covers the tiles there, that device ignores overlay zIndex and the order fallback failed.
+
 ## 2026-10-14 - Sugo Figma Prototype Rider Portal 1:1 Clean Realignment (Antigravity 2.0, Gemini 3.8 Flash High)
 * **Status**: [Executed by Antigravity 2.0 - npx tsc --noEmit passed with 0 errors, Vite build clean in 32.7s]
 * **Rider Mobile Prototype Alignment (`c:\Capstone_Project_Web\FigmaPrototype\FigmaPrototype\Designprototypecreation`)**:
