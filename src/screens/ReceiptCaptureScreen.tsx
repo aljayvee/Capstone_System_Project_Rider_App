@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   BackHandler,
   Image,
+  Keyboard,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,11 +12,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Camera, Zap, ZapOff, RefreshCw, Check, X } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../config/theme';
+import { SlideToConfirm } from '../components/SlideToConfirm';
+import { formatPeso } from '../utils/format';
 import {
   captureAndUpload,
   scanReceipt,
@@ -29,6 +34,13 @@ interface ReceiptCaptureScreenProps {
   errandId: string;
   kind?: ProofImageKind;
   pinpointId?: number | null;
+  /**
+   * CASH_COLLECTED only: what the customer owes at the door, the same figure
+   * the cash card showed. It arrives filled in, because the customer nearly
+   * always hands over exactly that, and is still editable for the times they
+   * do not.
+   */
+  expectedAmount?: number;
   /**
    * `pending` is set when the screen closes before its upload has finished
    * (the save behind an optimistic tick); the caller owns undoing the tick if
@@ -152,11 +164,13 @@ export default function ReceiptCaptureScreen({
   errandId,
   kind = 'RECEIPT',
   pinpointId,
+  expectedAmount,
   onDone,
   onCancel,
 }: ReceiptCaptureScreenProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const insets = useSafeAreaInsets();
 
   const [phase, setPhase] = useState<Phase>('camera');
   const [torch, setTorch] = useState(false);
@@ -173,11 +187,18 @@ export default function ReceiptCaptureScreen({
   // How much of the photo has gone up. A receipt takes a while on a weak line,
   // and a bar that moves is what tells the rider it is working.
   const [sent, setSent] = useState<number | null>(null);
+  // Cash only: Confirm total opens a last look at the figure, settled by a
+  // swipe rather than a tap, since this is money the rider is answerable for.
+  const [confirming, setConfirming] = useState(false);
+  // A failed save remounts the slider so it springs back for another swipe.
+  const [slideAttempt, setSlideAttempt] = useState(0);
 
   const copy = COPY[kind] ?? COPY.RECEIPT;
   const notePreset = NOTE_PRESETS[kind];
+  const due = expectedAmount != null && expectedAmount > 0 ? expectedAmount : null;
 
   const backToCamera = useCallback(() => {
+    setConfirming(false);
     setPhase('camera');
     setPreview(null);
     setScan(null);
@@ -230,6 +251,9 @@ export default function ReceiptCaptureScreen({
       // part of the record, not a correction to one.
       if (kind === 'NO_RECEIPT' || kind === 'CASH_COLLECTED') {
         setPendingUri(photo.uri);
+        // Cash starts at what is owed (a retake starts there again); a
+        // receiptless shop starts blank, since only the rider knows that one.
+        setAmount(kind === 'CASH_COLLECTED' && due !== null ? due.toFixed(2) : '');
         setPhase('confirm');
         return;
       }
@@ -263,7 +287,7 @@ export default function ReceiptCaptureScreen({
       setPhase('camera');
       setPreview(null);
     }
-  }, [errandId, kind, pinpointId, onDone]);
+  }, [errandId, kind, pinpointId, due, onDone]);
 
   const handleConfirm = useCallback(async () => {
     const value = Number(amount);
@@ -315,9 +339,20 @@ export default function ReceiptCaptureScreen({
       return;
     }
 
+    // Cash is not filed on a tap. The rider sees the figure once more and
+    // swipes to file it (saveCash).
+    Keyboard.dismiss();
+    setConfirming(true);
+  }, [amount, errandId, kind, pendingUri, pinpointId, riderNote, scan, onDone]);
+
+  const saveCash = useCallback(async () => {
+    const value = Number(amount);
+    const trimmedNote = riderNote.trim() || undefined;
+    setError(null);
+
     // Cash in hand stays here until it lands: the settlement filed at the
     // door carries this photo's id, and there is none until the server
-    // answers. Shown as progress on the button, not a spinner.
+    // answers. Shown as progress under the slider, not a spinner.
     setIsSaving(true);
     setSent(0);
     try {
@@ -333,10 +368,11 @@ export default function ReceiptCaptureScreen({
         return;
       }
       setError(err?.message ?? 'Could not save that. Check your connection and try again.');
+      setSlideAttempt((n) => n + 1);
     } finally {
       setIsSaving(false);
     }
-  }, [amount, backToCamera, errandId, kind, pendingUri, pinpointId, riderNote, scan, onDone]);
+  }, [amount, backToCamera, errandId, kind, pendingUri, pinpointId, riderNote, onDone]);
 
   if (!permission) {
     return (
@@ -370,6 +406,11 @@ export default function ReceiptCaptureScreen({
   if (phase === 'confirm' && (scan || pendingUri)) {
     const extracted = scan?.extraction?.extractedTotal ?? null;
     const declaring = kind === 'NO_RECEIPT' || kind === 'CASH_COLLECTED';
+    // The cash sheet's figure against what is owed, to the centavo.
+    const handed = Number(amount);
+    const dueText = due !== null ? formatPeso(due) : '';
+    const gap =
+      due !== null && Number.isFinite(handed) ? Math.round((handed - due) * 100) / 100 : null;
 
     return (
       <SafeAreaView style={styles.container}>
@@ -389,7 +430,9 @@ export default function ReceiptCaptureScreen({
 
             <Text style={styles.readLabel}>
               {kind === 'CASH_COLLECTED'
-                ? 'Enter what they handed you. It will be recorded alongside the photo.'
+                ? due !== null
+                  ? 'The amount due is filled in. Change it if they handed you a different amount.'
+                  : 'Enter what they handed you. It will be recorded alongside the photo.'
                 : declaring
                   ? 'This shop gives no receipt, so enter the amount you paid. It will be recorded as unverified.'
                   : extracted === null
@@ -486,6 +529,77 @@ export default function ReceiptCaptureScreen({
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        {/* Cash only. A Modal of its own, so it clears the keyboard and the
+            full-screen capture modal alike; the gesture root is what lets the
+            slider's pan reach a modal's window on Android. */}
+        {kind === 'CASH_COLLECTED' && (
+          <Modal
+            visible={confirming}
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={() => {
+              if (!isSaving) setConfirming(false);
+            }}
+          >
+            <GestureHandlerRootView style={styles.sheetRoot}>
+              <View style={styles.sheetBackdrop}>
+                <View
+                  style={[styles.sheet, { paddingBottom: Spacing.lg + insets.bottom }]}
+                  testID="cash-confirm-sheet"
+                  accessibilityViewIsModal
+                >
+                  <Text style={styles.sheetTitle}>Confirm cash collected</Text>
+                  <Text style={styles.sheetAmount} testID="cash-confirm-amount">
+                    {formatPeso(handed)}
+                  </Text>
+                  {gap !== null && (
+                    <Text
+                      style={[styles.sheetDetail, gap !== 0 && styles.sheetDetailWarn]}
+                      testID="cash-confirm-detail"
+                    >
+                      {gap === 0
+                        ? `Matches the ${dueText} due.`
+                        : gap < 0
+                          ? `${formatPeso(-gap)} short of the ${dueText} due. It will be recorded as a short payment.`
+                          : `${formatPeso(gap)} more than the ${dueText} due.`}
+                    </Text>
+                  )}
+                  {Boolean(riderNote.trim()) && (
+                    <Text style={styles.sheetNote}>Note: "{riderNote.trim()}"</Text>
+                  )}
+                  {error && <Text style={styles.error}>{error}</Text>}
+
+                  <SlideToConfirm
+                    key={slideAttempt}
+                    label="Slide to confirm"
+                    onSlideComplete={saveCash}
+                    disabled={isSaving}
+                    trackColor={Colors.successBg}
+                    thumbColor={Colors.success}
+                  />
+
+                  {isSaving ? (
+                    <Text style={styles.sheetStatus} testID="cash-confirm-saving">
+                      {sent !== null && sent < 1 ? `Saving… ${Math.round(sent * 100)}%` : 'Saving…'}
+                    </Text>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.sheetBack}
+                      onPress={() => setConfirming(false)}
+                      testID="cash-confirm-back"
+                      accessibilityRole="button"
+                      accessibilityLabel="Go back and change the amount"
+                    >
+                      <Text style={styles.sheetBackText}>Change amount</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </GestureHandlerRootView>
+          </Modal>
+        )}
       </SafeAreaView>
     );
   }
@@ -741,4 +855,28 @@ const styles = StyleSheet.create({
   },
   permissionTitle: { fontSize: FontSizes.lg, fontWeight: FontWeights.bold as any, color: Colors.textDark },
   permissionBody: { fontSize: FontSizes.base, color: Colors.textMedium, textAlign: 'center' },
+  sheetRoot: { flex: 1 },
+  sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlayDark },
+  sheet: {
+    backgroundColor: Colors.bgWhite,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  sheetTitle: { fontSize: FontSizes.lg, fontWeight: FontWeights.bold as any, color: Colors.textDark },
+  sheetAmount: { fontSize: FontSizes.xxl, fontWeight: FontWeights.bold as any, color: Colors.textDark },
+  sheetDetail: { fontSize: FontSizes.sm, color: Colors.textMedium },
+  sheetDetailWarn: { color: Colors.warning, fontWeight: FontWeights.semibold as any },
+  sheetNote: { fontSize: FontSizes.sm, color: Colors.textMedium, fontStyle: 'italic' },
+  sheetStatus: {
+    fontSize: FontSizes.sm,
+    fontWeight: FontWeights.semibold as any,
+    color: Colors.textMedium,
+    textAlign: 'center',
+    minHeight: 48,
+    textAlignVertical: 'center',
+  },
+  sheetBack: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  sheetBackText: { fontSize: FontSizes.base, fontWeight: FontWeights.semibold as any, color: Colors.textDark },
 });

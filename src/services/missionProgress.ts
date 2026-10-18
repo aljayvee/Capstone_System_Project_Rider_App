@@ -50,6 +50,12 @@ export interface ErrandProgress {
    * evidence justified it. Null until a capture completes.
    */
   proofImageId: number | null;
+  /**
+   * Which of the two that photo is. A GCash/Maya errand can still end in cash
+   * ("They're paying cash instead"), so the errand's payment plan cannot say
+   * which one happened. Null until a capture completes.
+   */
+  paymentProofKind?: PaymentProofKind | null;
   /** Optional note from the rider explaining the cash collection or receiptless purchase. */
   riderNote?: string;
   /** Delayed store IDs that were deferred to visit later stops first */
@@ -68,6 +74,7 @@ export const DEFAULT_PROGRESS: ErrandProgress = {
   shortPayment: false,
   showComplete: false,
   proofImageId: null,
+  paymentProofKind: null,
   riderNote: '',
   deferredStoreIds: [],
   departedStoreIds: [],
@@ -97,6 +104,7 @@ export interface ProofImageSummary {
 const SHOPPING_KINDS = ['RECEIPT', 'NO_RECEIPT'];
 /** Evidence of money changing hands at the door. */
 const PAYMENT_KINDS = ['RIDER_BALANCE_PROOF', 'CASH_COLLECTED'];
+export type PaymentProofKind = 'RIDER_BALANCE_PROOF' | 'CASH_COLLECTED';
 
 const isLive = (proof: ProofImageSummary) => !proof.supersededAt;
 
@@ -226,17 +234,22 @@ function amountOf(proof: ProofImageSummary): number | null {
 function derivePayment(
   proofs: ProofImageSummary[],
   dueAtDoor: number
-): Pick<ErrandProgress, 'collectedAmount' | 'shortPayment' | 'proofImageId'> {
+): Pick<ErrandProgress, 'collectedAmount' | 'shortPayment' | 'proofImageId' | 'paymentProofKind'> {
   const latest = proofs
     .filter((proof) => isLive(proof) && PAYMENT_KINDS.includes(proof.kind))
     .sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())[0];
 
-  if (!latest) return { collectedAmount: '', shortPayment: false, proofImageId: null };
+  if (!latest) return { collectedAmount: '', shortPayment: false, proofImageId: null, paymentProofKind: null };
 
   // A GCash/Maya receipt was validated against the exact balance due before the
   // server would store it at all, so there is no short reading of one.
   if (latest.kind === 'RIDER_BALANCE_PROOF') {
-    return { collectedAmount: 'FULL', shortPayment: false, proofImageId: latest.id };
+    return {
+      collectedAmount: 'FULL',
+      shortPayment: false,
+      proofImageId: latest.id,
+      paymentProofKind: 'RIDER_BALANCE_PROOF',
+    };
   }
 
   const collected = amountOf(latest);
@@ -244,7 +257,7 @@ function derivePayment(
     // The photo is on record but its figure is not. Restoring the link without
     // inventing an amount keeps the evidence attached and leaves the rider to
     // re-enter what they were handed.
-    return { collectedAmount: '', shortPayment: false, proofImageId: latest.id };
+    return { collectedAmount: '', shortPayment: false, proofImageId: latest.id, paymentProofKind: 'CASH_COLLECTED' };
   }
 
   const isFull = Math.abs(collected - dueAtDoor) < 0.01;
@@ -252,6 +265,7 @@ function derivePayment(
     collectedAmount: isFull ? 'FULL' : String(collected),
     shortPayment: !isFull,
     proofImageId: latest.id,
+    paymentProofKind: 'CASH_COLLECTED',
   };
 }
 

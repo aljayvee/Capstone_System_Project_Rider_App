@@ -4,11 +4,14 @@ import { Banknote, Camera, CheckCircle2, AlertTriangle } from 'lucide-react-nati
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
 import { formatPeso } from '../../../utils/format';
 import type { Errand, MergedErrand, PaymentPlan } from '../../../types/rider';
+import type { PaymentProofKind } from '../../../services/missionProgress';
 
 interface CashCollectionProps {
   errand?: MergedErrand | Errand | null;
   /** True once a photo (GCash/Maya receipt, or cash in hand) is on file. */
   collectedInFull: boolean;
+  /** Which of the two that photo is. Null when not known. */
+  proofKind?: PaymentProofKind | null;
   /** True once the rider has said the customer paid less than the total. */
   shortPayment?: boolean;
   /** The rider's own count, once a cash photo comes back short. */
@@ -34,6 +37,7 @@ interface CashCollectionProps {
 export function CashCollectionInput({
   errand,
   collectedInFull,
+  proofKind = null,
   shortPayment = false,
   shortAmount = '',
   onCaptureBalanceProof,
@@ -53,6 +57,11 @@ export function CashCollectionInput({
   const due = plan?.hasLedger
     ? plan.balanceDue
     : breakdown?.grandTotal ?? errand?.amount ?? 0;
+
+  // What the photo on file is, not what the customer first chose: a GCash/Maya
+  // errand paid in cash at the door is cash. The plan is only the fallback
+  // when the kind is not known.
+  const receiptConfirmed = proofKind ? proofKind === 'RIDER_BALANCE_PROOF' : Boolean(plan?.hasLedger);
 
   return (
     <View style={styles.container}>
@@ -86,7 +95,7 @@ export function CashCollectionInput({
               <Text style={styles.doneText}>
                 {shortPayment
                   ? `Photographed — ${formatPeso(Number(shortAmount) || 0)} recorded as short`
-                  : plan?.hasLedger
+                  : receiptConfirmed
                     ? 'Receipt confirmed ✓'
                     : 'Cash photographed ✓'}
               </Text>

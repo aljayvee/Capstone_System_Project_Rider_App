@@ -19,6 +19,16 @@
 * `[LOCKED]` `4-State Fleet Presence Persistence` (`AVAILABLE`, `BUSY`, `DISCONNECTED`, `OFF_DUTY` synced to Firebase RTDB and MariaDB)
 * `[LOCKED]` `Damped Moderate Scaling` ($W=375, H=812$ baseline, `factor=0.5`, clamped typography $[0.85x, 1.35x]$)
 
+## 2026-10-19 - Cash at the door: amount prefilled, swipe to confirm (Claude, Opus 5.5)
+* **Status**: [Executed by Claude - tsc 0, jest 19 suites / 166 tests (9 new in `tests/ReceiptCaptureCash.test.tsx`), vitest 31 files / 513 tests. JS only, no native change. NOT device-verified.]
+* **Ask**: a GCash/Maya errand whose customer pays cash instead ("They're paying cash instead"). On "What did they hand you?" the amount owed should be filled in, and "Confirm total" should open a confirmation that is settled by a left-to-right swipe, not a button.
+* **Modified**:
+  - `src/screens/ReceiptCaptureScreen.tsx`: new optional `expectedAmount` prop. CASH_COLLECTED fills the amount with it on every photo (retakes included); NO_RECEIPT still starts blank. "Confirm total" for cash now opens a bottom-sheet `Modal` (figure, matches / short / over vs the amount due, rider note) with the existing `SlideToConfirm`; the swipe runs the upload that the tap used to. A failed save keeps the sheet open and remounts the slider (`key`) for another swipe; a 410 still returns to the camera. The sheet wraps its content in `GestureHandlerRootView` because RNGH pans do not reach an Android Modal window otherwise.
+  - `src/modules/task/TaskScreen.tsx`: passes `mission.dueAtDoor` as `expectedAmount` for CASH_COLLECTED, the same figure `completeReceiptCapture` judges full-or-short against.
+* **Also fixed (same day)**: the cash card said "Receipt confirmed ✓" on a GCash/Maya errand paid in cash instead, because it labelled by `paymentPlan.hasLedger`. `ErrandProgress` gains optional `paymentProofKind` (`RIDER_BALANCE_PROOF` | `CASH_COLLECTED`), set in `completeReceiptCapture` and restored by `derivePayment` from the latest live payment photo; exposed as `mission.paymentProofKind` and passed to `CashCollectionInput` as `proofKind`. The plan stays as the fallback when the kind is unknown. Tests: 2 in `tests/missionProgress.test.ts`, 4 in new `tests/CashCollectionInput.test.tsx`. Final counts: tsc 0, jest 20 suites / 170, vitest 31 files / 515.
+* **Unchanged**: RECEIPT / NO_RECEIPT confirm on a tap as before; settlement payloads; `SlideToConfirm` itself.
+* **Next session**: needs a new APK to reach riders; check the swipe on a phone inside the capture modal.
+
 ## 2026-10-17 - OpenStreetMap paper: no base map in loading tiles (Claude, Opus 5.5)
 * **Status**: [Executed by Claude - tsc 0, jest 18 suites / 157 tests. JS only, no native change. NOT device-verified.]
 * **Bug (reported on a phone)**: on the OpenStreetMap map, panning showed the phone's own base map (roads, labels) in every tile

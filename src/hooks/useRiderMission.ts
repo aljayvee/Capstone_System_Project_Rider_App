@@ -38,6 +38,7 @@ import {
   dueAtDoorFor,
   DEFAULT_PROGRESS,
   type ErrandProgress,
+  type PaymentProofKind,
   type ProofImageSummary,
 } from '../services/missionProgress';
 import { hasPending, trackPending, whenSettled } from '../services/requestCache';
@@ -155,6 +156,8 @@ export interface UseRiderMissionReturn {
   riderNote: string;
   /** The photo backing `collectedAmount`, once one's been captured. */
   proofImageId: number | null;
+  /** What that photo is: their GCash/Maya receipt, or the cash itself. */
+  paymentProofKind: PaymentProofKind | null;
   showUploadModal: boolean;
   uploadProgress: number;
   errorMessage: string | null;
@@ -377,7 +380,7 @@ export function useRiderMission(): UseRiderMissionReturn {
   );
   const {
     currentStatus, completedSubtasks, handoverCaptured, collectedAmount, shortPayment, showComplete,
-    proofImageId, riderNote = '',
+    proofImageId, paymentProofKind = null, riderNote = '',
   } = frontProgress;
 
   // True the instant an offer becomes an accepted errand — derived from
@@ -1112,6 +1115,7 @@ export function useRiderMission(): UseRiderMissionReturn {
           collectedAmount: 'FULL',
           shortPayment: false,
           proofImageId: result.imageId,
+          paymentProofKind: 'RIDER_BALANCE_PROOF',
           ...(result.riderNote ? { riderNote: result.riderNote } : {}),
         });
       }
@@ -1124,6 +1128,7 @@ export function useRiderMission(): UseRiderMissionReturn {
           collectedAmount: isFull ? 'FULL' : String(result.confirmedTotal),
           shortPayment: !isFull,
           proofImageId: result.imageId,
+          paymentProofKind: 'CASH_COLLECTED',
           riderNote: result.riderNote ?? prev.riderNote ?? '',
         }));
       }
@@ -1409,6 +1414,7 @@ export function useRiderMission(): UseRiderMissionReturn {
     collectedAmount,
     riderNote,
     proofImageId,
+    paymentProofKind,
     showUploadModal,
     uploadProgress,
     errorMessage,

@@ -203,6 +203,35 @@ describe("restoring what was collected at the door", () => {
     expect(derive(cod, proofs).proofImageId).toBe(9);
   });
 
+  it("remembers which kind of photo backs the payment", () => {
+    expect(derive(cod, [proof({ id: 11, kind: "RIDER_BALANCE_PROOF" })]).paymentProofKind).toBe(
+      "RIDER_BALANCE_PROOF"
+    );
+    expect(
+      derive(cod, [proof({ id: 12, kind: "CASH_COLLECTED", declaredTotal: 500 })]).paymentProofKind
+    ).toBe("CASH_COLLECTED");
+    expect(derive(cod, []).paymentProofKind).toBeNull();
+  });
+
+  it("reads a GCash errand paid in cash instead as cash", () => {
+    // "They're paying cash instead": the errand still says GCash, but the
+    // last photo at the door is of cash, and that is what the card must say.
+    const gcash = errand({
+      paymentMode: "GCash",
+      feeBreakdown: { grandTotal: 560 } as Errand["feeBreakdown"],
+      paymentPlan: { hasLedger: true, balanceDue: 560 } as Errand["paymentPlan"],
+    });
+    const proofs = [
+      proof({ id: 13, kind: "RIDER_BALANCE_PROOF", capturedAt: "2026-09-23T10:00:00.000Z", supersededAt: "2026-09-23T10:03:00.000Z" }),
+      proof({ id: 14, kind: "CASH_COLLECTED", declaredTotal: 560, capturedAt: "2026-09-23T10:04:00.000Z" }),
+    ];
+    expect(derive(gcash, proofs)).toMatchObject({
+      collectedAmount: "FULL",
+      proofImageId: 14,
+      paymentProofKind: "CASH_COLLECTED",
+    });
+  });
+
   it("re-attaches the photo but invents no figure when the amount is missing", () => {
     const proofs = [proof({ id: 10, kind: "CASH_COLLECTED", declaredTotal: null })];
     expect(derive(cod, proofs)).toMatchObject({

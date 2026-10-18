@@ -1136,6 +1136,7 @@ export default function TaskScreen() {
                 <CashCollectionInput
                   errand={displayErrand}
                   collectedInFull={Boolean(collectedAmount)}
+                  proofKind={mission.paymentProofKind}
                   shortPayment={mission.shortPayment}
                   shortAmount={mission.shortPayment ? collectedAmount : ''}
                   riderNote={mission.riderNote}
@@ -1217,6 +1218,8 @@ export default function TaskScreen() {
             errandId={captureErrandId}
             kind={mission.receiptTarget.kind}
             pinpointId={mission.receiptTarget.pinpointId}
+            // The figure completeReceiptCapture judges full-or-short against.
+            expectedAmount={mission.receiptTarget.kind === 'CASH_COLLECTED' ? mission.dueAtDoor : undefined}
             onDone={mission.completeReceiptCapture}
             onCancel={mission.cancelReceiptCapture}
           />
