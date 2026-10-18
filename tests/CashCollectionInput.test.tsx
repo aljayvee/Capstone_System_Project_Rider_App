@@ -52,6 +52,23 @@ describe('the cash card once payment is on file', () => {
     expect(view.getByText('Cash photographed ✓')).toBeTruthy();
   });
 
+  it('tells the rider the cash figure without the non-COD fee', async () => {
+    const withFee = errand({
+      paymentMode: 'GCash',
+      feeBreakdown: { grandTotal: 560, itemsSubtotal: 500, fees: { subtotal: 60, nonCodFee: 20 } },
+      paymentPlan: { hasLedger: true, balanceDue: 560 } as Errand['paymentPlan'],
+    } as Partial<Errand>);
+    const view = await draw({ errand: withFee, collectedInFull: false });
+    expect(view.getByTestId('cash-instead-amount').props.children.join('')).toBe(
+      'In cash: ₱540, without the ₱20 non-COD fee.'
+    );
+  });
+
+  it('says nothing extra when there is no non-COD fee', async () => {
+    const view = await draw({ collectedInFull: false });
+    expect(view.queryByTestId('cash-instead-amount')).toBeNull();
+  });
+
   it('falls back to the payment plan when the kind is not known', async () => {
     expect((await draw({ proofKind: null })).getByText('Receipt confirmed ✓')).toBeTruthy();
     expect(

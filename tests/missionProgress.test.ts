@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cashDueAtDoorFor,
   deriveErrandProgress,
   deriveDepartedStoreIds,
   dueAtDoorFor,
@@ -213,6 +214,17 @@ describe("restoring what was collected at the door", () => {
     expect(derive(cod, []).paymentProofKind).toBeNull();
   });
 
+  it("judges cash instead against the total without the non-COD fee", () => {
+    // ₱560 owed by GCash, ₱20 of it the non-COD fee: ₱540 in cash is in full.
+    const gcash = errand({
+      paymentMode: "GCash",
+      feeBreakdown: { grandTotal: 560, fees: { nonCodFee: 20 } } as Errand["feeBreakdown"],
+      paymentPlan: { hasLedger: true, balanceDue: 560 } as Errand["paymentPlan"],
+    });
+    const proofs = [proof({ id: 15, kind: "CASH_COLLECTED", declaredTotal: 540 })];
+    expect(derive(gcash, proofs)).toMatchObject({ collectedAmount: "FULL", shortPayment: false });
+  });
+
   it("reads a GCash errand paid in cash instead as cash", () => {
     // "They're paying cash instead": the errand still says GCash, but the
     // last photo at the door is of cash, and that is what the card must say.
@@ -245,6 +257,32 @@ describe("restoring what was collected at the door", () => {
     // showComplete is a one-shot confirmation, not a state the errand is in.
     const delivered = errand({ status: "Delivered" });
     expect(derive(delivered).showComplete).toBe(false);
+  });
+});
+
+describe("what the rider collects when it is paid in cash", () => {
+  const gcash = (nonCodFee: number, balanceDue = 560) =>
+    errand({
+      feeBreakdown: { grandTotal: 560, fees: { nonCodFee } } as Errand["feeBreakdown"],
+      paymentPlan: { hasLedger: true, balanceDue } as Errand["paymentPlan"],
+    });
+
+  it("leaves off a GCash/PayMaya errand's non-COD fee", () => {
+    expect(cashDueAtDoorFor(gcash(20))).toBe(540);
+  });
+
+  it("gives the same figure once the server has taken the fee off", () => {
+    // After the switch: fee 0, and the balance no longer holds it.
+    expect(cashDueAtDoorFor(gcash(0, 540))).toBe(540);
+  });
+
+  it("is the ordinary amount on a cash on delivery errand", () => {
+    const cod = errand({ feeBreakdown: { grandTotal: 560, fees: { nonCodFee: 0 } } as Errand["feeBreakdown"] });
+    expect(cashDueAtDoorFor(cod)).toBe(560);
+  });
+
+  it("never goes below zero", () => {
+    expect(cashDueAtDoorFor(gcash(20, 10))).toBe(0);
   });
 });
 

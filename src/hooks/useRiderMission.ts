@@ -34,6 +34,7 @@ import { canSwitchWorkingErrand, orderErrandQueue } from '../services/errandQueu
 import { formatErrandId } from '../utils/formatErrandId';
 import { requestSections, type RequestSection } from '../services/requestSections';
 import {
+  cashDueAtDoorFor,
   deriveErrandProgress,
   dueAtDoorFor,
   DEFAULT_PROGRESS,
@@ -169,6 +170,8 @@ export interface UseRiderMissionReturn {
   isDelivered: boolean;
   errand: MergedErrand | null;
   dueAtDoor: number;
+  /** dueAtDoor paid in cash: less the non-COD fee on a GCash/PayMaya errand. */
+  cashDueAtDoor: number;
   completedToday: number;
   riderProfile: RiderProfile | null;
   deliveredErrands: Errand[];
@@ -649,6 +652,9 @@ export function useRiderMission(): UseRiderMissionReturn {
   // copies of it would eventually disagree about a downpayment balance.
   const frontErrand = activeErrands[0] ?? null;
   const dueAtDoor = dueAtDoorFor(frontErrand);
+  // The same, paid in cash: a GCash/PayMaya customer paying cash instead is
+  // not charged the non-COD fee (cashDueAtDoorFor).
+  const cashDueAtDoor = cashDueAtDoorFor(frontErrand);
 
   const completedToday = useMemo(() => {
     const todayStr = new Date().toDateString();
@@ -1123,7 +1129,7 @@ export function useRiderMission(): UseRiderMissionReturn {
       // Cash, on the other hand, can genuinely come back short — judged
       // against the same due figure CashCollectionInput showed the rider.
       if (target?.kind === 'CASH_COLLECTED' && result) {
-        const isFull = Math.abs(result.confirmedTotal - dueAtDoor) < 0.01;
+        const isFull = Math.abs(result.confirmedTotal - cashDueAtDoor) < 0.01;
         updateProgress(frontErrandId, (prev) => ({
           collectedAmount: isFull ? 'FULL' : String(result.confirmedTotal),
           shortPayment: !isFull,
@@ -1135,7 +1141,7 @@ export function useRiderMission(): UseRiderMissionReturn {
 
       return null;
     });
-  }, [frontErrandId, activeErrands, dueAtDoor, paymentMode, showBanner, updateProgress, undoOptimisticProof]);
+  }, [frontErrandId, activeErrands, dueAtDoor, cashDueAtDoor, paymentMode, showBanner, updateProgress, undoOptimisticProof]);
 
   const cancelReceiptCapture = useCallback(() => setReceiptTarget(null), []);
 
@@ -1425,6 +1431,7 @@ export function useRiderMission(): UseRiderMissionReturn {
     isDelivered,
     errand,
     dueAtDoor,
+    cashDueAtDoor,
     completedToday,
     riderProfile,
     deliveredErrands,

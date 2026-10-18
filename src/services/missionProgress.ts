@@ -122,6 +122,22 @@ export function dueAtDoorFor(errand: Errand | null | undefined): number {
 }
 
 /**
+ * What the rider collects when the door is paid in cash.
+ *
+ * dueAtDoorFor less the non-COD fee on a GCash/PayMaya or bank errand: a
+ * customer who pays cash instead is not charged it, and the server takes it off
+ * when the cash photo is filed (paymentSelectionService.switchToCashOnDelivery).
+ * After that the fee reads 0 and the balance no longer holds it, so this gives
+ * the same figure before the switch and after it.
+ */
+export function cashDueAtDoorFor(errand: Errand | null | undefined): number {
+  const due = dueAtDoorFor(errand);
+  if (!errand?.paymentPlan?.hasLedger) return due;
+  const fee = errand.feeBreakdown?.fees?.nonCodFee ?? 0;
+  return Math.max(0, Math.round((due - fee) * 100) / 100);
+}
+
+/**
  * Which store pinpoints already have shopping evidence (RECEIPT or NO_RECEIPT) filed.
  */
 export function deriveDepartedStoreIds(
@@ -291,7 +307,8 @@ export function deriveErrandProgress(args: {
     currentStatus,
     completedSubtasks: shopping ? deriveCompletedSubtasks(sections, proofs) : {},
     handoverCaptured: proofs.some((proof) => isLive(proof) && proof.kind === 'PROOF_OF_DELIVERY'),
-    ...derivePayment(proofs, dueAtDoorFor(errand)),
+    // Only cash is judged full-or-short, so against the cash figure.
+    ...derivePayment(proofs, cashDueAtDoorFor(errand)),
     departedStoreIds,
     // Never restored: it is the one-shot "delivered!" panel, not a state the
     // errand is in. Re-showing it on relaunch would congratulate the rider for

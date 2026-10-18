@@ -1218,8 +1218,9 @@ export default function TaskScreen() {
             errandId={captureErrandId}
             kind={mission.receiptTarget.kind}
             pinpointId={mission.receiptTarget.pinpointId}
-            // The figure completeReceiptCapture judges full-or-short against.
-            expectedAmount={mission.receiptTarget.kind === 'CASH_COLLECTED' ? mission.dueAtDoor : undefined}
+            // The figure completeReceiptCapture judges full-or-short against:
+            // the cash total, without a GCash/PayMaya errand's non-COD fee.
+            expectedAmount={mission.receiptTarget.kind === 'CASH_COLLECTED' ? mission.cashDueAtDoor : undefined}
             onDone={mission.completeReceiptCapture}
             onCancel={mission.cancelReceiptCapture}
           />

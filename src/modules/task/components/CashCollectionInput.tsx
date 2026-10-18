@@ -63,6 +63,9 @@ export function CashCollectionInput({
   // when the kind is not known.
   const receiptConfirmed = proofKind ? proofKind === 'RIDER_BALANCE_PROOF' : Boolean(plan?.hasLedger);
 
+  // Paid in cash instead, the non-COD fee is not charged (cashDueAtDoorFor).
+  const nonCodFee = plan?.hasLedger ? Math.max(0, breakdown?.fees?.nonCodFee ?? 0) : 0;
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
@@ -128,6 +131,11 @@ export function CashCollectionInput({
               <AlertTriangle size={13} color={Colors.warning} />
               <Text style={styles.shortText}>They're paying cash instead</Text>
             </TouchableOpacity>
+            {nonCodFee > 0 && (
+              <Text style={styles.cashInsteadNote} testID="cash-instead-amount">
+                In cash: {formatPeso(Math.max(0, due - nonCodFee))}, without the {formatPeso(nonCodFee)} non-COD fee.
+              </Text>
+            )}
           </>
         ) : (
           <TouchableOpacity
@@ -229,5 +237,10 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.semibold as any,
     color: Colors.warning,
     textDecorationLine: 'underline',
+  },
+  cashInsteadNote: {
+    textAlign: 'center',
+    fontSize: FontSizes.xs,
+    color: Colors.textMedium,
   },
 });
