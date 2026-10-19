@@ -291,3 +291,9 @@ describe("item size", () => {
     expect(errand.details).toBe("Chicken · 5 kg x1");
   });
 });
+
+describe("the customer behind an errand", () => {
+  it("keeps the customer's id, which tells two errands apart as the same customer's", () => {
+    expect(mapApiErrandToDomain(api({ customerId: 42 })).customerId).toBe(42);
+  });
+});

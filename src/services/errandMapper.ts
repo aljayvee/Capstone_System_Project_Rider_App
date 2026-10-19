@@ -226,6 +226,7 @@ export function mapApiErrandToDomain(api: ApiErrand): DomainErrand {
     // requestSections already reads for the per-store lines.
     merchantCategories,
     customer: customerName,
+    customerId: typeof api.customerId === "number" ? api.customerId : null,
     customerPhone: api.customer?.phone || "",
     address: api.deliveryAddress,
     deliveryLatitude: toFiniteNumberOrNull(api.deliveryLatitude),

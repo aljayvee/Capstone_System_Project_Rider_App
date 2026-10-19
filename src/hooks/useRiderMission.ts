@@ -30,7 +30,8 @@ import {
 } from "../firebase/dispatcherChat";
 import { formatEarnings, mergeEarnings } from '../utils/earnings';
 import { isCashCollected } from '../services/errandGate';
-import { canSwitchWorkingErrand, orderErrandQueue } from '../services/errandQueue';
+import { applyDeliveryHolds, canSwitchWorkingErrand, deliveryHolds, orderErrandQueue } from '../services/errandQueue';
+import { routePhaseFor } from '../services/routePhase';
 import { formatErrandId } from '../utils/formatErrandId';
 import { requestSections, type RequestSection } from '../services/requestSections';
 import {
@@ -140,6 +141,12 @@ export interface UseRiderMissionReturn {
    * it last. Returns false when the switch was refused.
    */
   startErrandFirst: (errandId: string, options?: { leavingStoreId?: number | null }) => boolean;
+  /**
+   * The errand a held one waits for (errandQueue.deliveryHolds): bought, and
+   * delivered together with the same customer's other order once that one is
+   * bought too. Null when it is not held.
+   */
+  deliveryHoldFor: (errandId: string) => Errand | null;
   isMissionAccepted: boolean;
   isAccepting: boolean;
   showDeclineModal: boolean;
@@ -245,6 +252,9 @@ const ACTIVE_STATUSES: Errand["status"][] = [...OFFERED_STATUSES, ...ACCEPTED_ST
  * deliberately set aside. Ignored once that errand is no longer in hand.
  */
 const workingErrandKey = (riderId: number | string) => `@sugo_rider_working_errand_v1:${riderId}`;
+
+/** Delivery holds already announced (see the announcement effect), per rider. */
+const announcedHoldsKey = (riderId: number | string) => `@sugo_rider_announced_holds_v1:${riderId}`;
 
 /**
  * The photo evidence already on record for each errand the rider is running.
@@ -360,7 +370,7 @@ export function useRiderMission(): UseRiderMissionReturn {
   // In run order, not fetch order. The server lists newest first, and taking
   // index 0 of that is how accepting a second errand used to hijack the first
   // one's progress (services/errandQueue.ts).
-  const activeErrands = useMemo(
+  const queueOrder = useMemo(
     () =>
       orderErrandQueue(
         (activeMissions ?? []).filter((e) => ACCEPTED_STATUSES.includes(e.status)),
@@ -368,6 +378,28 @@ export function useRiderMission(): UseRiderMissionReturn {
       ),
     [activeMissions, workingErrandId]
   );
+
+  // One trip to a customer's door, not two (errandQueue.deliveryHolds). An
+  // errand already bought waits while the same customer's other errand for the
+  // same door is shopped: that one comes next, and both are delivered together.
+  // "Bought" is the rider's own step; for an errand whose slot is not rebuilt
+  // yet, what the server recorded.
+  //
+  // Frozen while a camera is open: the photo is filed against the front
+  // errand, which must not change under it.
+  const liveHolds = useMemo(
+    () =>
+      deliveryHolds(queueOrder, (e) => {
+        const slot = progressByErrand[e.id];
+        return slot ? routePhaseFor(slot.currentStatus) !== 'shopping' : Boolean(e.itemsPurchasedAt);
+      }),
+    [queueOrder, progressByErrand]
+  );
+  const holdsRef = useRef(liveHolds);
+  if (!receiptTarget) holdsRef.current = liveHolds;
+  const holds = holdsRef.current;
+
+  const activeErrands = useMemo(() => applyDeliveryHolds(queueOrder, holds), [queueOrder, holds]);
 
   // The errand actually being progressed right now — the front of the queue.
   // Everything else in `activeErrands` is queued behind it (see TaskScreen's
@@ -1335,11 +1367,74 @@ export function useRiderMission(): UseRiderMissionReturn {
     });
   }, [riderChatId, rider?.name, riderProfile?.name, riderChatMode, activeThreadUid, showBanner]);
 
+  // The errand a held one waits for, or null.
+  const deliveryHoldFor = useCallback((errandId: string) => holds.get(errandId) ?? null, [holds]);
+
+  // Holds already told to the rider and dispatcher, as "held>waitingFor", kept
+  // per rider so a restart does not tell them again. Null until read.
+  const [announcedHolds, setAnnouncedHolds] = useState<string[] | null>(null);
+  useEffect(() => {
+    setAnnouncedHolds(null);
+    if (!rider?.id) return;
+    let alive = true;
+    void storageAdapter.getJSON<string[]>(announcedHoldsKey(rider.id)).then((stored) => {
+      if (alive) setAnnouncedHolds(Array.isArray(stored) ? stored : []);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [rider?.id]);
+
+  // A hold changes the rider's next stop under them, so it is said when it
+  // begins: to the rider, and to the dispatcher, who would otherwise watch an
+  // order "on the way" ride off toward a store. When it ends, the rider is told
+  // both are ready for the door. Only once errands are loaded, so a launch
+  // that has not fetched yet is not read as every hold ending.
+  useEffect(() => {
+    if (announcedHolds === null || activeMissions === null || !rider?.id) return;
+    const current = [...holds].map(([heldId, waitingFor]) => `${heldId}>${waitingFor.id}`);
+    const begun = current.filter((key) => !announcedHolds.includes(key));
+    const ended = announcedHolds.filter((key) => !current.includes(key));
+    if (begun.length === 0 && ended.length === 0) return;
+
+    const inHand = (id: string) => queueOrder.find((e) => e.id === id) ?? null;
+    for (const key of begun) {
+      const [heldId, waitingForId] = key.split('>');
+      const held = inHand(heldId);
+      const customer = held?.customer || 'the customer';
+      showBanner(
+        "info",
+        `${formatErrandId(waitingForId)} is ${customer}'s other order. Shop it next. ` +
+          `${formatErrandId(heldId)} waits, and both go to the door together.`
+      );
+      sendDispatcherMessage(
+        `Holding ${formatErrandId(heldId)} (${customer}) to deliver it with ${formatErrandId(waitingForId)}, ` +
+          `the same customer's order to the same address. Shopping ${formatErrandId(waitingForId)} first.`
+      );
+    }
+    for (const key of ended) {
+      const [heldId, waitingForId] = key.split('>');
+      // Delivered, cancelled or handed to another rider: nothing to say.
+      if (!inHand(heldId) || !inHand(waitingForId)) continue;
+      showBanner(
+        "success",
+        `Both of ${inHand(heldId)?.customer || "the customer"}'s orders are bought. ` +
+          `Deliver ${formatErrandId(heldId)} and ${formatErrandId(waitingForId)} together.`
+      );
+    }
+
+    setAnnouncedHolds(current);
+    void storageAdapter.setJSON(announcedHoldsKey(rider.id), current);
+  }, [holds, announcedHolds, activeMissions, queueOrder, rider?.id, showBanner, sendDispatcherMessage]);
+
   const startErrandFirst = useCallback(
     (errandId: string, options?: { leavingStoreId?: number | null }) => {
       const current = activeErrands[0];
       const next = activeErrands.find((e) => e.id === errandId);
       if (!current || !next || current.id === errandId) return false;
+      // Held for the same customer's other order: it goes with that one, and
+      // starting it first would only be undone by the hold.
+      if (holds.has(errandId)) return false;
       // A camera open on the errand in hand would file its photo against the
       // wrong one the moment the front changed.
       if (receiptTarget) return false;
@@ -1374,7 +1469,7 @@ export function useRiderMission(): UseRiderMissionReturn {
       );
       return true;
     },
-    [activeErrands, receiptTarget, progressByErrand, updateProgress, rider?.id, showBanner, sendDispatcherMessage]
+    [activeErrands, holds, receiptTarget, progressByErrand, updateProgress, rider?.id, showBanner, sendDispatcherMessage]
   );
 
   return {
@@ -1401,6 +1496,7 @@ export function useRiderMission(): UseRiderMissionReturn {
     workingErrand: frontErrand,
     progressFor,
     startErrandFirst,
+    deliveryHoldFor,
     isMissionAccepted,
     isAccepting,
     showDeclineModal,

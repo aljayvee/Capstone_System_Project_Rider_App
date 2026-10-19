@@ -14,6 +14,8 @@ interface ErrandQueueListProps {
   progressFor: (errandId: string) => ErrandProgress;
   selectedIndex: number;
   onSelect: (index: number) => void;
+  /** The errand a held one waits for (errandQueue.deliveryHolds), or null. */
+  deliveryHoldFor?: (errandId: string) => Errand | null;
 }
 
 /**
@@ -23,7 +25,7 @@ interface ErrandQueueListProps {
  * and nothing saying which one to ride to first. The first row is the errand
  * the map is routing; each row after it waits its turn.
  */
-export function ErrandQueueList({ errands, progressFor, selectedIndex, onSelect }: ErrandQueueListProps) {
+export function ErrandQueueList({ errands, progressFor, selectedIndex, onSelect, deliveryHoldFor }: ErrandQueueListProps) {
   if (errands.length < 2) return null;
 
   return (
@@ -36,6 +38,8 @@ export function ErrandQueueList({ errands, progressFor, selectedIndex, onSelect 
       </View>
       {errands.map((errand, index) => {
         const progress = progressFor(errand.id);
+        const heldFor = deliveryHoldFor?.(errand.id) ?? null;
+        const next = heldFor ? `Waits for ${formatErrandId(heldFor.id)}, then delivered with it` : nextStopFor(errand, progress);
         const selected = index === selectedIndex;
         return (
           <TouchableOpacity
@@ -46,7 +50,7 @@ export function ErrandQueueList({ errands, progressFor, selectedIndex, onSelect 
             accessibilityState={{ selected }}
             accessibilityLabel={`${index === 0 ? 'Current errand' : `${queuePositionLabel(index)} in queue`}, ${
               errand.customer || 'customer'
-            }, next: ${nextStopFor(errand, progress)}`}
+            }, next: ${next}`}
             testID={`errand-queue-row-${index}`}
           >
             <View style={[styles.position, index === 0 && styles.positionNow]}>
@@ -59,7 +63,7 @@ export function ErrandQueueList({ errands, progressFor, selectedIndex, onSelect 
                 {errand.customer || 'Customer'} · {formatErrandId(errand.id)}
               </Text>
               <Text style={styles.next} numberOfLines={2} maxFontSizeMultiplier={1.25}>
-                {nextStopFor(errand, progress)}
+                {next}
               </Text>
             </View>
             <ChevronRight size={16} color={Colors.textGray} />

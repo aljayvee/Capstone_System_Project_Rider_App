@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   acceptanceTime,
+  applyDeliveryHolds,
   canSwitchWorkingErrand,
+  deliveryHolds,
   orderErrandQueue,
   queuePositionLabel,
+  sameDropOff,
 } from '../src/services/errandQueue';
 
 /**
@@ -99,5 +102,69 @@ describe('queuePositionLabel', () => {
     expect(queuePositionLabel(3)).toBe('4th');
     expect(queuePositionLabel(10)).toBe('11th');
     expect(queuePositionLabel(11)).toBe('12th');
+  });
+});
+
+describe('delivery holds: one trip to the same door', () => {
+  // A rider on the way with Ana's order (A) accepts Ana's second order (B).
+  const at = (id: string, acceptedAt: string, overrides: Record<string, unknown> = {}) => ({
+    ...errand(id, '2026-10-20T07:00:00Z', acceptedAt),
+    customerId: 42,
+    address: 'Purok 5, Tacurong',
+    deliveryLatitude: 6.6915,
+    deliveryLongitude: 124.6772,
+    ...overrides,
+  });
+  const A = at('A', '2026-10-20T08:00:00Z');
+  const B = at('B', '2026-10-20T08:35:00Z');
+  const bought = (ids: string[]) => (e: { id: string }) => ids.includes(e.id);
+
+  it("holds the bought order for the same customer's order still being shopped", () => {
+    const holds = deliveryHolds([A, B], bought(['A']));
+    expect(holds.get('A')?.id).toBe('B');
+    expect(holds.has('B')).toBe(false);
+  });
+
+  it('puts the order being shopped in front, so the rider shops it next', () => {
+    const holds = deliveryHolds([A, B], bought(['A']));
+    expect(applyDeliveryHolds([A, B], holds).map((e) => e.id)).toEqual(['B', 'A']);
+  });
+
+  it('moves nothing else: another customer queued behind keeps its place', () => {
+    const C = at('C', '2026-10-20T08:20:00Z', { customerId: 77, address: 'Elsewhere', deliveryLatitude: 6.7 });
+    const holds = deliveryHolds([A, C, B], bought(['A']));
+    expect(applyDeliveryHolds([A, C, B], holds).map((e) => e.id)).toEqual(['B', 'A', 'C']);
+  });
+
+  it('lets go once both are bought, back to first accepted, first delivered', () => {
+    const holds = deliveryHolds([A, B], bought(['A', 'B']));
+    expect(holds.size).toBe(0);
+    expect(applyDeliveryHolds([A, B], holds).map((e) => e.id)).toEqual(['A', 'B']);
+  });
+
+  it('does not hold for a different customer', () => {
+    expect(deliveryHolds([A, { ...B, customerId: 43 }], bought(['A'])).size).toBe(0);
+  });
+
+  it('does not hold for the same customer at a different door', () => {
+    expect(deliveryHolds([A, { ...B, deliveryLatitude: 6.7015 }], bought(['A'])).size).toBe(0);
+  });
+
+  it('never guesses for an errand with no known customer', () => {
+    expect(deliveryHolds([{ ...A, customerId: null }, { ...B, customerId: null }], bought(['A'])).size).toBe(0);
+  });
+
+  it('holds every bought order of that customer for the first one still being shopped', () => {
+    const A2 = at('A2', '2026-10-20T08:10:00Z');
+    const holds = deliveryHolds([A, A2, B], bought(['A', 'A2']));
+    expect(holds.get('A')?.id).toBe('B');
+    expect(holds.get('A2')?.id).toBe('B');
+    expect(applyDeliveryHolds([A, A2, B], holds).map((e) => e.id)).toEqual(['B', 'A', 'A2']);
+  });
+
+  it('treats a missing pin as the same door only for the same written address', () => {
+    const unpinned = { ...B, deliveryLatitude: null, deliveryLongitude: null };
+    expect(sameDropOff(A, { ...unpinned, address: ' purok 5, TACURONG ' })).toBe(true);
+    expect(sameDropOff(A, { ...unpinned, address: 'Purok 6, Tacurong' })).toBe(false);
   });
 });

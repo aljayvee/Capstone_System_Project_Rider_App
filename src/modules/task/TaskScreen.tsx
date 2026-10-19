@@ -25,6 +25,7 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRightLeft,
+  Hourglass,
 } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import { LiveErrandMap } from '../../components/LiveErrandMap';
@@ -193,6 +194,14 @@ export default function TaskScreen() {
   // are keyed by section index: section 0 of a queued errand read "Receipt
   // saved" because section 0 of the errand in hand had one.
   const isQueuedView = safeIndex !== 0;
+  // Bought, and waiting for the same customer's other order so both are
+  // delivered in one trip (errandQueue.deliveryHolds). Null when not held.
+  const deliveryHoldFor = mission.deliveryHoldFor;
+  const displayHeldFor = displayErrand ? deliveryHoldFor?.(displayErrand.id) ?? null : null;
+  // The bought errands held for this one: it is the order they wait for.
+  const waitingOnDisplay = displayErrand
+    ? activeErrands.filter((e) => deliveryHoldFor?.(e.id)?.id === displayErrand.id)
+    : [];
   const displayProgress = progressFor(displayErrand?.id);
   const displayStatus = isQueuedView ? displayProgress.currentStatus : currentStatus;
   const displayCompleted = isQueuedView ? displayProgress.completedSubtasks : completedSubtasks;
@@ -218,6 +227,9 @@ export default function TaskScreen() {
   const pinpoints = React.useMemo(() => workingErrand?.pinpoints ?? [], [workingErrand?.pinpoints]);
   // The errands waiting behind the one in hand, in the order they come next.
   const queuedErrands = activeErrands.slice(1);
+  // What the rider may start first instead: never a held errand, which goes
+  // with the order it waits for, so starting it would only be undone.
+  const startableQueued = queuedErrands.filter((e) => !deliveryHoldFor?.(e.id));
 
   const [now, setNow] = React.useState<number>(Date.now());
   const [lockedStoreId, setLockedStoreId] = React.useState<number | null>(null);
@@ -544,12 +556,19 @@ export default function TaskScreen() {
   const actionDock =
     isQueuedView ? (
       <View style={styles.stickyActionDock} testID="queued-dock">
-        <Text style={styles.queuedNote} maxFontSizeMultiplier={1.25}>
-          {queuePositionLabel(safeIndex)} in your queue. Finish{' '}
-          {workingErrand ? `${formatErrandId(workingErrand.id)} for ${workingErrand.customer || 'the customer'}` : 'your current errand'}{' '}
-          first.
-        </Text>
-        {canStartAnotherFirst ? (
+        {displayHeldFor ? (
+          <Text style={styles.queuedNote} maxFontSizeMultiplier={1.25} testID="held-dock-note">
+            Bought, and waiting for {formatErrandId(displayHeldFor.id)}, {displayErrand.customer || 'the customer'}'s
+            other order. Both go to the door together once it is bought.
+          </Text>
+        ) : (
+          <Text style={styles.queuedNote} maxFontSizeMultiplier={1.25}>
+            {queuePositionLabel(safeIndex)} in your queue. Finish{' '}
+            {workingErrand ? `${formatErrandId(workingErrand.id)} for ${workingErrand.customer || 'the customer'}` : 'your current errand'}{' '}
+            first.
+          </Text>
+        )}
+        {displayHeldFor ? null : canStartAnotherFirst ? (
           <TouchableOpacity
             style={styles.switchErrandBtn}
             onPress={() => confirmStartFirst(displayErrand)}
@@ -639,17 +658,18 @@ export default function TaskScreen() {
                     </Text>
                   </TouchableOpacity>
                 )}
-                {/* Another errand in hand can use the wait instead. */}
-                {queuedErrands[0] && (
+                {/* Another errand in hand can use the wait instead. Not a held
+                    one: it goes with the order it waits for. */}
+                {startableQueued[0] && (
                   <TouchableOpacity
-                    onPress={() => confirmStartFirst(queuedErrands[0])}
+                    onPress={() => confirmStartFirst(startableQueued[0])}
                     style={styles.switchStoreBtn}
                     accessibilityRole="button"
-                    accessibilityLabel={`Do ${formatErrandId(queuedErrands[0].id)} for ${queuedErrands[0].customer || 'the next customer'} while you wait`}
+                    accessibilityLabel={`Do ${formatErrandId(startableQueued[0].id)} for ${startableQueued[0].customer || 'the next customer'} while you wait`}
                     testID="delay-start-queued-btn"
                   >
                     <Text style={styles.switchStoreBtnText} maxFontSizeMultiplier={1.25}>
-                      Do {formatErrandId(queuedErrands[0].id)} ({queuedErrands[0].customer || 'next customer'}) while you wait
+                      Do {formatErrandId(startableQueued[0].id)} ({startableQueued[0].customer || 'next customer'}) while you wait
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -995,7 +1015,28 @@ export default function TaskScreen() {
             progressFor={progressFor}
             selectedIndex={safeIndex}
             onSelect={setSelectedIndex}
+            deliveryHoldFor={deliveryHoldFor}
           />
+
+          {/* One trip to the door for both of the customer's orders: the
+              bought one waits while the other is shopped. */}
+          {displayHeldFor ? (
+            <View style={styles.holdNote} testID="delivery-hold-note">
+              <Hourglass size={14} color={Colors.info} />
+              <Text style={styles.holdNoteText} maxFontSizeMultiplier={1.15}>
+                On hold. Delivered together with {formatErrandId(displayHeldFor.id)},{' '}
+                {displayErrand.customer || 'the customer'}'s other order to the same address.
+              </Text>
+            </View>
+          ) : waitingOnDisplay.length > 0 ? (
+            <View style={styles.holdNote} testID="delivery-hold-waiting-note">
+              <Hourglass size={14} color={Colors.info} />
+              <Text style={styles.holdNoteText} maxFontSizeMultiplier={1.15}>
+                {waitingOnDisplay.map((e) => formatErrandId(e.id)).join(' and ')} is bought and waiting for
+                this one. Deliver them together.
+              </Text>
+            </View>
+          ) : null}
 
           {/* STAGE 1: SHOPPING / PICKUP PHASE */}
           {isShoppingView ? (
@@ -1468,6 +1509,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.semibold as any,
+    color: Colors.textDark,
+  },
+  holdNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
+    backgroundColor: Colors.infoSubtle,
+    borderColor: Colors.info,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+  },
+  holdNoteText: {
+    flex: 1,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
     color: Colors.textDark,
   },
   arrivalNote: {

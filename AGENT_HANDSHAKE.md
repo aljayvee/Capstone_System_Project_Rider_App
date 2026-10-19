@@ -19,6 +19,14 @@
 * `[LOCKED]` `4-State Fleet Presence Persistence` (`AVAILABLE`, `BUSY`, `DISCONNECTED`, `OFF_DUTY` synced to Firebase RTDB and MariaDB)
 * `[LOCKED]` `Damped Moderate Scaling` ($W=375, H=812$ baseline, `factor=0.5`, clamped typography $[0.85x, 1.35x]$)
 
+## 2026-10-20 - Same customer, one trip: a bought errand waits for the other (Claude, Opus 5.5)
+* **Status**: [Executed by Claude - tsc 0, vitest 545, jest 21 suites / 178. JS only. NOT device-verified; uncommitted. Server and Customer App halves in their own handshakes.]
+* **Ask**: rider on the way with a customer's errand is given that customer's second errand: hold the first, shop the second, deliver both together; a different customer queues as before.
+* **Rule** (`src/services/errandQueue.ts`, mirrors server `patterns/deliveryHold.ts`): an accepted errand is HELD while it is bought (rider step past shopping; before its slot is rebuilt, `itemsPurchasedAt`) and another accepted errand with the same `customerId` and the same drop-off (within 100 m, or the same written address when a pin is missing) is not bought yet. `applyDeliveryHolds` moves that sibling directly in front of the held one; nothing else moves. Unknown `customerId` never holds.
+* **Modified**: `errandMapper.ts`/`types/rider.ts` (`customerId`); `useRiderMission.ts` (`queueOrder` -> `deliveryHolds` -> `activeErrands`; holds frozen while a camera is open; `deliveryHoldFor`; banner + dispatcher chat message when a hold begins, banner when it ends, announced keys persisted per rider at `@sugo_rider_announced_holds_v1:<id>` so restarts stay quiet; `startErrandFirst` refuses a held errand); `TaskScreen.tsx` (hold notes on both errands, held dock note, held errands never offered as "do first"/"while you wait"); `ErrandQueueList.tsx` ("Waits for X, then delivered with it").
+* **Tests**: 9 in `tests/errandQueue.test.ts`, 1 in `tests/errandMapper.test.ts`, 2 in `tests/TaskScreenQueue.test.tsx`. vocabulary.test's text-node regex reads `=> ... <` spans in code: keep `mission.` out of such spans (TaskScreen reads `deliveryHoldFor` into a local for this reason).
+* **Not built**: no rider override to deliver the held order alone (the dispatcher cancels or reassigns the second order, which releases the hold); the hook's announce effect is untested (typecheck only).
+
 ## 2026-10-20 - Drop-off pill shows the whole address (Claude, Opus 5.5)
 * **Status**: [Executed by Claude - tsc 0, jest 21 suites / 176 (4 new), vitest 520. uiAudit unchanged (no new findings). JS only. NOT device-verified; uncommitted.]
 * **Ask**: under "Drop-off: <customer>" (the shopping-stage pill in TaskScreen) show the customer's whole address: the address, street name, landmark, and the note for the rider.

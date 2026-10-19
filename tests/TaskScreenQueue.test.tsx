@@ -119,6 +119,9 @@ const mockSlot = (overrides: any = {}) => ({
 
 const mockStartErrandFirst = jest.fn(() => true);
 let mockFront: any = mockSlot({ currentStatus: 'At Store', completedSubtasks: { 0: true }, departedStoreIds: [] });
+let mockSlotB: any = mockSlot();
+// Which errand a held one waits for (errandQueue.deliveryHolds). Empty: none held.
+let mockHolds: Record<string, any> = {};
 
 jest.mock('../src/context/RiderMissionContext', () => ({
   useRiderMissionContext: () => ({
@@ -133,8 +136,9 @@ jest.mock('../src/context/RiderMissionContext', () => ({
     activeErrands: [mockErrandA, mockErrandB],
     offeredErrands: [],
     workingErrand: mockErrandA,
-    progressFor: (id: string) => (id === mockErrandA.id ? mockFront : mockSlot()),
+    progressFor: (id: string) => (id === mockErrandA.id ? mockFront : mockSlotB),
     startErrandFirst: mockStartErrandFirst,
+    deliveryHoldFor: (id: string) => mockHolds[id] ?? null,
     paymentMode: 'COD',
     collectedAmount: '',
     advanceStatus: jest.fn(),
@@ -175,6 +179,8 @@ beforeEach(() => {
   mockItemsProps = [];
   mockStartErrandFirst.mockClear();
   mockFront = mockSlot({ currentStatus: 'At Store', completedSubtasks: { 0: true } });
+  mockSlotB = mockSlot();
+  mockHolds = {};
 });
 
 describe('two errands in hand', () => {
@@ -265,5 +271,31 @@ describe('the drop-off preview while shopping', () => {
     expect(view.getByText('Street: Purok 5, Mabini St.')).toBeTruthy();
     expect(view.getByText('Landmark: Blue gate beside the chapel')).toBeTruthy();
     expect(view.getByText('Note for the rider: Call when outside, the dog barks.')).toBeTruthy();
+  });
+});
+
+describe("the same customer's two orders, one trip to the door", () => {
+  beforeEach(() => {
+    // B is bought and waits while A, the same customer's other order, is shopped.
+    mockSlotB = mockSlot({ currentStatus: 'Delivering' });
+    mockHolds = { [mockErrandB.id]: mockErrandA };
+  });
+
+  it('tells the rider the order in hand is the one the bought order waits for', async () => {
+    const view = await renderTask();
+    expect(view.getByTestId('delivery-hold-waiting-note')).toBeTruthy();
+    expect(view.getByTestId('errand-queue-row-1')).toBeTruthy();
+    expect(view.getByText(/^Waits for .*, then delivered with it$/)).toBeTruthy();
+  });
+
+  it('shows the held order as on hold, with no way to start it first', async () => {
+    const view = await renderTask();
+    await act(async () => {
+      fireEvent.press(view.getByTestId('errand-queue-row-1'));
+    });
+
+    expect(view.getByTestId('delivery-hold-note')).toBeTruthy();
+    expect(view.getByTestId('held-dock-note')).toBeTruthy();
+    expect(view.queryByTestId('start-errand-first-btn')).toBeNull();
   });
 });

@@ -186,6 +186,12 @@ export interface Errand {
   dispatcherId?: number | null;
   dispatcherName?: string | null;
   customer: string;
+  /**
+   * The customer's account id. What tells two errands apart as the same
+   * customer's (errandQueue.deliveryHolds); a name can be shared. Null when the
+   * payload did not carry it.
+   */
+  customerId?: number | null;
   customerPhone: string;
   address: string;
   deliveryLatitude?: number | null;
