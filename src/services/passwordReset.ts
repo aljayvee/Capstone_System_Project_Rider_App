@@ -41,28 +41,37 @@ export function isResetFailure<T>(result: ResetResult<T>): result is ResetFailur
   return result.ok === false;
 }
 
-function toFailure(err: any, fallback: string): ResetFailure {
-  const status: number | undefined = err?.response?.status;
-  const data = err?.response?.data;
-  const retryHeader = err?.response?.headers?.['retry-after'];
+const NO_CONNECTION = 'No connection to the server. Check your signal and try again.';
+const TOO_SLOW = 'The server is taking too long to answer. Check your signal and try again.';
+
+// A refusal the server answered: its own message, plus the wait it asked for.
+function toFailure(response: { status: number; data?: any; headers?: any }, fallback: string): ResetFailure {
+  const data = response.data;
+  const retryHeader = response.headers?.['retry-after'];
   const retryAfterSeconds: number | undefined =
     data?.details?.retryAfterSeconds ?? (retryHeader ? parseInt(retryHeader, 10) || undefined : undefined);
-  if (!err?.response) {
-    // No answer at all: a dead signal, not a refusal.
-    return {
-      ok: false,
-      error: 'No connection to the server. Check your signal and try again.',
-    };
-  }
-  return { ok: false, error: data?.error || fallback, status, retryAfterSeconds };
+  return { ok: false, error: data?.error || fallback, status: response.status, retryAfterSeconds };
 }
 
 async function post<T>(path: string, body: unknown, fallback: string): Promise<ResetResult<T>> {
   try {
-    const response = await apiClient.post<T>(path, body);
-    return { ok: true, ...(response.data as T) };
-  } catch (err) {
-    return toFailure(err, fallback);
+    // Every status resolves here instead of throwing. apiClient's error
+    // interceptor rewraps a refusal into a plain Error without its response,
+    // so the old `!err.response` check read every answer the server gave
+    // ("no rider with that email", "too many lookups") as a dead signal and
+    // showed "No connection" (found 2026-10-20). Resolving keeps the status,
+    // the server's message and its retry wait, and still sends the device
+    // headers the request interceptor adds. These endpoints never answer 401,
+    // so skipping the interceptor's refresh-on-401 loses nothing.
+    const response = await apiClient.post<T>(path, body, { validateStatus: () => true });
+    if (response.status >= 200 && response.status < 300) {
+      return { ok: true, ...(response.data as T) };
+    }
+    return toFailure(response, fallback);
+  } catch (err: any) {
+    // Only a request that got no answer at all lands here.
+    const timedOut = err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT';
+    return { ok: false, error: timedOut ? TOO_SLOW : NO_CONNECTION };
   }
 }
 
