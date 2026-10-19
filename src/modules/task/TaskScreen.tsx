@@ -50,6 +50,8 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthedStackParamList } from '../../navigation/AuthedNavigator';
 import ReceiptCaptureScreen from '../../screens/ReceiptCaptureScreen';
+// Directly, not through ./components: the TaskScreen suites mock that barrel.
+import { DropOffDetails } from './components/DropOffDetails';
 import { useLiveRoute } from '../../hooks/useLiveRoute';
 import { useOsmTilesAvailable } from '../../config/mapTiles';
 import { lineFitsMap, useMapChoice, type MapStyle } from '../../config/mapChoice';
@@ -1004,9 +1006,16 @@ export default function TaskScreen() {
                   <Text style={styles.customerPreviewName} numberOfLines={1} maxFontSizeMultiplier={1.2}>
                     Drop-off: {displayErrand.customer}
                   </Text>
-                  <Text style={styles.customerPreviewAddr} numberOfLines={1} maxFontSizeMultiplier={1.15}>
+                  {/* The whole address, not one truncated line: the rider plans
+                      the trip to the door from here while still shopping. */}
+                  <Text style={styles.customerPreviewAddr} maxFontSizeMultiplier={1.15} testID="dropoff-address">
                     {displayErrand.address}
                   </Text>
+                  <DropOffDetails
+                    streetName={displayErrand.deliveryStreetName}
+                    landmark={displayErrand.deliveryLandmark}
+                    notes={displayErrand.deliveryNotes}
+                  />
                 </View>
                 <TouchableOpacity
                   style={styles.customerCallBtn}
@@ -1361,7 +1370,9 @@ const styles = StyleSheet.create({
   },
   customerPreviewPill: {
     flexDirection: 'row',
-    alignItems: 'center',
+    // Top, not centre: with the street, landmark and note under the name, a
+    // centred call button would drift down beside the note.
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     backgroundColor: Colors.bgLight,
     paddingHorizontal: Spacing.md,

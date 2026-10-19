@@ -19,6 +19,15 @@
 * `[LOCKED]` `4-State Fleet Presence Persistence` (`AVAILABLE`, `BUSY`, `DISCONNECTED`, `OFF_DUTY` synced to Firebase RTDB and MariaDB)
 * `[LOCKED]` `Damped Moderate Scaling` ($W=375, H=812$ baseline, `factor=0.5`, clamped typography $[0.85x, 1.35x]$)
 
+## 2026-10-20 - Drop-off pill shows the whole address (Claude, Opus 5.5)
+* **Status**: [Executed by Claude - tsc 0, jest 21 suites / 176 (4 new), vitest 520. uiAudit unchanged (no new findings). JS only. NOT device-verified; uncommitted.]
+* **Ask**: under "Drop-off: <customer>" (the shopping-stage pill in TaskScreen) show the customer's whole address: the address, street name, landmark, and the note for the rider.
+* **Modified**:
+  - `src/modules/task/components/DropOffDetails.tsx` (new): Street / Landmark lines and a "Note for the rider" box, each only when filled in. Imported directly by TaskScreen, not through `./components`, which the TaskScreen suites mock.
+  - `src/modules/task/TaskScreen.tsx`: the pill's address is no longer cut to one line (`testID="dropoff-address"`), `DropOffDetails` sits under it, and the call button aligns to the top.
+  - Tests: `tests/DropOffDetails.test.tsx` (new), one case in `tests/TaskScreenQueue.test.tsx` (errand A now carries street, landmark, notes).
+* **Data**: no server change. `deliveryStreetName` / `deliveryLandmark` / `deliveryNotes` were already on every errand (ERRAND_INCLUDE is an include, so all scalars) and mapped by errandMapper; only the delivery-stage CustomerDetailsPanel showed them.
+
 ## 2026-10-19 - Cash at the door: amount prefilled, swipe to confirm (Claude, Opus 5.5)
 * **Status**: [Executed by Claude - tsc 0, jest 19 suites / 166 tests (9 new in `tests/ReceiptCaptureCash.test.tsx`), vitest 31 files / 513 tests. JS only, no native change. NOT device-verified.]
 * **Ask**: a GCash/Maya errand whose customer pays cash instead ("They're paying cash instead"). On "What did they hand you?" the amount owed should be filled in, and "Confirm total" should open a confirmation that is settled by a left-to-right swipe, not a button.

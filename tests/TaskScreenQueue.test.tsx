@@ -81,6 +81,9 @@ const mockErrandA = {
   id: 'aaaaaaaa-0000-0000-0000-000000000001',
   customer: 'Ana Cruz',
   address: 'Poblacion, Tacurong',
+  deliveryStreetName: 'Purok 5, Mabini St.',
+  deliveryLandmark: 'Blue gate beside the chapel',
+  deliveryNotes: 'Call when outside, the dog barks.',
   customerPhone: '',
   deliveryLatitude: 6.691,
   deliveryLongitude: 124.671,
@@ -247,5 +250,20 @@ describe('two errands in hand', () => {
     });
     expect(view.queryByTestId('start-errand-first-btn')).toBeNull();
     expect(view.getByTestId('queued-dock')).toBeTruthy();
+  });
+});
+
+describe('the drop-off preview while shopping', () => {
+  it("shows the customer's whole address: street, landmark and the note for the rider", async () => {
+    const view = await renderTask();
+
+    expect(view.getByText('Drop-off: Ana Cruz')).toBeTruthy();
+    // No longer cut to one line.
+    const address = view.getByTestId('dropoff-address');
+    expect(address.props.children).toBe('Poblacion, Tacurong');
+    expect(address.props.numberOfLines).toBeUndefined();
+    expect(view.getByText('Street: Purok 5, Mabini St.')).toBeTruthy();
+    expect(view.getByText('Landmark: Blue gate beside the chapel')).toBeTruthy();
+    expect(view.getByText('Note for the rider: Call when outside, the dog barks.')).toBeTruthy();
   });
 });
