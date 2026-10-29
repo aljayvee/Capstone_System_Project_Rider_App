@@ -3,7 +3,11 @@
 ## 2026-10-29 - Release v1.1.0: Red Motorcycle Sprite & EAS Production Build (Gemini 3.8 Flash High)
 
 * **Request / finding**: User requested bumping Rider Mobile App from v1.0.0 to v1.1.0, replacing the navigation arrow puck with a custom red motorcycle driven by a person in pink clothes, and building with EAS.
-* **Status**: Implemented, verified, and queued for EAS Android production build.
+* **Status**: Implemented, verified, and successfully built via EAS Cloud (`production` profile).
+* **Build Artifact**:
+  - Android Production APK: https://expo.dev/artifacts/eas/wFct6ACs5LwawE6SwN2D1lzXNLKO5Vma0FE1sCpNaPw.apk
+  - EAS Build Dashboard: https://expo.dev/accounts/astrowarden/projects/RiderMobileApp/builds/311364af-307f-4e6f-af06-f4eab618b2c6
+  - Version: `1.1.0` (versionCode `4`)
 * **Version Bumps**:
   - `app.json`: Bumped `version` to `1.1.0`, `runtimeVersion` to `1.1.0`, added `versionCode: 2` under `android`.
   - `package.json`: Bumped `version` to `1.1.0`.
