@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { routePhaseFor } from '../src/services/routePhase';
 import type { ErrandPinpoint, StatusStep } from '../src/types/rider';
 import { Elevation, moderateScale } from '../src/config/theme';
-import { formatErrandId } from '../src/utils/formatErrandId';
+import { compareErrandIds, formatErrandId, rememberErrandReferences } from '../src/utils/formatErrandId';
 
 describe('TaskScreen Stage-Adaptive Engine & Store Target Selection', () => {
   const STORE_A: ErrandPinpoint = {
@@ -124,9 +124,27 @@ describe('Task Tab UI Alignment & Elevation Invariants', () => {
   });
 
   it('formats compact errand ID chip cleanly', () => {
-    expect(formatErrandId('uuid-prefix-9ba918')).toBe('SGO-9BA918');
-    expect(formatErrandId('123456')).toBe('SGO-123456');
-    expect(formatErrandId('SGO-789012')).toBe('SGO-789012');
+    // The stored number when the errand carries it.
+    expect(formatErrandId('6d48243c-8b83-4a11-897b-9c3f0b29ba91', '261019-9BA91-0003')).toBe('261019-9BA91-0003');
+    // Learned from an API or socket payload, for screens that hold only the id.
+    rememberErrandReferences({ errands: [{ id: 'uuid-prefix-9ba918', referenceNo: '261019-BA918-0012' }] });
+    expect(formatErrandId('uuid-prefix-9ba918')).toBe('261019-BA918-0012');
+    // Never taken from a pair whose key is not that id's (a receipt's number).
+    rememberErrandReferences({ id: 'uuid-prefix-123456', referenceNo: '261019-BA918-0013' });
+    expect(formatErrandId('uuid-prefix-123456')).toBe('23456');
+    // The key alone until a number is known.
+    expect(formatErrandId('6d48243c-8b83-4a11-897b-9c3f0b2f6b80')).toBe('F6B80');
+    expect(formatErrandId('')).toBe('');
+  });
+
+  it('sorts errand numbers by day, then by the day\'s order', () => {
+    rememberErrandReferences([
+      { id: 'sort-test-a0002', referenceNo: '261019-A0002-0010' },
+      { id: 'sort-test-b0001', referenceNo: '261019-B0001-0002' },
+      { id: 'sort-test-c0003', referenceNo: '261018-C0003-0040' },
+    ]);
+    const ids = ['sort-test-a0002', 'sort-test-b0001', 'sort-test-c0003'];
+    expect([...ids].sort(compareErrandIds)).toEqual(['sort-test-c0003', 'sort-test-b0001', 'sort-test-a0002']);
   });
 
   it('expands targetPill max-width responsive to moderateScale(140, 0.25)', () => {

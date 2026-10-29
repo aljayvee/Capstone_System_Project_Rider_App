@@ -1,0 +1,44 @@
+<!-- Source of rider-motorcycle.png / @2x / @3x (44 dp).
+     Red motor vehicle with human driver wearing pink clothes.
+     Oriented facing North (0 deg) for native map heading rotation. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" fill="none">
+  <!-- Soft ground ambient drop shadow -->
+  <ellipse cx="22" cy="23" rx="12" ry="17" fill="#0B132B" fill-opacity="0.25" />
+
+  <!-- Directional Forward Headlight Glow (Points North) -->
+  <path d="M19 8 L14 0 L30 0 L25 8 Z" fill="url(#headlightBeam)" opacity="0.7" />
+
+  <!-- Wheels (Dark Rubber) -->
+  <rect x="20.5" y="5.5" width="3" height="8" rx="1.5" fill="#1E293B" stroke="#0F172A" stroke-width="0.5"/>
+  <rect x="20.5" y="30.5" width="3" height="8" rx="1.5" fill="#1E293B" stroke="#0F172A" stroke-width="0.5"/>
+
+  <!-- Handlebars & Mirrors -->
+  <path d="M13 13 L31 13" stroke="#475569" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="12.5" cy="12" r="1.5" fill="#94A3B8" />
+  <circle cx="31.5" cy="12" r="1.5" fill="#94A3B8" />
+
+  <!-- Red Motorcycle Chassis (SUGO Red) -->
+  <path d="M18 12.5 Q22 8 26 12.5 L27 19 L17 19 Z" fill="#DC2626" stroke="#B91C1C" stroke-width="0.6"/>
+  <path d="M17 18 Q22 16 27 18 L26.5 27 L17.5 27 Z" fill="#EF4444" />
+  <rect x="18.5" y="28" width="7" height="7" rx="2" fill="#DC2626" />
+
+  <!-- Human Rider (Pink Clothes) -->
+  <path d="M15 14.5 L18.5 21" stroke="#F472B6" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M29 14.5 L25.5 21" stroke="#F472B6" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M17.5 20.5 Q22 19 26.5 20.5 L27 28.5 L17 28.5 Z" fill="#EC4899" stroke="#BE185D" stroke-width="0.6"/>
+
+  <!-- Pink Helmet with Dark Visor -->
+  <circle cx="22" cy="22" r="4.2" fill="#F472B6" stroke="#BE185D" stroke-width="0.8"/>
+  <path d="M19.5 19.5 Q22 17.8 24.5 19.5" stroke="#0F172A" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Rear Cargo Box -->
+  <rect x="17" y="30" width="10" height="7.5" rx="1.8" fill="#1E293B" stroke="#DC2626" stroke-width="0.8"/>
+  <line x1="17" y1="33.5" x2="27" y2="33.5" stroke="#DC2626" stroke-width="0.6"/>
+
+  <defs>
+    <linearGradient id="headlightBeam" x1="22" y1="8" x2="22" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FEF08A" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#FEF08A" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>

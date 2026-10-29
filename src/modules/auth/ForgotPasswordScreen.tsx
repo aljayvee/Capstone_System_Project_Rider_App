@@ -551,7 +551,7 @@ export const ForgotPasswordScreen = () => {
 export default ForgotPasswordScreen;
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bgWhite },
+  root: { flex: 1, backgroundColor: Colors.bgGray },
   flex: { flex: 1 },
   flexShrink: { flexShrink: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

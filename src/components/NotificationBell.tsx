@@ -1,114 +1,53 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList } from 'react-native';
-import { Bell, X, CheckCheck } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../config/theme';
-import { useNotifications, type RiderNotification } from '../hooks/useNotifications';
-
-function timeAgo(iso: string): string {
-  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { Bell } from 'lucide-react-native';
+import { Colors, FontSizes, FontWeights } from '../config/theme';
+import { useNotifications } from '../hooks/useNotifications';
 
 // Replaces RiderHeader's previously-unwired bell (it mirrored mission.unreadDR,
 // the dispatcher-chat-unread signal already surfaced separately by
 // FloatingChatButton) with real notification history — closes REQ037.
+//
+// Opens the Notifications screen (2026-10-22). It used to open a modal sheet
+// whose rows could not be tapped, filtered or sorted.
 export function NotificationBell() {
-  const { notifications, unreadCount, isLoading, markRead } = useNotifications();
-  const [visible, setVisible] = useState(false);
+  const { unreadCount } = useNotifications();
+  const navigation = useNavigation<any>();
 
   return (
-    <>
-      <TouchableOpacity
-        style={styles.iconButton}
-        onPress={() => setVisible(true)}
-        testID="rider-notification-bell"
-        accessibilityRole="button"
-        accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-        activeOpacity={0.75}
-      >
-        <Bell size={20} color={Colors.primary} strokeWidth={2.2} />
-        {unreadCount > 0 && (
-          <View style={styles.badgeContainer}>
-            <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
-        <View style={styles.overlay}>
-          <View style={styles.sheet}>
-            <View style={styles.header}>
-              <Text style={styles.title}>Notifications</Text>
-              <TouchableOpacity onPress={() => setVisible(false)}
-              testID="close-notifications"
-              accessibilityRole="button"
-              accessibilityLabel="Close notifications"
-            >
-                <X size={20} color={Colors.textGray} />
-              </TouchableOpacity>
-            </View>
-
-            {isLoading && notifications.length === 0 ? (
-              <Text style={styles.emptyText}>Loading...</Text>
-            ) : notifications.length === 0 ? (
-              <Text style={styles.emptyText}>No notifications yet.</Text>
-            ) : (
-              <FlatList
-                data={notifications}
-                keyExtractor={(item) => String(item.id)}
-                style={styles.list}
-                renderItem={({ item }: { item: RiderNotification }) => (
-                  <View style={[styles.item, !item.isRead && styles.itemUnread]}>
-                    <View style={styles.itemHeader}>
-                      <Text style={styles.itemTitle}>{item.title}</Text>
-                      {!item.isRead && (
-                        <TouchableOpacity onPress={() => markRead(item.id)}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel="Mark this notification as read"
-                  >
-                          <CheckCheck size={15} color={Colors.info} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    <Text style={styles.itemBody}>{item.body}</Text>
-                    <Text style={styles.itemTime}>{timeAgo(item.createdAt)}</Text>
-                  </View>
-                )}
-              />
-            )}
-          </View>
+    <TouchableOpacity
+      style={styles.iconButton}
+      onPress={() => navigation.navigate('Notifications')}
+      testID="rider-notification-bell"
+      accessibilityRole="button"
+      accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+      activeOpacity={0.75}
+    >
+      <Bell size={20} color={Colors.navy} strokeWidth={2.2} />
+      {unreadCount > 0 && (
+        <View style={styles.badgeContainer}>
+          <Text style={styles.badgeText} maxFontSizeMultiplier={1.15}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
         </View>
-      </Modal>
-    </>
+      )}
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: Colors.bgWhite,
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
     position: 'relative',
   },
   badgeContainer: {
     position: 'absolute',
     top: -4,
     right: -4,
-    minWidth: 18,
-    height: 18,
+    minWidth: 20,
+    height: 20,
     paddingHorizontal: 4,
     borderRadius: 9,
     backgroundColor: Colors.primary,
@@ -117,24 +56,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { color: Colors.textWhite, fontSize: 9, fontWeight: FontWeights.extrabold },
-  overlay: { flex: 1, backgroundColor: Colors.overlayDark, justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: Colors.bgWhite,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    maxHeight: '75%',
-    paddingBottom: Spacing.huge,
-  },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
-  title: { fontSize: FontSizes.xl, fontWeight: FontWeights.bold, color: Colors.textDark },
-  emptyText: { fontSize: FontSizes.md, color: Colors.textGray, textAlign: 'center', paddingVertical: Spacing.xxl },
-  list: { maxHeight: 420 },
-  item: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  itemUnread: { backgroundColor: Colors.infoSubtle },
-  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.sm },
-  itemTitle: { fontSize: FontSizes.md, fontWeight: FontWeights.bold, color: Colors.textDark, flex: 1 },
-  itemBody: { fontSize: FontSizes.base, color: Colors.textGray, marginTop: 2 },
-  itemTime: { fontSize: FontSizes.xxs, color: Colors.textLight, marginTop: 4 },
+  badgeText: { color: Colors.textWhite, fontSize: FontSizes.xs, fontWeight: FontWeights.extrabold },
 });

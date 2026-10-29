@@ -2,33 +2,38 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Bike, Radio } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
+import { HomeColors } from '../homeTheme';
 
-export function WaitingCard() {
+export function WaitingCard({ hasActiveErrand = false, isOnDuty = true }: { hasActiveErrand?: boolean; isOnDuty?: boolean }) {
   return (
     <View style={styles.container}>
       <View style={styles.radarWrapper}>
-        <View style={styles.radarRingOuter} />
         <View style={styles.iconContainer}>
-          <Bike size={28} color={Colors.primary} strokeWidth={2.2} />
+          <Bike size={30} color={HomeColors.accent} strokeWidth={2.2} />
         </View>
-        <View style={styles.pulseDot} />
       </View>
-      <Text style={styles.title} maxFontSizeMultiplier={1.25}>Ready for next errand</Text>
-      <Text style={styles.description} maxFontSizeMultiplier={1.25}>
-        The dispatcher will send errands when available. Keep the app open and stay in service areas.
+      <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.25}>
+        {hasActiveErrand ? 'Your errand is in progress' : isOnDuty ? 'Ready for next errand' : "You're off duty"}
       </Text>
-      <View style={styles.statusPill}>
+      <Text style={styles.description} maxFontSizeMultiplier={1.25}>
+        {hasActiveErrand
+          ? 'Use Open navigation below to continue your current errand. New offers will appear here.'
+          : isOnDuty
+            ? 'New errands from the dispatcher will appear here. Stay within your service area.'
+            : "Go online from Profile when you're ready to receive errands."}
+      </Text>
+      {!hasActiveErrand && isOnDuty && <View style={styles.statusPill}>
         <Radio size={12} color={Colors.success} />
-        <Text style={styles.statusPillText} maxFontSizeMultiplier={1.25}>Listening for nearby dispatch</Text>
-      </View>
+        <Text style={styles.statusPillText} maxFontSizeMultiplier={1.25}>Available for dispatch</Text>
+      </View>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: Spacing.huge,
-    paddingHorizontal: Spacing.xl,
+    paddingVertical: moderateScale(32, 0.5),
+    paddingHorizontal: moderateScale(8, 0.5),
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
@@ -38,45 +43,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing.lg,
   },
-  radarRingOuter: {
-    position: 'absolute',
-    width: moderateScale(80, 0.20),
-    height: moderateScale(80, 0.20),
-    borderRadius: moderateScale(40, 0.20),
-    borderWidth: 1.5,
-    borderColor: 'rgba(246, 36, 89, 0.15)',
-  },
   iconContainer: {
     width: moderateScale(60, 0.20),
     height: moderateScale(60, 0.20),
-    borderRadius: moderateScale(30, 0.20),
-    backgroundColor: Colors.primarySurface,
+    borderRadius: BorderRadius.md,
+    backgroundColor: HomeColors.accentSurface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pulseDot: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.success,
-    borderWidth: 2,
-    borderColor: Colors.bgWhite,
-  },
   title: {
-    color: Colors.textDark,
-    fontSize: scaledFontSize(FontSizes.lg, 0.20),
+    color: Colors.navy,
+    fontSize: scaledFontSize(FontSizes.lg, 0.35),
     fontWeight: FontWeights.bold as any,
     textAlign: 'center',
   },
   description: {
     color: Colors.textGray,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
-    marginTop: Spacing.xs,
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
+    marginTop: moderateScale(12, 0.5),
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: moderateScale(22, 0.5),
     maxWidth: 320,
   },
   statusPill: {

@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import { Zap, Clock, Store, MapPin, DollarSign, User, ShieldCheck } from 'lucide-react-native';
+import { Clock, Store, MapPin, User } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 import { SlideToConfirm } from '../../../components/SlideToConfirm';
 import { formatErrandId } from '../../../utils/formatErrandId';
 import { Errand, MergedErrand } from '../../../types/rider';
 import { formatEarnings } from '../../../utils/earnings';
 import { merchantCategoryLabel } from '../../../services/merchantCategory';
+import { HomeColors } from '../homeTheme';
 
 interface NewTaskCardProps {
   errand: MergedErrand | Errand;
@@ -19,6 +20,7 @@ interface NewTaskCardProps {
    */
   onExpire: () => void;
   isAccepting?: boolean;
+  feeDetails?: React.ReactNode;
 }
 
 const TOTAL_COUNTDOWN_SECONDS = 45;
@@ -36,7 +38,7 @@ function secondsLeftOnOffer(assignedAt: string | null | undefined): number {
   return Math.min(TOTAL_COUNTDOWN_SECONDS, Math.max(0, TOTAL_COUNTDOWN_SECONDS - elapsed));
 }
 
-export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting = false }: NewTaskCardProps) {
+export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting = false, feeDetails }: NewTaskCardProps) {
   const [secondsRemaining, setSecondsRemaining] = useState(() => secondsLeftOnOffer(errand.assignedAt));
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const expiredRef = useRef(false);
@@ -99,38 +101,29 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
         />
       </View>
 
-      {/* HEADER WITH HIGH CONTRAST BADGE & TIMER */}
+      {/* Offer identity and its real remaining response time. */}
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          <View style={styles.incomingBadge}>
-            <Zap size={14} color={Colors.textWhite}/>
-            <Text style={styles.incomingBadgeText} maxFontSizeMultiplier={1.25}>NEW ERRAND</Text>
-          </View>
-          <View style={styles.countdownBadge}>
-            <Clock size={13} color={Colors.primary}/>
+          <Text style={styles.offerTitle} accessibilityRole="header" maxFontSizeMultiplier={1.25}>New errand</Text>
+          <View style={styles.countdownBadge} accessible accessibilityLabel={`${secondsRemaining} seconds to respond to this offer`}>
+            <Clock size={16} color={HomeColors.accent}/>
             <Text style={styles.countdownText} maxFontSizeMultiplier={1.25}>{secondsRemaining}s</Text>
           </View>
         </View>
 
         <View style={styles.titleSection}>
-          <Text style={styles.orderIdText} maxFontSizeMultiplier={1.25}>Order #{formatErrandId(errand.id)}</Text>
+          <Text style={styles.orderIdText} maxFontSizeMultiplier={1.25}>Errand {formatErrandId(errand.id)}</Text>
           {/* The shop's category, not the service type — which is always
               "Pabili" and told a rider nothing about where they were going. */}
           <Text style={styles.typeText} maxFontSizeMultiplier={1.25}>
-            {storeKind ? `${storeKind} Delivery` : 'Errand Delivery'}
+            {storeKind ?? 'Store pickup and delivery'}
           </Text>
         </View>
       </View>
 
-      {/* EARNINGS HERO BANNER */}
-      <View style={styles.earningsHero}>
-        <View>
-          <Text style={styles.earningsLabel} maxFontSizeMultiplier={1.25}>GUARANTEED EARNINGS</Text>
-          <Text style={styles.earningsAmount} maxFontSizeMultiplier={1.25}>{earnings}</Text>
-        </View>
-        <View style={styles.earningsIconBox}>
-          <DollarSign size={24} color={Colors.success}/>
-        </View>
+      <View style={styles.earningsRow}>
+        <Text style={styles.earningsLabel} maxFontSizeMultiplier={1.25}>You earn</Text>
+        <Text style={styles.earningsAmount} maxFontSizeMultiplier={1.25}>{earnings}</Text>
       </View>
 
       {/* Connected Route Itinerary Timeline (Zero Nested Cards) */}
@@ -144,8 +137,8 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
             <View style={styles.timelineLine} />
           </View>
           <View style={styles.timelineContent}>
-            <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>CUSTOMER</Text>
-            <Text style={styles.timelineTitle} numberOfLines={1} maxFontSizeMultiplier={1.25}>
+            <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Customer</Text>
+            <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
               {errand.customer || 'Customer'}
             </Text>
           </View>
@@ -163,9 +156,9 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
               </View>
               <View style={styles.timelineContent}>
                 <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>
-                  STORE {idx + 1}
+                  Store {idx + 1}
                 </Text>
-                <Text style={styles.timelineTitle} numberOfLines={2} maxFontSizeMultiplier={1.25}>
+                <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
                   {p.storeName}
                 </Text>
               </View>
@@ -180,8 +173,8 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
               <View style={styles.timelineLine} />
             </View>
             <View style={styles.timelineContent}>
-              <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>STORE</Text>
-              <Text style={styles.timelineTitle} numberOfLines={2} maxFontSizeMultiplier={1.25}>
+              <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Store</Text>
+              <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
                 {storeKind ?? 'Not pinned yet'}
               </Text>
             </View>
@@ -196,13 +189,15 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
             </View>
           </View>
           <View style={styles.timelineContent}>
-            <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>CUSTOMER DROP-OFF</Text>
-            <Text style={styles.timelineTitle} numberOfLines={2} maxFontSizeMultiplier={1.25}>
+            <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Drop-off</Text>
+            <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
               {errand.address}
             </Text>
           </View>
         </View>
       </View>
+
+      {feeDetails ? <View style={styles.feeDetails}>{feeDetails}</View> : null}
 
       {/* ACTION CONTROLS */}
       <View style={styles.actionContainer}>
@@ -229,32 +224,25 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
     overflow: 'hidden',
     backgroundColor: Colors.bgWhite,
     borderWidth: 1,
-    borderColor: Colors.border,
-    elevation: 3,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    borderColor: HomeColors.divider,
     marginVertical: Spacing.xs,
   },
   timerBarContainer: {
     height: 5,
-    backgroundColor: Colors.border,
+    backgroundColor: HomeColors.accentSurface,
     width: '100%',
   },
   timerBarFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: HomeColors.accent,
   },
   header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
-    backgroundColor: Colors.navy,
+    padding: moderateScale(20, 0.5),
+    backgroundColor: Colors.bgWhite,
   },
   headerTopRow: {
     flexDirection: 'row',
@@ -264,86 +252,66 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     marginBottom: Spacing.xs,
   },
-  incomingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-  },
-  incomingBadgeText: {
-    color: Colors.textWhite,
-    fontSize: scaledFontSize(10, 0.20),
-    fontWeight: FontWeights.bold as any,
-    letterSpacing: 0.5,
+  offerTitle: {
+    flexShrink: 1,
+    color: Colors.navy,
+    fontSize: scaledFontSize(FontSizes.lg, 0.35),
+    fontWeight: FontWeights.bold,
   },
   countdownBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.dangerBg,
+    backgroundColor: HomeColors.accentSurface,
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.primarySurface,
+    borderColor: HomeColors.accentSurface,
   },
   countdownText: {
-    color: Colors.primary,
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    color: HomeColors.accent,
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
     fontWeight: FontWeights.extrabold as any,
   },
   titleSection: {
     marginTop: 2,
   },
   orderIdText: {
-    color: Colors.navyLight,
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    color: HomeColors.accent,
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
     fontWeight: FontWeights.bold as any,
   },
   typeText: {
-    color: Colors.textWhite,
-    fontSize: scaledFontSize(FontSizes.xl, 0.20),
-    fontWeight: FontWeights.extrabold as any,
+    color: Colors.textMedium,
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
+    marginTop: Spacing.xs,
   },
-  earningsHero: {
+  earningsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: Spacing.xs,
-    backgroundColor: Colors.successSubtle,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.successBorder,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    borderBottomColor: HomeColors.divider,
+    paddingHorizontal: moderateScale(20, 0.5),
+    paddingBottom: moderateScale(16, 0.5),
   },
   earningsLabel: {
-    color: Colors.success,
-    fontSize: scaledFontSize(10, 0.20),
+    color: Colors.textMedium,
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
     fontWeight: FontWeights.bold as any,
-    letterSpacing: 0.5,
   },
   earningsAmount: {
     color: Colors.success,
-    fontSize: scaledFontSize(FontSizes.xxl, 0.20),
-    fontWeight: FontWeights.black as any,
+    fontSize: scaledFontSize(FontSizes.lg, 0.35),
+    fontWeight: FontWeights.bold as any,
     fontVariant: ['tabular-nums'],
   },
-  earningsIconBox: {
-    width: moderateScale(40, 0.20),
-    height: moderateScale(40, 0.20),
-    borderRadius: moderateScale(20, 0.20),
-    backgroundColor: Colors.successBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   itineraryContainer: {
-    padding: Spacing.lg,
+    padding: moderateScale(20, 0.5),
     paddingBottom: Spacing.xs,
-    backgroundColor: Colors.bgLight,
   },
   timelineItem: {
     flexDirection: 'row',
@@ -359,7 +327,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.navy,
+    backgroundColor: HomeColors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -367,7 +335,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.primary,
+    backgroundColor: HomeColors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -375,7 +343,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.successAccent,
+    backgroundColor: HomeColors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -383,7 +351,7 @@ const styles = StyleSheet.create({
     width: 2,
     flex: 1,
     minHeight: 18,
-    backgroundColor: Colors.border,
+    backgroundColor: HomeColors.divider,
     marginVertical: 2,
   },
   timelineContent: {
@@ -391,23 +359,22 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   timelineRole: {
-    fontSize: scaledFontSize(9, 0.20),
+    fontSize: scaledFontSize(FontSizes.xs, 0.35),
     color: Colors.textGray,
     fontWeight: FontWeights.bold as any,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
   },
   timelineTitle: {
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
-    color: Colors.textDark,
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
+    color: Colors.navy,
     fontWeight: FontWeights.semibold as any,
     marginTop: 1,
   },
   actionContainer: {
-    padding: Spacing.lg,
+    padding: moderateScale(20, 0.5),
     backgroundColor: Colors.bgWhite,
     gap: Spacing.sm,
   },
+  feeDetails: { paddingHorizontal: moderateScale(20, 0.5) },
   declineButton: {
     width: '100%',
     paddingVertical: moderateScale(12, 0.20),
@@ -419,7 +386,7 @@ const styles = StyleSheet.create({
   declineText: {
     color: Colors.textGray,
     fontWeight: FontWeights.semibold as any,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
   },
 });
 

@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/apiBaseUrl';
 import { getDeviceHeaders } from '../utils/deviceInfo';
 import { isTokenExpired } from '../utils/jwt';
+import { rememberErrandReferences } from '../utils/formatErrandId';
 
 export const SECURE_KEY_RIDER_TOKEN = 'sugo_rider_jwt_token';
 export const STORAGE_KEY_RIDER_TOKEN_FALLBACK = '@sugo_rider_jwt_token';
@@ -242,7 +243,12 @@ export function refreshRiderSession(): Promise<string> {
 }
 
 apiClient.interceptors.response.use(
-  (response: any) => response,
+  (response: any) => {
+    // Most screens show an errand from its id alone; this is where they learn
+    // its number (see formatErrandId).
+    rememberErrandReferences(response.data);
+    return response;
+  },
   async (error: any) => {
     const original = error.config;
     const status = error.response?.status;

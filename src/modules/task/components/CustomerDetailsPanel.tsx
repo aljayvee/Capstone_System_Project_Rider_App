@@ -4,6 +4,7 @@ import { Phone, MapPin, Signpost, Flag, MessageSquareText } from 'lucide-react-n
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 
 import { Errand, MergedErrand } from '../../../types/rider';
+import { TaskSheetColors } from '../../../config/taskSheetTheme';
 
 interface CustomerDetailsPanelProps {
   errand: MergedErrand | Errand;
@@ -28,12 +29,12 @@ export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
           onPress={handleCall}
           accessibilityRole="button"
           accessibilityLabel="Call the customer" disabled={!customerPhone}>
-          <Phone size={16} color={Colors.success} />
+          <Phone size={18} color={customerPhone ? Colors.navy : Colors.textLight} />
         </TouchableOpacity>
       </View>
       <View style={styles.addressRow}>
         <MapPin size={14} color={Colors.textLight} style={styles.mapPin} />
-        <Text style={styles.address} numberOfLines={2} maxFontSizeMultiplier={1.15}>{address}</Text>
+        <Text style={styles.address} maxFontSizeMultiplier={1.15}>{address}</Text>
       </View>
 
       {/* What the customer saved for the door. A map pin gets the rider to the
@@ -59,7 +60,7 @@ export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
       ) : null}
       {deliveryNotes ? (
         <View style={styles.notesBox} testID="customer-delivery-notes">
-          <MessageSquareText size={14} color={Colors.warning} style={styles.mapPin} />
+          <MessageSquareText size={14} color={Colors.navy} style={styles.mapPin} />
           <View style={styles.notesBody}>
             <Text style={styles.notesLabel} maxFontSizeMultiplier={1.15}>Customer's note</Text>
             <Text style={styles.notesText} maxFontSizeMultiplier={1.15}>{deliveryNotes}</Text>
@@ -72,10 +73,9 @@ export function CustomerDetailsPanel({ errand }: CustomerDetailsPanelProps) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.bgLight,
-    marginBottom: Spacing.md,
+    paddingBottom: moderateScale(20),
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   topRow: {
     flexDirection: 'row',
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   name: {
-    color: Colors.textDark,
+    color: Colors.navy,
     fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.bold as any,
   },
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   callButton: {
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.successBg,
+    backgroundColor: TaskSheetColors.accentSurface,
     minHeight: 48,
     minWidth: 48,
     justifyContent: 'center',
@@ -140,13 +140,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.warningBg,
+    backgroundColor: TaskSheetColors.mutedSurface,
   },
   notesBody: {
     flex: 1,
   },
   notesLabel: {
-    color: Colors.warning,
+    color: Colors.navy,
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.bold as any,
     marginBottom: 2,

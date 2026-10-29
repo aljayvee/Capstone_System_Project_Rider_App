@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Banknote, Camera, CheckCircle2, AlertTriangle } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 import { formatPeso } from '../../../utils/format';
 import type { Errand, MergedErrand, PaymentPlan } from '../../../types/rider';
 import type { PaymentProofKind } from '../../../services/missionProgress';
+import { TaskSheetColors } from '../../../config/taskSheetTheme';
 
 interface CashCollectionProps {
   errand?: MergedErrand | Errand | null;
@@ -70,8 +71,8 @@ export function CashCollectionInput({
     <View style={styles.container}>
       <View style={styles.card}>
         <View style={styles.header}>
-          <Banknote size={16} color={Colors.success} />
-          <Text style={styles.label}>COLLECT FROM CUSTOMER</Text>
+          <Banknote size={18} color={Colors.navy} />
+          <Text style={styles.label} maxFontSizeMultiplier={1.25}>Collect from customer</Text>
         </View>
 
         <Text style={styles.amount} testID="cash-amount-due">
@@ -118,8 +119,8 @@ export function CashCollectionInput({
               onPress={onCaptureBalanceProof}
               testID="cash-capture-balance-proof"
             >
-              <Camera size={16} color={Colors.textWhite} />
-              <Text style={styles.confirmBtnText}>Photograph their GCash, Maya or bank receipt</Text>
+              <Camera size={18} color={Colors.navy} />
+              <Text style={styles.confirmBtnText} maxFontSizeMultiplier={1.25}>Photograph their GCash, Maya or bank receipt</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.shortBtn}
@@ -128,8 +129,8 @@ export function CashCollectionInput({
               accessibilityLabel="They're paying cash instead"
               testID="cash-capture-cash-instead"
             >
-              <AlertTriangle size={13} color={Colors.warning} />
-              <Text style={styles.shortText}>They're paying cash instead</Text>
+              <AlertTriangle size={14} color={Colors.textGray} />
+              <Text style={styles.shortText} maxFontSizeMultiplier={1.25}>They're paying cash instead</Text>
             </TouchableOpacity>
             {nonCodFee > 0 && (
               <Text style={styles.cashInsteadNote} testID="cash-instead-amount">
@@ -145,8 +146,8 @@ export function CashCollectionInput({
             onPress={onCaptureCashProof}
             testID="cash-capture-cash-proof"
           >
-            <Camera size={16} color={Colors.textWhite} />
-            <Text style={styles.confirmBtnText}>Photograph the cash you collected</Text>
+            <Camera size={18} color={Colors.navy} />
+            <Text style={styles.confirmBtnText} maxFontSizeMultiplier={1.25}>Photograph the cash you collected</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -155,27 +156,22 @@ export function CashCollectionInput({
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: Spacing.md },
+  container: { gap: Spacing.sm },
   card: {
-    backgroundColor: Colors.bgWhite,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.sm,
+    backgroundColor: TaskSheetColors.surface,
+    gap: moderateScale(12),
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   label: {
     flexShrink: 1,
-    fontSize: FontSizes.xs,
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
     fontWeight: FontWeights.bold as any,
-    color: Colors.success,
-    letterSpacing: 0.5,
+    color: Colors.navy,
   },
   amount: {
-    fontSize: FontSizes.xxl,
+    fontSize: scaledFontSize(FontSizes.xxl, 0.35),
     fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    color: Colors.navy,
   },
   lines: { gap: 2 },
   line: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -185,8 +181,11 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     flexDirection: 'row',
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.success,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: TaskSheetColors.accentSurface,
+    borderWidth: 1,
+    borderColor: TaskSheetColors.accentBorder,
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
@@ -195,9 +194,9 @@ const styles = StyleSheet.create({
   confirmBtnText: {
     flexShrink: 1,
     textAlign: 'center',
-    fontSize: FontSizes.base,
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
     fontWeight: FontWeights.bold as any,
-    color: Colors.textWhite,
+    color: Colors.navy,
   },
   doneBlock: {
     marginTop: Spacing.xs,
@@ -235,7 +234,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: FontSizes.xs,
     fontWeight: FontWeights.semibold as any,
-    color: Colors.warning,
+    color: Colors.textMedium,
     textDecorationLine: 'underline',
   },
   cashInsteadNote: {

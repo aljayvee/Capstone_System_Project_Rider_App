@@ -3,7 +3,9 @@ import { AppState } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 import { API_BASE_URL } from '../config/apiBaseUrl';
 import { resolveRiderSocketToken } from '../services/apiClient';
+import { rememberErrandReferences } from '../utils/formatErrandId';
 import { currentLiveLocationSocket, registerLiveLocationSocket } from '../services/liveLocationSocket';
+import { notificationArrived } from '../services/notificationEvents';
 
 const SOCKET_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 
@@ -58,11 +60,13 @@ export function useRiderMissionSocket(riderId: number | undefined, onMatchingErr
       // dispatcher board shows this rider as signal lost until it reconnects.
       reconnectionDelayMax: 2000,
     });
+    // An offer pushed by socket learns its number before any screen renders it
+    // (onAny runs before the named handlers; see formatErrandId).
+    socket.onAny((_event: string, ...args: unknown[]) => rememberErrandReferences(args));
 
     // The one-second heartbeat (server: lib/riderLiveLink.ts). It is how the
-    // dispatcher, owner and customer learn within about three seconds that
-    // this phone lost its connection, instead of 25 to 75 seconds later from
-    // the HTTP beacon. A WebSocket frame, so it never touches the API rate
+    // dispatcher, owner and customer learn after the server's heartbeat grace
+    // period that this connection stopped reporting. A WebSocket frame never touches the API rate
     // limiter. Volatile: a heartbeat that cannot go now is dropped, never
     // queued and replayed late.
     //
@@ -72,7 +76,13 @@ export function useRiderMissionSocket(riderId: number | undefined, onMatchingErr
     // carry the rider until the app is opened again.
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     const startHeartbeat = () => {
-      if (heartbeatTimer || AppState.currentState !== 'active') return;
+      // A socket can reconnect while Android still has the app backgrounded.
+      // Repeat the pause then: the old pause frame may have been lost.
+      if (AppState.currentState !== 'active') {
+        if (socket.connected) socket.emit('rider:heartbeat_pause');
+        return;
+      }
+      if (heartbeatTimer) return;
       socket.volatile.emit('rider:heartbeat');
       heartbeatTimer = setInterval(() => {
         if (socket.connected) socket.volatile.emit('rider:heartbeat');
@@ -108,6 +118,11 @@ export function useRiderMissionSocket(riderId: number | undefined, onMatchingErr
     });
     socket.on('order:updated', handleOrderEvent);
     socket.on('order:claimed', handleOrderEvent);
+    // A saved notification for this rider (their own room): the notification
+    // feed (context/RiderNotificationContext) adds it without waiting for a poll.
+    socket.on('notification:new', (payload: Record<string, unknown>) => {
+      if (payload && typeof payload === 'object') notificationArrived.emit(payload);
+    });
 
     // Money moving on this rider's errands: the half being asked for, the
     // customer's receipt, the dispatcher's confirmation. These go to the
@@ -155,7 +170,7 @@ export function useRiderMissionSocket(riderId: number | undefined, onMatchingErr
       }
       if (state === 'active') {
         if (socket.connected) startHeartbeat();
-      } else if (heartbeatTimer) {
+      } else {
         stopHeartbeat();
         if (socket.connected) socket.emit('rider:heartbeat_pause');
       }

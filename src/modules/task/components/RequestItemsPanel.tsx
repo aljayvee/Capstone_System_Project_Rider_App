@@ -17,6 +17,7 @@ import { StatusStep, Errand, MergedErrand, ItemFulfillmentStatus } from '../../.
 import { requestSections, type RequestSection } from '../../../services/requestSections';
 import { formatItemLabel } from '../../../utils/format';
 import { riderApiService } from '../../../config/apiConfig';
+import { TaskSheetColors } from '../../../config/taskSheetTheme';
 
 interface RequestItemsPanelProps {
   errand?: MergedErrand | Errand;
@@ -199,13 +200,11 @@ export function RequestItemsPanel({
         }
       >
         <View style={styles.headerLeft}>
-          <ClipboardList size={14} color={Colors.warning} />
+          <ClipboardList size={18} color={Colors.navy} />
           <Text style={styles.headerTitle} maxFontSizeMultiplier={1.25}>
             {collapsible && collapsed
               ? `Purchased Items (${totalLinesCount})`
-              : !isOnTheWayToCustomer && visibleSectionsWithIndex[0]?.section.title
-                ? `Request Items • ${visibleSectionsWithIndex[0].section.title}`
-                : 'Request Items & Instructions'}
+              : 'Request Items & Instructions'}
           </Text>
         </View>
         {collapsible && (
@@ -326,7 +325,7 @@ export function RequestItemsPanel({
                         </View>
                       </TouchableOpacity>
 
-                      {/* Tier 2: Sub-row for Actions and Status (Separated from item text) */}
+                      {/* Stock action stays beside its item, with a separate touch target. */}
                       {(!isLocked && !isOnTheWayToCustomer && !isPurchased) || isPurchased ? (
                         <View style={styles.itemSubRow}>
                           {!isLocked && !isOnTheWayToCustomer && !isPurchased && (
@@ -443,11 +442,11 @@ export function RequestItemsPanel({
                               : `Photograph the receipt for ${section.title ?? 'this stop'}`
                       }
                     >
-                      <Camera size={14} color={isCompleted ? Colors.success : !allItemsChecked ? Colors.textGray : Colors.warning} />
+                      <Camera size={18} color={isCompleted ? Colors.success : Colors.navy} />
                       <Text
                         style={[
                           styles.uploadText,
-                          { color: isCompleted ? Colors.success : !allItemsChecked ? Colors.textGray : Colors.warning },
+                          { color: isCompleted ? Colors.success : Colors.navy },
                         ]}
                         maxFontSizeMultiplier={1.25}
                       >
@@ -600,18 +599,14 @@ export function RequestItemsPanel({
 
 const styles = StyleSheet.create({
   container: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.warningSubtle,
-    borderWidth: 1,
-    borderColor: Colors.warningBorder,
-    marginBottom: Spacing.md,
+    gap: moderateScale(12),
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
+    minHeight: 48,
+    gap: Spacing.sm,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -623,9 +618,9 @@ const styles = StyleSheet.create({
     // Shrinks inside its row: React Native's flexShrink defaults to 0, so a
     // long store name otherwise ran out past the panel's edge.
     flexShrink: 1,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
     fontWeight: FontWeights.bold as any,
-    color: Colors.warning,
+    color: Colors.navy,
   },
   collapseToggle: {
     flexDirection: 'row',
@@ -641,20 +636,16 @@ const styles = StyleSheet.create({
   },
   content: { gap: Spacing.sm },
   itemBox: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.bgWhite,
-    borderWidth: 1,
-    borderColor: Colors.warningBorder,
-    gap: 4,
+    gap: moderateScale(8),
   },
   itemBoxLocked: {
-    opacity: 0.6,
+    opacity: 1,
   },
   itemRowContainer: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    paddingVertical: moderateScale(8),
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -663,31 +654,31 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.sm,
     minHeight: 48,
-    width: '100%',
+    flex: 1,
   },
   checkbox: {
     width: 20,
     height: 20,
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.textGray,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.bgWhite,
+    backgroundColor: TaskSheetColors.surface,
     marginTop: 2,
     flexShrink: 0,
   },
   itemSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 28,
-    paddingTop: 3,
-    paddingBottom: 2,
+    minHeight: 48,
+    maxWidth: moderateScale(100),
+    justifyContent: 'center',
     gap: Spacing.xs,
   },
   checkboxChecked: {
-    backgroundColor: Colors.success,
-    borderColor: Colors.success,
+    backgroundColor: TaskSheetColors.completed,
+    borderColor: TaskSheetColors.completed,
   },
   checkboxOutOfStock: {
     backgroundColor: Colors.warning,
@@ -708,14 +699,12 @@ const styles = StyleSheet.create({
   itemTitle: {
     fontSize: scaledFontSize(FontSizes.base, 0.20),
     fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    color: Colors.navy,
   },
   itemCategory: {
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.semibold as any,
     color: Colors.textGray,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
     marginBottom: 4,
   },
   itemText: {
@@ -733,25 +722,29 @@ const styles = StyleSheet.create({
   },
   itemTextChecked: {
     textDecorationLine: 'line-through',
-    color: Colors.textLight,
+    color: TaskSheetColors.completed,
   },
   itemTextOutOfStock: {
     textDecorationLine: 'line-through',
     color: Colors.warning,
   },
   oosPill: {
+    minWidth: 48,
+    minHeight: 48,
+    justifyContent: 'center',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 5,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgGray,
+    borderColor: TaskSheetColors.divider,
+    backgroundColor: TaskSheetColors.mutedSurface,
   },
   oosPillActive: {
     borderColor: Colors.warning,
     backgroundColor: Colors.warningSubtle,
   },
   oosPillText: {
+    textAlign: 'center',
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.semibold as any,
     color: Colors.textMedium,
@@ -764,7 +757,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: Spacing.xs,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.bgGray,
+    backgroundColor: TaskSheetColors.mutedSurface,
   },
   checklistSummaryText: {
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
@@ -783,12 +776,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   uploadPending: {
-    backgroundColor: Colors.warningSubtle,
-    borderColor: Colors.warningBorder,
+    backgroundColor: TaskSheetColors.accentSurface,
+    borderColor: TaskSheetColors.accentBorder,
   },
   uploadSuccess: {
     backgroundColor: Colors.successSubtle,
-    borderColor: Colors.success,
+    borderColor: Colors.successBorder,
   },
   noReceiptButton: {
     alignItems: 'center',
@@ -811,23 +804,21 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.semibold as any,
   },
   uploadDisabled: {
-    backgroundColor: Colors.bgGray,
-    borderColor: Colors.border,
+    backgroundColor: TaskSheetColors.mutedSurface,
+    borderColor: TaskSheetColors.divider,
   },
   pendingGateNotice: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    padding: Spacing.sm,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.warningSubtle,
-    borderWidth: 1,
-    borderColor: Colors.warningBorder,
+    backgroundColor: TaskSheetColors.surface,
     marginTop: Spacing.sm,
   },
   pendingGateNoticeText: {
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
-    color: Colors.warning,
+    color: Colors.textMedium,
     flex: 1,
     lineHeight: 17,
     fontWeight: FontWeights.medium as any,

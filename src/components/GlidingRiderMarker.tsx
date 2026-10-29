@@ -1,165 +1,118 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Marker } from 'react-native-maps';
 import type { MapCoordinate } from '../utils/coords';
-import {
-  advanceAlongPath,
-  bearingBetween,
-  lerpCoordinate,
-  metresBetween,
-  projectOntoPath,
-} from '../utils/routeGeometry';
-import { markerSnapMeters } from '../utils/navigationCamera';
+import { bearingBetween, metresBetween } from '../utils/routeGeometry';
+import { headingDelta } from '../utils/navigationCamera';
+import { RiderMotion } from '../utils/riderMotion';
 
-/**
- * How long the dot takes to travel from its last drawn spot to a new fix.
- *
- * Matched to the 1 s fix cadence the foreground watcher uses (it was 2 s, and
- * this was 2200; left there, every glide was cut short by the next fix and
- * the dot trailed the rider), so the dot is still moving when the next fix
- * lands and never sits waiting. Slightly longer than the gap on purpose:
- * arriving a fraction late reads as smooth, arriving early reads as a stutter
- * followed by a pause. The navigation camera animates over the same span.
- */
-export const GLIDE_MS = 1100;
-
-/** ~30 fps. Sixty would be smoother in theory and is indistinguishable here. */
-const FRAME_MS = 33;
-
-const RIDER_PUCK = require('../../assets/rider-puck.png');
+const RIDER_PUCK = require('../../assets/rider-motorcycle.png');
 
 interface Props {
-  /** The latest raw GPS fix. */
   target: MapCoordinate | null;
-  /** The route being followed, used to glide along the road rather than across it. */
   route: MapCoordinate[] | null;
-  /** Device heading when known; the direction of travel is used when it is not. */
   headingDeg?: number | null;
-  /**
-   * Ground speed in m/s. Decides how far off the road a fix may be and still be
-   * drawn on it (utils/navigationCamera.markerSnapMeters): riding, GPS scatter
-   * is pulled back onto the road; standing in a store, it is not.
-   */
   speedMps?: number | null;
+  recordedAt?: number;
+  stationary?: boolean;
+  active?: boolean;
+  /** Native camera follows this visual sample, never a second GPS tween. */
+  onPositionChange?: (coordinate: MapCoordinate, rotation: number) => void;
 }
 
-/**
- * The rider's dot, moving the way a rider moves.
- *
- * The marker used to take `coordinate={riderLocation}` straight from GPS state,
- * so it teleported every couple of seconds — the single thing that most made
- * this map look unlike the delivery apps riders use daily. Two changes fix that:
- * the dot is projected onto the route line so it sits on the carriageway instead
- * of in the buildings a raw fix wanders into, and it is interpolated between
- * fixes ALONG that line, so it follows the bend of the road rather than cutting
- * the corner.
- *
- * Self-contained on purpose. Animating at 30 fps in the parent would re-render
- * the MapView, every Marker and the Polylines on every frame.
- */
-export default function GlidingRiderMarker({ target, route, headingDeg, speedMps }: Props) {
-  const [position, setPosition] = useState<MapCoordinate | null>(target);
-  const [bearing, setBearing] = useState(0);
+/** One frame loop owns position and rotation. React only mounts/reseeds the pin. */
+export default function GlidingRiderMarker(props: Props) {
+  const { target, headingDeg, recordedAt, speedMps, stationary, active = true } = props;
+  const [seed, setSeed] = useState(target);
+  const initialRotation = useRef(typeof headingDeg === 'number' && Number.isFinite(headingDeg) && headingDeg >= 0 ? headingDeg : 0);
+  const rotation = useRef(initialRotation.current);
+  const markerRef = useRef<React.ComponentRef<typeof Marker> | null>(null);
+  const motion = useRef(new RiderMotion());
+  const frameRef = useRef<number | null>(null);
+  const previousFrame = useRef<number | null>(null);
+  const previousPosition = useRef(target);
+  const latest = useRef(props);
+  latest.current = props;
+  const drawRef = useRef<() => void>(() => {});
 
-  const positionRef = useRef<MapCoordinate | null>(target);
-  const frameRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const schedule = () => {
+    if (frameRef.current === null && latest.current.active !== false && latest.current.target) {
+      frameRef.current = requestAnimationFrame(() => drawRef.current());
+    }
+  };
+  const turning = () => {
+    const wanted = latest.current.headingDeg;
+    return typeof wanted === 'number' && Number.isFinite(wanted) && wanted >= 0 && Math.abs(headingDelta(rotation.current, wanted)) > 0.1;
+  };
+  drawRef.current = () => {
+    frameRef.current = null;
+    const now = performance.now();
+    const sample = motion.current.sample(now);
+    if (!sample || latest.current.active === false || !latest.current.target) return;
+    const dt = previousFrame.current === null ? 1 / 60 : Math.max(0, (now - previousFrame.current) / 1000);
+    previousFrame.current = now;
+    const previous = previousPosition.current;
+    let wanted = latest.current.headingDeg;
+    if (!(typeof wanted === 'number' && wanted >= 0 && Number.isFinite(wanted))) {
+      wanted = previous && metresBetween(previous, sample.coordinate) > 0.01 ? bearingBetween(previous, sample.coordinate) : rotation.current;
+    }
+    // Time-based shortest-arc smoothing; heading changes never write a second,
+    // conflicting native rotation. Response is the same at 30/60/90 Hz.
+    const delta = headingDelta(rotation.current, wanted);
+    rotation.current += Math.abs(delta) < 0.1 ? delta : delta * (1 - Math.exp(-dt / 0.15));
+    const normalized = (rotation.current % 360 + 360) % 360;
+    markerRef.current?.setCoordinates(sample.coordinate);
+    markerRef.current?.setNativeProps({ rotation: normalized });
+    previousPosition.current = sample.coordinate;
+    latest.current.onPositionChange?.(sample.coordinate, normalized);
+    if (sample.moving || Math.abs(headingDelta(rotation.current, wanted)) > 0.1) schedule();
+    else previousFrame.current = null;
+  };
 
   useEffect(() => {
-    if (!target) return;
-
-    const from = positionRef.current;
-
-    // First fix, or a jump too large to be travel (a cold-start fix, a rider
-    // resuming across town). Snapping there beats gliding across the city.
-    if (!from || metresBetween(from, target) > 500) {
-      positionRef.current = target;
-      setPosition(target);
+    if (!target) {
+      motion.current.clear();
+      previousPosition.current = null;
+      setSeed(null);
       return;
     }
+    // A newly mounted pin has no visible previous orientation to animate from.
+    if (!seed && typeof headingDeg === 'number' && Number.isFinite(headingDeg) && headingDeg >= 0) {
+      initialRotation.current = headingDeg;
+      rotation.current = headingDeg;
+    }
+    const accepted = motion.current.push(target, {
+      now: performance.now(), wallNow: Date.now(), recordedAt, speedMps, stationary, route: latest.current.route,
+    });
+    if (accepted) {
+      const sample = motion.current.sample(performance.now());
+      if (!seed || (sample && !sample.moving)) setSeed(sample?.coordinate ?? target);
+      if (sample?.moving || turning() || (previousPosition.current && sample && metresBetween(previousPosition.current, sample.coordinate) > 0.01)) schedule();
+    }
+    // Route/compass identity refreshes do not restart positional movement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target?.latitude, target?.longitude, recordedAt, speedMps, stationary]);
 
-    const path = route && route.length > 1 ? route : null;
-    const destination = (() => {
-      if (!path) return target;
-      const projected = projectOntoPath(target, path);
-      // Off-route: the rider is on a side street the route does not use, the
-      // route is stale, or they are standing inside a store. Drawing them on the
-      // line would be a confident lie.
-      if (!projected || projected.distanceMeters > markerSnapMeters(speedMps)) return target;
-      return projected.point;
-    })();
+  useEffect(() => {
+    if (!active || !target) {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+      previousFrame.current = null;
+    } else if (motion.current.sample(performance.now())?.moving || turning()) schedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, headingDeg, !!target]);
 
-    const startedAt = Date.now();
-    const startPoint = from;
-    const startProjection = path ? projectOntoPath(startPoint, path) : null;
-    const endProjection = path ? projectOntoPath(destination, path) : null;
+  useEffect(() => () => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+  }, []);
 
-    // Distance to cover along the road, when both ends are on it.
-    const alongRoute =
-      path && startProjection && endProjection && endProjection.segmentIndex >= startProjection.segmentIndex
-        ? (() => {
-            let total = 0;
-            let cursor = startProjection.point;
-            for (let i = startProjection.segmentIndex; i < endProjection.segmentIndex; i++) {
-              total += metresBetween(cursor, path[i + 1]);
-              cursor = path[i + 1];
-            }
-            return total + metresBetween(cursor, endProjection.point);
-          })()
-        : null;
-
-    if (frameRef.current) clearInterval(frameRef.current);
-
-    frameRef.current = setInterval(() => {
-      const elapsed = Date.now() - startedAt;
-      const t = Math.min(1, elapsed / GLIDE_MS);
-      // Ease-out: a rider decelerating into the next fix looks natural, a linear
-      // ramp that stops dead does not.
-      const eased = 1 - Math.pow(1 - t, 2);
-
-      const next =
-        path && startProjection && alongRoute !== null
-          ? advanceAlongPath(path, startProjection, alongRoute * eased).point
-          : lerpCoordinate(startPoint, destination, eased);
-
-      const previous = positionRef.current;
-      positionRef.current = next;
-      setPosition(next);
-
-      if (previous && metresBetween(previous, next) > 0.5) {
-        setBearing(bearingBetween(previous, next));
-      }
-
-      if (t >= 1 && frameRef.current) {
-        clearInterval(frameRef.current);
-        frameRef.current = null;
-      }
-    }, FRAME_MS);
-
-    return () => {
-      if (frameRef.current) {
-        clearInterval(frameRef.current);
-        frameRef.current = null;
-      }
-    };
-  }, [target?.latitude, target?.longitude, route]);
-
-  if (!position) return null;
-
+  if (!target || !seed) return null;
   return (
     <Marker
-      coordinate={position}
+      ref={markerRef}
+      coordinate={seed}
       anchor={{ x: 0.5, y: 0.5 }}
       flat
-      // The phone's heading when it has one; otherwise the direction the dot
-      // is gliding. A heading of -1 means "unknown", not "nearly north".
-      rotation={typeof headingDeg === 'number' && headingDeg >= 0 ? headingDeg : bearing}
-      // An image, never a child view. On Android's new architecture
-      // react-native-maps turns a child view into a bitmap once, and loses it:
-      // after switching between Google and OpenStreetMap the rider's dot came
-      // back blank and stayed gone (react-native-maps #5877, #5728; and
-      // tracksViewChanges is no longer passed to Android at all). A bundled
-      // image is loaded from the app's resources and has nothing to lose.
-      // assets/rider-puck*.png: an arrow puck, so it also shows which way the
-      // rider is heading. Its source is assets/rider-puck.svg.
+      rotation={initialRotation.current}
       image={RIDER_PUCK}
       title="You"
     />

@@ -12,6 +12,8 @@ import { Colors, BorderRadius, Spacing, Elevation } from '../config/theme';
 
 export interface BottomSheetProps {
   children: React.ReactNode;
+  /** Optional surface shared by the sliding sheet and its pinned footer. */
+  surfaceColor?: string;
   /** Height of the peeking state, in dp. */
   collapsedHeight?: number;
   /** Fraction of screen height the expanded state occupies. 0-1. */
@@ -82,6 +84,7 @@ export const SHEET_HANDLE_HEIGHT = 48;
  */
 export function BottomSheet({
   children,
+  surfaceColor = Colors.bgWhite,
   collapsedHeight = 132,
   expandedRatio = 0.72,
   expanded,
@@ -213,6 +216,7 @@ export function BottomSheet({
         style={[
           styles.sheet,
           {
+            backgroundColor: surfaceColor,
             bottom: pinned,
             height: expandedHeight + sheetPadding,
             paddingBottom: sheetPadding,
@@ -232,7 +236,7 @@ export function BottomSheet({
       </Animated.View>
       {footer ? (
         <Animated.View
-          style={[styles.footer, { paddingBottom: safeBottom + bottomInset }, footerStyle]}
+          style={[styles.footer, { backgroundColor: surfaceColor, paddingBottom: safeBottom + bottomInset }, footerStyle]}
           onLayout={onFooterLayout}
           testID="bottom-sheet-footer"
           {...hiddenProps}

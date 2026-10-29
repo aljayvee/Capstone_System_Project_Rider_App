@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, Image, ActivityIndicator, StyleShe
 import { Camera, X, ShieldAlert } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../../../config/theme';
 import { riderApiService } from '../../../config/apiConfig';
+import { TaskSheetColors } from '../../../config/taskSheetTheme';
 
 interface PaymentProofViewerProps {
   errandId: string;
@@ -69,9 +70,9 @@ export function PaymentProofViewer({ errandId }: PaymentProofViewerProps) {
         testID="view-customer-payment-proof"
       >
         {isViewing ? (
-          <ActivityIndicator color={Colors.primary} size="small" />
+          <ActivityIndicator color={Colors.navy} size="small" />
         ) : (
-          <Camera size={16} color={Colors.primary} />
+          <Camera size={18} color={Colors.navy} />
         )}
         <View style={styles.textCol}>
           <Text style={styles.title}>View the customer's payment receipt</Text>
@@ -112,16 +113,16 @@ export function PaymentProofViewer({ errandId }: PaymentProofViewerProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: Spacing.sm },
+  container: { gap: Spacing.sm },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.bgWhite,
+    backgroundColor: TaskSheetColors.accentSurface,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: TaskSheetColors.accentBorder,
     minHeight: 48,
   },
   textCol: { flex: 1 },

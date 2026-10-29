@@ -688,7 +688,7 @@ export default function ReceiptCaptureScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bgLight, padding: Spacing.lg, gap: Spacing.md },
+  container: { flex: 1, backgroundColor: Colors.bgGray, padding: Spacing.lg, gap: Spacing.md },
   confirmScroll: { gap: Spacing.md, paddingBottom: Spacing.md },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
   heading: { fontSize: FontSizes.xl, fontWeight: FontWeights.bold as any, color: Colors.textDark },

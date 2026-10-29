@@ -59,11 +59,22 @@ jest.mock('react-native-maps', () => {
     return C;
   };
 
+  // Coordinates are sent through the native marker command while gliding.
+  // Expose the real imperative API rather than giving its ref a host View.
+  const MockMarker = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      setCoordinates: jest.fn(),
+      setNativeProps: jest.fn(),
+    }), []);
+    return React.createElement(View, { ...props, testID: props.testID || 'mock-marker' }, props.children);
+  });
+  MockMarker.displayName = 'MockMarker';
+
   return {
     __esModule: true,
     default: MockMapView,
     MapView: MockMapView,
-    Marker: passthrough('mock-marker'),
+    Marker: MockMarker,
     Polyline: passthrough('mock-polyline'),
     Circle: passthrough('mock-circle'),
     Callout: passthrough('mock-callout'),

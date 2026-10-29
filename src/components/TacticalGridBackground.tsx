@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Defs, LinearGradient as SvgGradient, Stop, Path, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Colors } from '../config/theme';
 
 export const TacticalGridBackground = () => {
   const { width, height } = useWindowDimensions();
@@ -10,8 +11,8 @@ export const TacticalGridBackground = () => {
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* Base Clean White Canvas */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF' }]} />
+      {/* Use the same neutral canvas as the Rider screens. */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.bgGray }]} />
 
       {/* Top Dynamic Curved Fleet Accent Container (Similar to Customer App with Rider Fleet Styling) */}
       <View style={[styles.topAccentContainer, { height: accentHeight }]}>

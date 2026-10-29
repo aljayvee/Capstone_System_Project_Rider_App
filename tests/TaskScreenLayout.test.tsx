@@ -147,6 +147,8 @@ jest.mock('../src/context/RiderMissionContext', () => ({
 
 // eslint-disable-next-line import/first
 import TaskScreen from '../src/modules/task/TaskScreen';
+// eslint-disable-next-line import/first
+import { formatErrandId, rememberErrandReferences } from '../src/utils/formatErrandId';
 
 const layout = (height: number, y = 0) => ({ nativeEvent: { layout: { x: 0, y, width: 360, height } } });
 
@@ -195,15 +197,16 @@ describe('map mode while riding', () => {
     const view = await renderTask({ open: 'map' });
     const header = view.getByTestId('task-top-header');
     expect(within(header).getByTestId('task-back-btn')).toBeTruthy();
-    expect(within(header).queryByText(/SGO-/)).toBeNull();
+    expect(within(header).queryByText(formatErrandId(errand.id))).toBeNull();
     expect(view.queryByText('Show task')).toBeNull();
     expect(view.queryByText('Hide task')).toBeNull();
   });
 
   it('opens each errand from its own fee capsule, under the directions', async () => {
-    mockErrands = ['e-1', 'e-2', 'e-3'].map((id) => ({ ...errand, id }));
+    mockErrands = ['e-00001', 'e-00002', 'e-00003'].map((id) => ({ ...errand, id }));
+    rememberErrandReferences({ id: 'e-00003', referenceNo: '261019-00003-0003' });
     const view = await renderTask({ open: 'map' });
-    expect(within(view.getByTestId('fee-capsule-layer')).getByText(/SGO-0000E3/)).toBeTruthy();
+    expect(within(view.getByTestId('fee-capsule-layer')).getByText(/261019-00003-0003/)).toBeTruthy();
     await act(async () => {
       fireEvent.press(view.getByTestId('fee-capsule-2'));
     });

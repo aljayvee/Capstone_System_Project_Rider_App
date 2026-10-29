@@ -4,9 +4,11 @@ import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, FontFamily } fro
 
 import { Errand, MergedErrand } from '../types/rider';
 import { formatPeso } from '../utils/format';
+import { TaskSheetColors } from '../config/taskSheetTheme';
 
 interface FeeBreakdownPanelProps {
   errand: MergedErrand | Errand;
+  variant?: 'card' | 'sheet' | 'offer';
 }
 
 const peso = formatPeso;
@@ -28,13 +30,14 @@ const peso = formatPeso;
  * is gone from the payload as well (server/src/services/patterns/riderEarnings.ts),
  * so this is not a hidden row — there is nothing to hide.
  */
-export function FeeBreakdownPanel({ errand }: FeeBreakdownPanelProps) {
+export function FeeBreakdownPanel({ errand, variant = 'card' }: FeeBreakdownPanelProps) {
   const earnings = errand.riderEarnings;
+  const inSheet = variant !== 'card';
 
   if (!earnings) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Fee Breakdown</Text>
+      <View style={[styles.container, inSheet && styles.sheetSection, variant === 'offer' && styles.offerSection]}>
+        <Text style={[styles.title, inSheet && styles.sheetInk]}>Fee Breakdown</Text>
         <Text style={styles.label}>Earnings for this errand aren't available yet.</Text>
       </View>
     );
@@ -43,8 +46,8 @@ export function FeeBreakdownPanel({ errand }: FeeBreakdownPanelProps) {
   const sharePercent = Math.round(earnings.commissionRate * 100);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Fee Breakdown</Text>
+    <View style={[styles.container, inSheet && styles.sheetSection, variant === 'offer' && styles.offerSection]}>
+      <Text style={[styles.title, inSheet && styles.sheetInk]}>Fee Breakdown</Text>
       <View style={styles.rows}>
         <View style={styles.row}>
           <Text style={styles.label}>Delivery fee</Text>
@@ -62,13 +65,13 @@ export function FeeBreakdownPanel({ errand }: FeeBreakdownPanelProps) {
             <Text style={styles.value} testID="fee-tip">{peso(earnings.tip)}</Text>
           </View>
         )}
-        <View style={[styles.row, styles.totalRow]}>
-          <Text style={styles.totalLabel}>You earn</Text>
-          <Text style={styles.totalValue} testID="fee-total-earnings">{peso(earnings.riderShare)}</Text>
+        <View style={[styles.row, styles.totalRow, inSheet && styles.sheetDivider]}>
+          <Text style={[styles.totalLabel, inSheet && styles.sheetInk]}>You earn</Text>
+          <Text style={[styles.totalValue, inSheet && styles.sheetInk]} testID="fee-total-earnings">{peso(earnings.riderShare)}</Text>
         </View>
 
         {earnings.itemCostExcluded > 0 && (
-          <View style={[styles.row, styles.itemRow]}>
+          <View style={[styles.row, styles.itemRow, inSheet && styles.sheetDivider]}>
             <Text style={styles.itemLabel}>Items to buy — company money</Text>
             <Text style={styles.itemValue} testID="fee-item-cost">
               {peso(earnings.itemCostExcluded)}
@@ -81,6 +84,19 @@ export function FeeBreakdownPanel({ errand }: FeeBreakdownPanelProps) {
 }
 
 const styles = StyleSheet.create({
+  offerSection: { backgroundColor: Colors.bgWhite },
+  sheetSection: {
+    padding: 0,
+    paddingTop: Spacing.lg,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderColor: TaskSheetColors.divider,
+    borderRadius: 0,
+    backgroundColor: TaskSheetColors.surface,
+    marginBottom: 0,
+  },
+  sheetInk: { color: Colors.navy },
+  sheetDivider: { borderTopColor: TaskSheetColors.divider, borderStyle: 'solid' },
   container: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,

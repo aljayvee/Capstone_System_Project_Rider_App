@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Signpost, Flag, MessageSquareText } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize } from '../../../config/theme';
+import { TaskSheetColors } from '../../../config/taskSheetTheme';
 
 interface DropOffDetailsProps {
   streetName?: string | null;
@@ -45,7 +46,7 @@ export function DropOffDetails({ streetName, landmark, notes }: DropOffDetailsPr
         // Set apart, as in the delivery panel: an instruction ("call when
         // outside") is easy to miss as one more grey line.
         <View style={styles.noteBox} testID="dropoff-notes">
-          <MessageSquareText size={12} color={Colors.warning} style={styles.icon} />
+          <MessageSquareText size={14} color={Colors.navy} style={styles.icon} />
           <Text style={styles.noteText} maxFontSizeMultiplier={1.15}>
             <Text style={styles.noteLabel}>Note for the rider: </Text>
             {note}
@@ -58,8 +59,8 @@ export function DropOffDetails({ streetName, landmark, notes }: DropOffDetailsPr
 
 const styles = StyleSheet.create({
   container: {
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
   row: {
     flexDirection: 'row',
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
     color: Colors.textMedium,
   },
   label: {
@@ -85,15 +86,15 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.warningBg,
+    backgroundColor: TaskSheetColors.mutedSurface,
   },
   noteText: {
     flex: 1,
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
     color: Colors.textDark,
   },
   noteLabel: {
-    color: Colors.warning,
+    color: Colors.navy,
     fontWeight: FontWeights.bold as any,
   },
 });

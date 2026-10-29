@@ -31,7 +31,7 @@ import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import { LiveErrandMap } from '../../components/LiveErrandMap';
 import { BottomSheet, SHEET_HANDLE_HEIGHT } from '../../components/BottomSheet';
 import { EmptyState } from '../../components/EmptyState';
-import { Badge } from '../../components/Badge';
+import { TaskSheetColors } from '../../config/taskSheetTheme';
 import { StatusBanner } from '../../components/StatusBanner';
 import { RouteQualityBanner } from '../../components/RouteQualityBanner';
 import { FeeBreakdownPanel } from '../../components/FeeBreakdownPanel';
@@ -78,6 +78,7 @@ import {
   FontFamily,
   scaledFontSize,
   moderateScale,
+  MAX_CONTENT_WIDTH,
 } from '../../config/theme';
 
 /**
@@ -598,7 +599,7 @@ export default function TaskScreen() {
         )}
         {gate.canAdvance && whatIsNext && (
           <View style={styles.nextNote} testID="next-action">
-            <Camera size={14} color={Colors.info} />
+            <Camera size={16} color={Colors.navy} />
             <Text style={styles.nextText} maxFontSizeMultiplier={1.15}>{whatIsNext}</Text>
           </View>
         )}
@@ -606,7 +607,7 @@ export default function TaskScreen() {
         {/* Half-payment note: rendered only at the final store stop on upfront payment plans */}
         {!hasStoresRemaining && gate.halfPayment === 'ask' && (
           <View style={styles.nextNote} testID="half-payment-note">
-            <Info size={14} color={Colors.info} />
+            <Info size={16} color={Colors.navy} />
             <Text style={styles.nextText} maxFontSizeMultiplier={1.25}>
               Everything is bought. Ask for the customer's half-payment before heading out.
             </Text>
@@ -617,7 +618,7 @@ export default function TaskScreen() {
           /* Auto-Arrival Action Dock (Requirement 3) */
           <View style={styles.navigatingContainer} testID="navigating-container">
             <View style={styles.navigatingCapsule} testID="navigating-capsule">
-              <Navigation size={14} color={Colors.primary} strokeWidth={2.2} />
+              <Navigation size={16} color={Colors.navy} strokeWidth={2.2} />
               <Text style={styles.navigatingText} maxFontSizeMultiplier={1.25}>
                 Navigating to {activeTargetName ?? 'Store'} • Auto-detecting arrival
               </Text>
@@ -901,6 +902,7 @@ export default function TaskScreen() {
 
       {/* Layer 3 — the errand itself. */}
       <BottomSheet
+        surfaceColor={TaskSheetColors.surface}
         collapsedHeight={collapsedHeight}
         // In full, the whole screen below the status bar: the map is not
         // being navigated by while the rider reads the task.
@@ -974,17 +976,9 @@ export default function TaskScreen() {
                 {formatErrandId(displayErrand?.id)}
               </Text>
             </View>
-            <View
-              style={[
-                styles.statusCapsule,
-                { backgroundColor: isQueuedView ? Colors.bgGray : isShoppingView ? Colors.warningBg : Colors.infoBg },
-              ]}
-            >
+            <View style={styles.statusCapsule}>
               <Text
-                style={[
-                  styles.statusCapsuleText,
-                  { color: isQueuedView ? Colors.textMedium : isShoppingView ? Colors.warning : Colors.info },
-                ]}
+                style={styles.statusCapsuleText}
                 maxFontSizeMultiplier={1.25}
                 testID="sheet-status-label"
               >
@@ -1003,10 +997,10 @@ export default function TaskScreen() {
         >
           <View style={styles.badgesRow}>
             {/* The shop's category, not the service type. */}
-            {storeKind && <Badge tone="info">{storeKind}</Badge>}
-            <Badge tone={displayErrand.paymentMode ? 'warning' : 'neutral'}>
+            {storeKind && <Text style={styles.metaLabel} maxFontSizeMultiplier={1.25}>{storeKind}</Text>}
+            <Text style={styles.metaLabel} maxFontSizeMultiplier={1.25}>
               {displayErrand.paymentMode ?? 'Payment not confirmed'}
-            </Badge>
+            </Text>
           </View>
 
           {/* Two or more errands in hand: which one to ride to first. */}
@@ -1038,6 +1032,8 @@ export default function TaskScreen() {
             </View>
           ) : null}
 
+          <ProgressSteps currentStatus={displayStatus} stepIndex={displayStepIndex} />
+
           {/* STAGE 1: SHOPPING / PICKUP PHASE */}
           {isShoppingView ? (
             <>
@@ -1065,7 +1061,7 @@ export default function TaskScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Call customer"
                 >
-                  <Phone size={15} color={displayErrand.customerPhone ? Colors.success : Colors.textLight} />
+                  <Phone size={18} color={displayErrand.customerPhone ? Colors.navy : Colors.textLight} />
                 </TouchableOpacity>
               </View>
 
@@ -1158,8 +1154,7 @@ export default function TaskScreen() {
                 />
               )}
 
-              <ProgressSteps currentStatus={displayStatus} stepIndex={displayStepIndex} />
-              <FeeBreakdownPanel errand={displayErrand} />
+              <FeeBreakdownPanel errand={displayErrand} variant="sheet" />
 
               {displayErrand?.paymentPlan?.hasLedger && (
                 <PaymentProofViewer errandId={displayErrand.id} />
@@ -1233,8 +1228,7 @@ export default function TaskScreen() {
                 />
               )}
 
-              <ProgressSteps currentStatus={displayStatus} stepIndex={displayStepIndex} />
-              <FeeBreakdownPanel errand={displayErrand} />
+              <FeeBreakdownPanel errand={displayErrand} variant="sheet" />
 
               {displayErrand?.paymentPlan?.hasLedger && (
                 <PaymentProofViewer errandId={displayErrand.id} />
@@ -1313,7 +1307,10 @@ const styles = StyleSheet.create({
     right: 0,
   },
   sheetHeader: {
-    paddingHorizontal: Spacing.lg,
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: moderateScale(20),
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
@@ -1333,7 +1330,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    color: Colors.navy,
   },
   headerActionsGroup: {
     flexDirection: 'row',
@@ -1348,7 +1345,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.bgGray,
+    backgroundColor: TaskSheetColors.accentSurface,
   },
   waybillBtn: {
     backgroundColor: Colors.primarySurface,
@@ -1369,15 +1366,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: Spacing.sm,
-    marginTop: 2,
+    minHeight: 48,
   },
   errandIdChip: {
-    backgroundColor: Colors.bgLight,
+    backgroundColor: TaskSheetColors.mutedSurface,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: TaskSheetColors.divider,
   },
   errandIdChipText: {
     fontFamily: FontFamily.monoBold,
@@ -1385,11 +1382,13 @@ const styles = StyleSheet.create({
     color: Colors.textDark,
   },
   statusCapsule: {
+    backgroundColor: TaskSheetColors.accentSurface,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: BorderRadius.sm,
   },
   statusCapsuleText: {
+    color: TaskSheetColors.accent,
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.bold as any,
   },
@@ -1397,9 +1396,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetBody: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    paddingBottom: Spacing.xl,
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+    padding: moderateScale(20),
+    gap: moderateScale(24),
+    paddingBottom: moderateScale(30),
   },
   badgesRow: {
     flexDirection: 'row',
@@ -1409,18 +1411,24 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
+  metaLabel: {
+    color: Colors.navy,
+    backgroundColor: TaskSheetColors.mutedSurface,
+    fontSize: scaledFontSize(FontSizes.xs, 0.35),
+    fontWeight: FontWeights.medium,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+  },
   customerPreviewPill: {
     flexDirection: 'row',
     // Top, not centre: with the street, landmark and note under the name, a
     // centred call button would drift down beside the note.
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    backgroundColor: Colors.bgLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    paddingBottom: moderateScale(20),
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   customerPreviewLeft: {
     flex: 1,
@@ -1432,15 +1440,15 @@ const styles = StyleSheet.create({
     color: Colors.textDark,
   },
   customerPreviewAddr: {
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
     color: Colors.textGray,
-    marginTop: 2,
+    marginTop: Spacing.sm,
   },
   customerCallBtn: {
     width: 48,
     height: 48,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.successBg,
+    backgroundColor: TaskSheetColors.accentSurface,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 48,
@@ -1451,11 +1459,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   stickyActionDock: {
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.bgWhite,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
+    backgroundColor: TaskSheetColors.surface,
+    paddingHorizontal: moderateScale(20),
+    paddingTop: moderateScale(12),
     paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
@@ -1480,16 +1491,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.infoSubtle,
+    backgroundColor: TaskSheetColors.accentSurface,
     borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: moderateScale(10, 0.20),
   },
   nextText: {
     flex: 1,
     fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.semibold as any,
-    color: Colors.info,
+    color: Colors.textMedium,
   },
   handoverBtn: {
     alignItems: 'center',
@@ -1497,8 +1508,8 @@ const styles = StyleSheet.create({
     paddingVertical: moderateScale(12, 0.20),
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgWhite,
+    borderColor: TaskSheetColors.accentBorder,
+    backgroundColor: TaskSheetColors.accentSurface,
     minHeight: 48,
   },
   handoverBtnDone: {
@@ -1515,8 +1526,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.xs,
-    backgroundColor: Colors.infoSubtle,
-    borderColor: Colors.info,
+    backgroundColor: TaskSheetColors.mutedSurface,
+    borderColor: TaskSheetColors.divider,
     borderWidth: 1,
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
@@ -1563,7 +1574,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.warning,
+    backgroundColor: Colors.bgWhite,
+    borderWidth: 1,
+    borderColor: Colors.navy,
     minHeight: 48,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1571,7 +1584,7 @@ const styles = StyleSheet.create({
   manualArrivalText: {
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
     fontWeight: FontWeights.bold as any,
-    color: Colors.textWhite,
+    color: Colors.navy,
   },
   arrivalPendingText: {
     flex: 1,
@@ -1588,7 +1601,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.md,
-    minHeight: 48,
+    minHeight: Math.max(52, moderateScale(54)),
   },
   actionBtnDisabled: {
     backgroundColor: Colors.textLight,
@@ -1648,13 +1661,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.infoSubtle,
+    backgroundColor: TaskSheetColors.accentSurface,
     paddingVertical: moderateScale(10, 0.20),
     paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.md,
     width: '100%',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: TaskSheetColors.accentBorder,
   },
   navigatingText: {
     fontSize: scaledFontSize(FontSizes.sm, 0.20),

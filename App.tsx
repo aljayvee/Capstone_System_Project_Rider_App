@@ -3,7 +3,7 @@ import { View, ActivityIndicator, StyleSheet, Text, Platform } from 'react-nativ
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useFonts } from 'expo-font';
 import {
@@ -28,6 +28,10 @@ import { RiderAuthProvider, useRiderAuth } from './src/context/RiderAuthContext'
 import { ThemeProvider, useThemeContext } from './src/context/ThemeContext';
 import * as NavigationBar from 'expo-navigation-bar';
 import { Colors } from './src/config/theme';
+import {
+  syncUpdatesInBackground,
+  setupUpdateListeners,
+} from './src/services/updatesService';
 
 // Held until the animated splash has drawn, so nothing flashes between the two.
 // The system splash shows no logo (app.json points it at a transparent image,
@@ -49,11 +53,21 @@ export type RootStackParamList = {
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, background: Colors.bgGray },
+};
 
 function AppContent() {
   const { rider, token, isLoading } = useRiderAuth();
   const { isDark } = useThemeContext();
   const [isSplashComplete, setIsSplashComplete] = React.useState(false);
+
+  React.useEffect(() => {
+    syncUpdatesInBackground(true);
+    const cleanup = setupUpdateListeners();
+    return cleanup;
+  }, []);
 
   React.useEffect(() => {
     if (Platform.OS === 'android') {
@@ -66,8 +80,8 @@ function AppContent() {
   }, [isDark]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <NavigationContainer>
+    <View style={{ flex: 1, backgroundColor: Colors.bgGray }}>
+      <NavigationContainer theme={navigationTheme}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!rider || !token ? (
             <>

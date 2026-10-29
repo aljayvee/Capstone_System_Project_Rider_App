@@ -9,6 +9,15 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+// These tests cover compass/road selection. Frame-by-frame native rotation is
+// covered by GlidingRiderMarker.test.tsx; props here represent the requested heading.
+jest.mock('../src/components/GlidingRiderMarker', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return ({ target, headingDeg }: any) => target
+    ? React.createElement(View, { testID: 'mock-marker', title: 'You', rotation: headingDeg }) : null;
+});
+
 /**
  * The compass: the map and the rider's arrow turn with the phone while the
  * rider is stopped, follow the road while riding, and a rose shows north.

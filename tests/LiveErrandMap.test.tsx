@@ -1,6 +1,17 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { LiveErrandMap } from '../src/components/LiveErrandMap';
+import GlidingRiderMarker from '../src/components/GlidingRiderMarker';
+
+let mockGliderProps: React.ComponentProps<typeof GlidingRiderMarker>;
+jest.mock('../src/components/GlidingRiderMarker', () => {
+  const React = require('react');
+  const Actual = jest.requireActual('../src/components/GlidingRiderMarker').default;
+  return { __esModule: true, default: (props: React.ComponentProps<typeof GlidingRiderMarker>) => {
+    mockGliderProps = props;
+    return React.createElement(Actual, props);
+  } };
+});
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -461,6 +472,12 @@ describe('floating map controls & sheet collision prevention', () => {
  * padding is new.
  */
 describe('the 3D camera and the map padding', () => {
+  // Sample the camera callback explicitly here. The marker's frame loop and
+  // rotation timing are exercised with a controlled clock in its own suite.
+  beforeEach(() => {
+    jest.spyOn(global, 'requestAnimationFrame').mockImplementation(() => 1);
+  });
+  afterEach(() => jest.restoreAllMocks());
   const still = { ...rider, speed: 0 };
   const base: React.ComponentProps<typeof LiveErrandMap> = {
     riderLocation: still,
@@ -495,15 +512,48 @@ describe('the 3D camera and the map padding', () => {
     expect(handle().animateCamera).not.toHaveBeenCalled();
   });
 
-  it('glides with each fix once in place, as before', async () => {
+  it('follows the drawn marker frame instead of starting a separate GPS camera animation', async () => {
     const view = await render(<LiveErrandMap {...base} bottomInset={180} />);
     const moved = { ...still, latitude: still.latitude + 0.0004, speed: 5 };
     await act(async () => {
       await view.rerender(<LiveErrandMap {...base} riderLocation={moved} bottomInset={180} />);
     });
     expect(handle().setCamera).toHaveBeenCalledTimes(1);
-    expect(handle().animateCamera).toHaveBeenCalled();
-    expect(handle().animateCamera.mock.calls.at(-1)[0]).toMatchObject({ pitch: 60 });
+    expect(handle().animateCamera).not.toHaveBeenCalled();
+    const drawn = { ...rider, latitude: rider.latitude + 0.0002 };
+    await act(async () => {
+      mockGliderProps.onPositionChange!(drawn, 45);
+    });
+    expect(handle().setCamera.mock.calls.at(-1)[0]).toMatchObject({ center: drawn, heading: 45, pitch: 60 });
+  });
+
+  it('passes timestamp and stationary metadata and does not follow while inactive or panned', async () => {
+    const location = { ...still, updatedAt: 12345, stationary: true };
+    const view = await render(<LiveErrandMap {...base} riderLocation={location} active={false} />);
+    expect(mockGliderProps).toMatchObject({ recordedAt: 12345, stationary: true, active: false });
+    const count = handle().setCamera.mock.calls.length;
+    await act(async () => mockGliderProps.onPositionChange!(rider, 90));
+    expect(handle().setCamera).toHaveBeenCalledTimes(count);
+    await view.rerender(<LiveErrandMap {...base} riderLocation={location} active />);
+    await act(async () => fireEvent(view.getByTestId('mock-map-view'), 'panDrag'));
+    const afterPan = handle().setCamera.mock.calls.length;
+    await act(async () => mockGliderProps.onPositionChange!(store, 90));
+    expect(handle().setCamera).toHaveBeenCalledTimes(afterPan);
+  });
+
+  it('keeps the sampled camera north-up and flat in 2D', async () => {
+    const view = await render(<LiveErrandMap {...base} />);
+    await act(async () => fireEvent.press(view.getByTestId('rider-map-mode-trigger')));
+    await act(async () => fireEvent.press(view.getByTestId('rider-map-mode-2d')));
+    await act(async () => mockGliderProps.onPositionChange!(rider, 120));
+    expect(handle().setCamera.mock.calls.at(-1)[0]).toMatchObject({ center: rider, heading: 0, pitch: 0 });
+  });
+
+  it('places a recreated base map at the current fix, clearing the old visual sample', async () => {
+    const view = await render(<LiveErrandMap {...base} />);
+    await act(async () => mockGliderProps.onPositionChange!(store, 90));
+    await view.rerender(<LiveErrandMap {...base} mapStyle="osm" />);
+    expect(handle().setCamera.mock.calls.at(-1)[0]).toMatchObject({ center: rider, pitch: 60 });
   });
 
   it('waits for the first fix, then sets the camera at once', async () => {

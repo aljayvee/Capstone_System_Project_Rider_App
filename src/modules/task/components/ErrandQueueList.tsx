@@ -7,6 +7,7 @@ import type { ErrandProgress } from '../../../services/missionProgress';
 import { routePhaseFor } from '../../../services/routePhase';
 import { queuePositionLabel } from '../../../services/errandQueue';
 import { formatErrandId } from '../../../utils/formatErrandId';
+import { TaskSheetColors } from '../../../config/taskSheetTheme';
 
 interface ErrandQueueListProps {
   /** In run order: the errand in hand first. */
@@ -90,12 +91,7 @@ function nextStopFor(errand: Errand, progress: ErrandProgress): string {
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgLight,
-    padding: Spacing.sm,
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   header: {
     flexDirection: 'row',
@@ -118,23 +114,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.bgWhite,
+    backgroundColor: TaskSheetColors.surface,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: TaskSheetColors.divider,
   },
   rowSelected: {
-    borderColor: Colors.navy,
+    borderColor: TaskSheetColors.accentBorder,
+    backgroundColor: TaskSheetColors.accentSurface,
   },
   position: {
     minWidth: 44,
     paddingHorizontal: Spacing.xs,
     paddingVertical: 3,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.bgGray,
+    backgroundColor: TaskSheetColors.mutedSurface,
     alignItems: 'center',
   },
   positionNow: {
-    backgroundColor: Colors.primary,
+    backgroundColor: TaskSheetColors.accent,
   },
   positionText: {
     fontSize: scaledFontSize(FontSizes.xs, 0.20),

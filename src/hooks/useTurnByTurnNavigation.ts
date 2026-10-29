@@ -124,19 +124,51 @@ export function remainingStepDistance(
   return dist;
 }
 
+export interface RemainingSecondsOptions {
+  speedMps?: number | null;
+  isStorePhase?: boolean;
+  previousSeconds?: number | null;
+}
+
 /**
- * Seconds left: the unfinished share of the current step at that step's own
- * pace, plus the full duration of every later step.
+ * Seconds left:
+ * - When heading to a store (isStorePhase === true) and moving (speedMps >= 2.0 m/s),
+ *   the active transit travel time is calibrated by the rider's real-time velocity
+ *   (clamped between 2.0 m/s [~7 km/h] and 16.7 m/s [60 km/h, ROUTE_MAX_SPEED_KMH]).
+ * - If stationary / stopped at an intersection (speedMps < 2.0 m/s), countdown progress
+ *   freezes (returns previousSeconds) so time does not artificially inflate or recalculate.
+ * - During delivery to customer (isStorePhase === false), nominal step road duration applies.
  */
 export function remainingRouteSeconds(
   steps: Pick<RouteStep, 'distanceMeters' | 'durationSeconds'>[],
   activeIndex: number,
-  metersLeftInStep: number
+  metersLeftInStep: number,
+  options?: RemainingSecondsOptions
 ): number | null {
   if (steps.length === 0) return null;
   const index = Math.max(0, Math.min(activeIndex, steps.length - 1));
   const step = steps[index];
   const share = step.distanceMeters > 0 ? Math.min(1, Math.max(0, metersLeftInStep / step.distanceMeters)) : 0;
+
+  const { speedMps, isStorePhase = false, previousSeconds = null } = options || {};
+
+  // Store-bound dynamic speed calibration:
+  if (isStorePhase) {
+    const isMoving = typeof speedMps === 'number' && Number.isFinite(speedMps) && speedMps >= 2.0;
+    if (isMoving) {
+      // Clamp effective speed to city limits (2.0 m/s to 16.7 m/s [60 km/h])
+      const effectiveSpeedMps = Math.min(16.7, Math.max(2.0, speedMps));
+      let remainingMeters = metersLeftInStep;
+      for (let i = index + 1; i < steps.length; i++) {
+        remainingMeters += steps[i].distanceMeters;
+      }
+      return Math.max(0, Math.round(remainingMeters / effectiveSpeedMps));
+    } else if (previousSeconds != null && typeof speedMps === 'number' && speedMps < 2.0) {
+      // Stationary freeze: Rider is stopped at a light/intersection, preserve last known countdown
+      return previousSeconds;
+    }
+  }
+
   let seconds = step.durationSeconds * share;
   for (let i = index + 1; i < steps.length; i++) seconds += steps[i].durationSeconds;
   return Math.max(0, Math.round(seconds));
@@ -230,11 +262,13 @@ export function hasReachedStepEnd(
 export function useTurnByTurnNavigation(
   riderLocation: (MapCoordinate & { speed?: number | null; heading?: number | null }) | null,
   steps: RouteStep[],
-  routeCoordinates: MapCoordinate[] | null
+  routeCoordinates: MapCoordinate[] | null,
+  phase?: 'shopping' | 'delivering'
 ): ManeuverState {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const offRouteCountRef = useRef(0);
   const lastDistanceRef = useRef<number | null>(null);
+  const previousSecondsRef = useRef<number | null>(null);
 
   // Reset active step when the route changes. Keyed on the steps array itself:
   // keyed on its length, a new route with the same number of steps kept the old
@@ -243,6 +277,7 @@ export function useTurnByTurnNavigation(
     setActiveStepIndex(0);
     offRouteCountRef.current = 0;
     lastDistanceRef.current = null;
+    previousSecondsRef.current = null;
   }, [steps]);
 
   const state = useMemo((): ManeuverState => {
@@ -298,7 +333,15 @@ export function useTurnByTurnNavigation(
         isOffRoute: false,
         totalRemainingMeters: currentStep.distanceMeters,
         formattedTotalDistance: formatTotalRemaining(currentStep.distanceMeters),
-        totalRemainingSeconds: remainingRouteSeconds(steps, safeIndex, currentStep.distanceMeters),
+        totalRemainingSeconds: (() => {
+          const secs = remainingRouteSeconds(steps, safeIndex, currentStep.distanceMeters, {
+            speedMps: null,
+            isStorePhase: phase === 'shopping',
+            previousSeconds: previousSecondsRef.current,
+          });
+          if (secs != null) previousSecondsRef.current = secs;
+          return secs;
+        })(),
       };
     }
 
@@ -397,9 +440,17 @@ export function useTurnByTurnNavigation(
       isOffRoute,
       totalRemainingMeters: Math.max(0, Math.round(remainingTotal)),
       formattedTotalDistance: formatTotalRemaining(remainingTotal),
-      totalRemainingSeconds: remainingRouteSeconds(steps, safeIndex, distToManeuver),
+      totalRemainingSeconds: (() => {
+        const secs = remainingRouteSeconds(steps, safeIndex, distToManeuver, {
+          speedMps: riderLocation?.speed,
+          isStorePhase: phase === 'shopping',
+          previousSeconds: previousSecondsRef.current,
+        });
+        if (secs != null) previousSecondsRef.current = secs;
+        return secs;
+      })(),
     };
-  }, [riderLocation?.latitude, riderLocation?.longitude, riderLocation?.speed, steps, activeStepIndex, routeCoordinates]);
+  }, [riderLocation?.latitude, riderLocation?.longitude, riderLocation?.speed, steps, activeStepIndex, routeCoordinates, phase]);
 
   return state;
 }

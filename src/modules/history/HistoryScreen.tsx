@@ -10,7 +10,7 @@ import { Badge } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { Pagination } from '../../components/Pagination';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
-import { formatErrandId } from '../../utils/formatErrandId';
+import { compareErrandIds, formatErrandId } from '../../utils/formatErrandId';
 import { formatTimestamp, formatPeso } from '../../utils/format';
 import { earningsOf, formatEarnings, totalEarnings } from '../../utils/earnings';
 import type { Errand } from '../../types/rider';
@@ -99,7 +99,7 @@ export default function HistoryScreen() {
       case 'date-asc':
         return copy.sort((a, b) => time(a) - time(b));
       case 'id':
-        return copy.sort((a, b) => formatErrandId(a.id).localeCompare(formatErrandId(b.id)));
+        return copy.sort((a, b) => compareErrandIds(a.id, b.id));
       case 'fee-desc':
         return copy.sort((a, b) => feeOf(b) - feeOf(a));
       case 'fee-asc':

@@ -1,3 +1,5 @@
+import { MobileLight, MobileDark } from "./palette";
+
 /**
  * The Rider App's design tokens.
  *
@@ -23,124 +25,7 @@
  * contrast failures: unreachable pairs the naming implied but no screen drew.
  */
 
-export const LightColors = {
-  // ─── brand ────────────────────────────────────────────────────────────────
-  /** The fill. White on it is 4.83:1. */
-  primary: "#DC2626",
-  /** Ink on primarySurface (5.3:1) and the pressed state of a primary fill. */
-  primaryStrong: "#B91C1C",
-  /** Tinted background for primary-coloured panels. */
-  primarySurface: "#FEE2E2",
-  primaryGradientStart: "#EF4444",
-  primaryGradientEnd: "#FECACA",
-
-  // ─── the dispatcher's blue ────────────────────────────────────────────────
-  navy: "#1E3A5F",
-  navyLight: "#93C5FD",
-
-  // ─── status ───────────────────────────────────────────────────────────────
-  // Each is an ink that passes on both of its surfaces.
-  /** 6.78:1 on successBg, 7.34:1 on successSubtle. */
-  success: "#065F46",
-  successBg: "#D1FAE5",
-  successSubtle: "#F0FDF4",
-  successBorder: "#BBF7D0",
-  /** Decorative only — the online dot. Never used behind text. */
-  successAccent: "#10B981",
-
-  /** 6.37:1 on warningBg, 6.84:1 on warningSubtle. */
-  warning: "#92400E",
-  warningBg: "#FEF3C7",
-  warningSubtle: "#FFFBEB",
-  warningBorder: "#FEF3C7",
-
-  /**
-   * 5.3:1 on dangerBg. Deliberately NOT #DC2626, which reaches only 3.95:1 on
-   * the same surface — the failure this palette was carrying. #DC2626 survives
-   * as `primary`, where it is a fill with white on it and passes at 4.83:1.
-   */
-  danger: "#B91C1C",
-  dangerBg: "#FEE2E2",
-
-  info: "#1E40AF",
-  infoBg: "#DBEAFE",
-  infoSubtle: "#EFF6FF",
-
-  // ─── text ─────────────────────────────────────────────────────────────────
-  // Three weights of emphasis, all of which clear 4.5:1 on the darkest surface
-  // this palette defines (bgGray, #F3F4F6).
-  textDark: "#1F2937",
-  textMedium: "#374151",
-  /** Raised from #6B7280, which was 4.39:1 on bgGray. Now 6.01:1. */
-  textGray: "#565D6B",
-  /** Raised from #9CA3AF, which failed on every surface. Now 4.88:1 at worst. */
-  textLight: "#646B76",
-  textWhite: "#FFFFFF",
-
-  // ─── surfaces ─────────────────────────────────────────────────────────────
-  bgWhite: "#FFFFFF",
-  bgLight: "#F9FAFB",
-  bgGray: "#F3F4F6",
-  bgDark: "#1F2937",
-  card: "#FFFFFF",
-
-  // ─── lines ────────────────────────────────────────────────────────────────
-  border: "#E5E7EB",
-  borderLight: "#F3F4F6",
-
-  // ─── overlays ─────────────────────────────────────────────────────────────
-  overlayDark: "rgba(0,0,0,0.45)",
-  overlayHeavy: "rgba(0,0,0,0.60)",
-  overlayBlur: "rgba(0,0,0,0.70)",
-  whiteOverlay: "rgba(255,255,255,0.2)",
-  whiteOverlayLight: "rgba(255,255,255,0.15)",
-  whiteOverlayText: "rgba(255,255,255,0.85)",
-
-  // ─── ink that sits ON a filled control ───────────────────────────────────
-  //
-  // Material 3's primary/onPrimary pairing, and it exists because one token
-  // cannot do both jobs across two themes. In light mode `primary` is a dark
-  // red carrying white text. In dark mode it is a LIGHT red, because it also
-  // has to be legible as an accent on a dark ground — and white on a light red
-  // fails. Naming the ink separately is what lets both themes be correct.
-  onPrimary: "#FFFFFF",
-  onSuccess: "#FFFFFF",
-  onWarning: "#FFFFFF",
-  onDanger: "#FFFFFF",
-  onInfo: "#FFFFFF",
-  onNavy: "#FFFFFF",
-
-  // ─── the two route legs ──────────────────────────────────────────────────
-  //
-  // Named because they carry meaning, not decoration: orange is the run to the
-  // pinned stores, and the pink-red only appears once every stop is done and
-  // the rider is heading to the customer. A rider reads the colour before they
-  // read anything else on that screen.
-  routeToStore: "#F59E0B",
-  routeToCustomer: "#0284C7",
-  routePreview: "#94A3B8",
-
-  hudCardUrgentBg: "#162A45",
-  maneuverUrgent: "#10B981",
-  maneuverAlert: "#F59E0B",
-
-  /** The presence dot in the header. Non-text, so 3:1 against its ground. */
-  onlineDot: "#10B981",
-  offlineDot: "#646B76",
-
-  /**
-   * A camera viewfinder's ground. Deliberately true black in BOTH themes: it
-  * sits behind a live preview, where anything else shows as a coloured halo
-  * around the frame.
-  */
-  viewfinder: "#000000",
-
-  /** shadowColor. A token so the dark theme can soften it rather than
-   *  stacking black on an already-black ground. */
-  shadow: "#000000",
-
-  offlineBg: "#374151",
-} as const;
+export const LightColors = MobileLight;
 
 /**
  * The same roles on a dark ground.
@@ -151,82 +36,7 @@ export const LightColors = {
  * Riders work at night, which is when this matters and also when a wrong value
  * is most punishing.
  */
-export const DarkColors: Record<keyof typeof LightColors, string> = {
-  primary: "#F87171",
-  primaryStrong: "#FCA5A5",
-  primarySurface: "#3B1519",
-  primaryGradientStart: "#DC2626",
-  primaryGradientEnd: "#7F1D1D",
-
-  navy: "#93C5FD",
-  navyLight: "#1E3A5F",
-
-  success: "#6EE7B7",
-  successBg: "#064E3B",
-  successSubtle: "#052E24",
-  successBorder: "#065F46",
-  successAccent: "#34D399",
-
-  warning: "#FCD34D",
-  warningBg: "#78350F",
-  warningSubtle: "#451A03",
-  warningBorder: "#92400E",
-
-  danger: "#FCA5A5",
-  dangerBg: "#7F1D1D",
-
-  info: "#93C5FD",
-  infoBg: "#1E3A8A",
-  infoSubtle: "#172554",
-
-  textDark: "#F9FAFB",
-  textMedium: "#E5E7EB",
-  textGray: "#C3C9D4",
-  textLight: "#A9B0BD",
-  textWhite: "#FFFFFF",
-
-  bgWhite: "#121212",
-  bgLight: "#000000",
-  bgGray: "#1E1E1E",
-  bgDark: "#000000",
-  card: "#121212",
-
-  border: "#262626",
-  borderLight: "#1A1A1A",
-
-  overlayDark: "rgba(0,0,0,0.60)",
-  overlayHeavy: "rgba(0,0,0,0.75)",
-  overlayBlur: "rgba(0,0,0,0.85)",
-  whiteOverlay: "rgba(255,255,255,0.16)",
-  whiteOverlayLight: "rgba(255,255,255,0.10)",
-  whiteOverlayText: "rgba(255,255,255,0.85)",
-
-  // Dark ink, because every fill above is light in this theme. 5.31:1 at worst
-  // (on `primary`), which is the tightest of the seven.
-  onPrimary: "#1F2937",
-  onSuccess: "#1F2937",
-  onWarning: "#1F2937",
-  onDanger: "#1F2937",
-  onInfo: "#1F2937",
-  onNavy: "#1F2937",
-
-  routeToStore: "#FBBF24",
-  routeToCustomer: "#38BDF8",
-  routePreview: "#64748B",
-
-  hudCardUrgentBg: "#1E293B",
-  maneuverUrgent: "#34D399",
-  maneuverAlert: "#FBBF24",
-
-  onlineDot: "#34D399",
-  offlineDot: "#A9B0BD",
-
-  viewfinder: "#000000",
-
-  shadow: "#000000",
-
-  offlineBg: "#111827",
-};
+export const DarkColors: Record<keyof typeof LightColors, string> = MobileDark;
 
 /**
  * The light palette, as a plain object.

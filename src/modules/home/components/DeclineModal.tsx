@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput } from 'reac
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { AlertCircle } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
+import { HomeColors } from '../homeTheme';
 
 interface DeclineModalProps {
   visible: boolean;
@@ -32,7 +33,7 @@ export function DeclineModal({
   return (
     // statusBarTranslucent: the overlay then starts at the very top of the
     // screen, so its padding below is exactly the keyboard's height.
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={handleCancel}>
       {/* The card is centred, which put the reason box and Confirm under the
           keyboard. Padding by the keyboard re-centres it in the space above. */}
       <KeyboardAvoidingView behavior="padding" style={styles.overlay}>
@@ -40,7 +41,7 @@ export function DeclineModal({
           <View style={styles.iconContainer}>
             <AlertCircle size={32} color={Colors.primary} />
           </View>
-          <Text style={styles.title} maxFontSizeMultiplier={1.2}>Decline Task?</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={1.2}>Decline this errand?</Text>
           <Text style={styles.subtitle} maxFontSizeMultiplier={1.15}>Please provide a reason for declining this errand.</Text>
 
           <TextInput
@@ -48,6 +49,8 @@ export function DeclineModal({
             value={reason}
             onChangeText={handleReasonChange}
             placeholder="Reason..."
+            placeholderTextColor={Colors.textGray}
+            accessibilityLabel="Reason for declining"
             multiline
             textAlignVertical="top"
           />
@@ -67,7 +70,7 @@ export function DeclineModal({
               onPress={handleConfirm}
               disabled={!reason.trim()}
             >
-              <Text style={styles.confirmText} maxFontSizeMultiplier={1.15}>Confirm</Text>
+              <Text style={styles.confirmText} maxFontSizeMultiplier={1.15}>Decline errand</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -87,7 +90,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: Colors.bgWhite,
+    backgroundColor: HomeColors.surface,
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: 'center',
@@ -104,7 +107,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: scaledFontSize(FontSizes.xl, 0.20),
     fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    color: Colors.navy,
     marginBottom: Spacing.xs,
   },
   subtitle: {
@@ -116,9 +119,9 @@ const styles = StyleSheet.create({
   input: {
     width: '100%',
     height: moderateScale(90, 0.20),
-    backgroundColor: Colors.bgLight,
+    backgroundColor: Colors.bgWhite,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: HomeColors.accentBorder,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     fontSize: scaledFontSize(FontSizes.sm, 0.20),
@@ -132,13 +135,15 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     paddingVertical: moderateScale(12, 0.20),
-    backgroundColor: Colors.bgGray,
+    backgroundColor: HomeColors.accentSurface,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     minHeight: 48,
     justifyContent: 'center',
   },
   cancelText: {
+    textAlign: 'center',
+    maxWidth: '100%',
     fontWeight: FontWeights.bold as any,
     color: Colors.textDark,
     fontSize: scaledFontSize(FontSizes.base, 0.20),
@@ -156,6 +161,8 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   confirmText: {
+    textAlign: 'center',
+    maxWidth: '100%',
     fontWeight: FontWeights.bold as any,
     color: Colors.textWhite,
     fontSize: scaledFontSize(FontSizes.base, 0.20),

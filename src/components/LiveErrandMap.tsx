@@ -5,7 +5,7 @@ import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE, UrlTile } from 'rea
 import { Clock, Navigation, Maximize2, MapPin, LocateFixed, ChevronLeft } from 'lucide-react-native';
 import { Colors, BorderRadius, FontSizes, FontWeights, FontFamily, Spacing, Elevation } from '../config/theme';
 import { MapCoordinate, toRegion } from '../utils/coords';
-import GlidingRiderMarker, { GLIDE_MS } from './GlidingRiderMarker';
+import GlidingRiderMarker from './GlidingRiderMarker';
 import {
   cumulativeLengths,
   followRouteProgress,
@@ -14,7 +14,6 @@ import {
   type RouteProgress,
 } from '../utils/routeGeometry';
 import {
-  followCameraDurationMs,
   lineTrailMeters,
   markerSnapMeters,
   navigationCamera,
@@ -74,7 +73,7 @@ function formatDistance(meters: number): string {
 }
 
 export interface LiveErrandMapProps {
-  riderLocation: (MapCoordinate & { speed?: number | null; heading?: number | null }) | null;
+  riderLocation: (MapCoordinate & { speed?: number | null; heading?: number | null; updatedAt?: number; stationary?: boolean }) | null;
   destination: MapCoordinate | null;
   pinpoints: ErrandPinpoint[];
   /** Full overview polyline — shown as fallback when leg arrays are unavailable. */
@@ -163,7 +162,6 @@ export interface LiveErrandMapProps {
 }
 
 /** How long the camera takes to follow a turn of the phone: quick, but not a jolt. */
-const COMPASS_CAMERA_MS = 300;
 
 /** Every base map feature hidden, roads and labels included: OpenStreetMap only. */
 const BLANK_BASE_MAP_STYLE = [{ stylers: [{ visibility: 'off' }] }];
@@ -248,7 +246,7 @@ export function LiveErrandMap({
   const activeRouteColor = phase === 'delivering' ? Colors.routeToCustomer : Colors.routeToStore;
 
   // Turn-by-Turn Navigation State
-  const maneuverState = useTurnByTurnNavigation(riderLocation, steps, activeRouteLine);
+  const maneuverState = useTurnByTurnNavigation(riderLocation, steps, activeRouteLine, phase);
 
   // Where the rider is along the line, once per fix, carried forward from the
   // last fix (routeGeometry.followRouteProgress): searched near where they
@@ -345,6 +343,10 @@ export function LiveErrandMap({
 
   // Camera tracking engine for 3D Third-Person and 2D Plane
   const headingRef = useRef(0);
+  const drawnRiderRef = useRef<{ coordinate: MapCoordinate; rotation: number } | null>(null);
+  const drawnStyleRef = useRef(mapStyle);
+  if (!riderLocation || drawnStyleRef.current !== mapStyle) drawnRiderRef.current = null;
+  drawnStyleRef.current = mapStyle;
   // The chase zoom, held inside its speed band (navigationCamera.steadyNavigationZoom).
   const zoomRef = useRef<number | null>(null);
 
@@ -407,10 +409,8 @@ export function LiveErrandMap({
       if (!riderLocation || !camera) return false;
 
       if (cameraMode === '3d') {
-        // Like Google Maps navigation: the road ahead points up the screen, the
-        // rider sits low with the route running away in front of them, and the
-        // view widens with speed. The glide duration matches the rider marker's,
-        // so dot and map move together.
+        // Explicit recenter/mode changes. Continuous following is driven by
+        // followDrawnPosition below, using the marker's actual visual frame.
         //
         // Re-center (immediate) takes the road's heading exactly. Following,
         // small changes are ignored so the map does not shiver.
@@ -429,14 +429,12 @@ export function LiveErrandMap({
         zoomRef.current = steadyNavigationZoom(zoomRef.current, riderLocation.speed);
         placeCamera(
           {
-            center: camera.center,
+            center: drawnRiderRef.current?.coordinate ?? camera.center,
             heading: headingRef.current,
             pitch: CHASE_3D_PITCH,
             zoom: zoomRef.current,
           },
-          // Following, each move spans the dot's own glide, so a turn is one
-          // continuous swing rather than a 400 ms jerk then a pause every fix.
-          durationMs ?? (immediate ? 400 : followCameraDurationMs(GLIDE_MS, headingChoiceRef.current.source))
+          durationMs ?? (immediate ? 400 : 300)
         );
         noteBearing(headingRef.current);
         return true;
@@ -444,12 +442,12 @@ export function LiveErrandMap({
         // 2D Plane: Flat top-down, North-up
         placeCamera(
           {
-            center: camera.center,
+            center: drawnRiderRef.current?.coordinate ?? camera.center,
             heading: 0,
             pitch: PLANE_2D_PITCH,
             zoom: PLANE_2D_ZOOM,
           },
-          durationMs ?? (immediate ? 500 : GLIDE_MS)
+          durationMs ?? (immediate ? 500 : 300)
         );
         noteBearing(0);
         return true;
@@ -459,6 +457,21 @@ export function LiveErrandMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [camera, riderLocation?.speed, cameraMode, noteBearing, placeCamera]
   );
+
+  // The puck and camera consume one visual timeline. Per-fix native camera
+  // animations have independent easing and would repeatedly catch up and stop.
+  const followDrawnPosition = useCallback((coordinate: MapCoordinate, rotation: number) => {
+    drawnRiderRef.current = { coordinate, rotation };
+    if (!active || !mapReady || !following || cameraMode === 'overview') return;
+    zoomRef.current = steadyNavigationZoom(zoomRef.current, riderLocation?.speed);
+    if (cameraMode === '3d') headingRef.current = rotation;
+    mapRef.current?.setCamera({
+      center: coordinate,
+      heading: cameraMode === '3d' ? rotation : 0,
+      pitch: cameraMode === '3d' ? CHASE_3D_PITCH : PLANE_2D_PITCH,
+      zoom: cameraMode === '3d' ? zoomRef.current : PLANE_2D_ZOOM,
+    });
+  }, [active, mapReady, following, cameraMode, riderLocation?.speed]);
 
   // The camera centres its target in whatever the padding leaves, so padding
   // the top puts the rider low on screen with the road ahead above them. The
@@ -496,6 +509,8 @@ export function LiveErrandMap({
   const paddingKey = `${mapPadding.top}|${mapPadding.bottom}`;
   const lastModeRef = useRef(cameraMode);
   const placedRef = useRef<string | null>(null);
+  const moveCameraRef = useRef(moveCamera);
+  moveCameraRef.current = moveCamera;
   useEffect(() => {
     if (!mapReady) {
       // A map created afresh (another style) must be placed again.
@@ -503,24 +518,22 @@ export function LiveErrandMap({
       return;
     }
     if (!following) return;
-    // Switching into a mode snaps straight to it; after that the camera glides
-    // with each fix.
+    // Enter the chosen mode once. GPS updates follow the marker's frame loop.
     const modeChanged = lastModeRef.current !== cameraMode;
     lastModeRef.current = cameraMode;
     if (placedRef.current !== paddingKey) {
-      if (moveCamera(true, 0)) placedRef.current = paddingKey;
+      if (moveCameraRef.current(true, 0)) placedRef.current = paddingKey;
     } else {
-      moveCamera(modeChanged);
+      moveCameraRef.current(modeChanged);
     }
-  }, [moveCamera, following, mapReady, cameraMode, paddingKey]);
+  }, [following, mapReady, cameraMode, paddingKey, !!riderLocation]);
 
   // Between GPS fixes, turning the phone turns the map. Keyed on 3-degree
   // steps so a hand's tremor does not animate the camera.
-  const compassKey =
-    headingChoice.source === 'compass' && headingChoice.heading != null ? Math.round(headingChoice.heading / 3) : null;
+  const compassKey = arrowHeading != null ? Math.round(arrowHeading / 3) : null;
   useEffect(() => {
     if (!following || !mapReady || cameraMode !== '3d' || compassKey === null) return;
-    moveCamera(false, COMPASS_CAMERA_MS);
+    noteBearing(headingChoiceRef.current.heading ?? headingRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compassKey]);
 
@@ -608,6 +621,7 @@ export function LiveErrandMap({
 
   const initialCenter = destination || riderLocation || pinpoints[0] || DEFAULT_CENTER;
   const targetLabel = phase === 'delivering' ? 'Customer' : targetStoreName || 'Store';
+  const speedKmh = Math.round(Math.max(0, (riderLocation?.speed ?? 0) * 3.6));
 
   return (
     <View style={styles.wrapper} onLayout={onLayout}>
@@ -811,6 +825,10 @@ export function LiveErrandMap({
           route={isFallback ? null : activeRouteLine}
           headingDeg={arrowHeading}
           speedMps={riderLocation?.speed ?? null}
+          recordedAt={riderLocation?.updatedAt}
+          stationary={riderLocation?.stationary}
+          active={active}
+          onPositionChange={followDrawnPosition}
         />
       </MapView>
       )}
@@ -824,6 +842,31 @@ export function LiveErrandMap({
         >
           {OSM_ATTRIBUTION}
         </Text>
+      )}
+
+      {/* Floating Speedometer Badge (## KM/H) at bottom-left */}
+      {controlsVisible && (
+        <View
+          style={[
+            styles.speedometerBadge,
+            {
+              bottom:
+                (showOsm ? effectiveBottomInset + 22 : effectiveBottomInset + 14) +
+                (liveEta ? 38 : 0),
+            },
+          ]}
+          testID="speedometer-badge"
+          pointerEvents="box-none"
+          accessible
+          accessibilityLabel={`Current speed ${speedKmh} kilometers per hour`}
+        >
+          <Text style={styles.speedometerValue} maxFontSizeMultiplier={1.15}>
+            {speedKmh}
+          </Text>
+          <Text style={styles.speedometerUnit} maxFontSizeMultiplier={1.15}>
+            KM/H
+          </Text>
+        </View>
       )}
 
       {/* Floating ETA Badge (Positioned safely at bottom-left above sheet and OSM label) */}
@@ -1056,6 +1099,37 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 3,
     zIndex: 5,
+  },
+  speedometerBadge: {
+    position: 'absolute',
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.90)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    elevation: 4,
+    shadowColor: Colors.shadow,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    zIndex: 15,
+  },
+  speedometerValue: {
+    color: Colors.textWhite,
+    fontSize: FontSizes.md,
+    fontWeight: FontWeights.bold as any,
+    fontVariant: ['tabular-nums'],
+  },
+  speedometerUnit: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: FontWeights.semibold as any,
+    letterSpacing: 0.5,
   },
   bottomEtaBadge: {
     position: 'absolute',

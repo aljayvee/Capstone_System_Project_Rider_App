@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import GpsCalibrationScreen from '../src/modules/profile/GpsCalibrationScreen';
@@ -46,7 +46,7 @@ describe('GPS calibration screen', () => {
     jest.setSystemTime(new Date('2026-09-25T04:00:00Z'));
     mockGoBack.mockClear();
     mockedLocation.getProviderStatusAsync.mockResolvedValue(providerStatus());
-    (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+    (Location.requestForegroundPermissionsAsync as jest.Mock).mockClear().mockResolvedValue({ status: 'granted' });
     (Location.watchPositionAsync as jest.Mock).mockReset();
     (AsyncStorage.setItem as jest.Mock).mockClear();
     liveStabilizer.configure({ lockRadiusMeters: 12 });
@@ -54,6 +54,36 @@ describe('GPS calibration screen', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('shows a preparation modal before asking for permission or starting GPS', async () => {
+    const view = await render(<GpsCalibrationScreen />);
+    await flush();
+    await fireEvent.press(view.getByTestId('gps-calibration-start'));
+    await flush();
+
+    expect(view.getByText('Ready to calibrate?')).toBeTruthy();
+    expect(within(view.getByTestId('gps-calibration-start-modal')).getByText(/Keep it still for 30 seconds/)).toBeTruthy();
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+    expect(Location.watchPositionAsync).not.toHaveBeenCalled();
+
+    await fireEvent.press(view.getByLabelText('Not now'));
+    await flush();
+    expect(view.queryByText('Ready to calibrate?')).toBeNull();
+    expect(view.getByTestId('gps-calibration-start')).toBeTruthy();
+    expect(Location.watchPositionAsync).not.toHaveBeenCalled();
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('dismisses the preparation modal on the Android back request without starting', async () => {
+    const view = await render(<GpsCalibrationScreen />);
+    await flush();
+    await fireEvent.press(view.getByTestId('gps-calibration-start'));
+    await fireEvent(view.getByTestId('gps-calibration-start-modal'), 'requestClose');
+    await flush();
+    expect(view.queryByText('Ready to calibrate?')).toBeNull();
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+    expect(Location.watchPositionAsync).not.toHaveBeenCalled();
   });
 
   it('shows the phone\'s location settings and offers to turn on Google Location Accuracy', async () => {
@@ -78,6 +108,7 @@ describe('GPS calibration screen', () => {
     const view = await render(<GpsCalibrationScreen />);
     await flush();
     await fireEvent.press(view.getByTestId('gps-calibration-start'));
+    await fireEvent.press(view.getByTestId('gps-calibration-confirm-start'));
     await flush();
 
     expect((Location.watchPositionAsync as jest.Mock).mock.calls[0][0]).toMatchObject({
@@ -117,6 +148,11 @@ describe('GPS calibration screen', () => {
     expect(view.getByText(/Saved\. Your pin now holds still within 8\.0 m/)).toBeTruthy();
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(GPS_CALIBRATION_STORAGE_KEY, expect.any(String));
     expect(liveStabilizer.lockRadiusMeters).toBe(8);
+
+    (Location.watchPositionAsync as jest.Mock).mockClear();
+    await fireEvent.press(view.getByLabelText('Run again'));
+    expect(view.getByText('Ready to calibrate?')).toBeTruthy();
+    expect(Location.watchPositionAsync).not.toHaveBeenCalled();
   });
 
   it('explains a refused permission and offers to try again', async () => {
@@ -124,11 +160,14 @@ describe('GPS calibration screen', () => {
     const view = await render(<GpsCalibrationScreen />);
     await flush();
     await fireEvent.press(view.getByTestId('gps-calibration-start'));
+    await fireEvent.press(view.getByTestId('gps-calibration-confirm-start'));
     await flush();
 
     expect(view.getByText('Location permission is off')).toBeTruthy();
     expect(view.getByLabelText('Try again')).toBeTruthy();
     expect(Location.watchPositionAsync).not.toHaveBeenCalled();
+    await fireEvent.press(view.getByLabelText('Try again'));
+    expect(view.getByText('Ready to calibrate?')).toBeTruthy();
   });
 
   it('asks to turn Location on when it is off, before listening', async () => {
@@ -136,9 +175,22 @@ describe('GPS calibration screen', () => {
     const view = await render(<GpsCalibrationScreen />);
     await flush();
     await fireEvent.press(view.getByTestId('gps-calibration-start'));
+    await fireEvent.press(view.getByTestId('gps-calibration-confirm-start'));
     await flush();
 
     expect(view.getByText('Location is switched off')).toBeTruthy();
     expect(Location.watchPositionAsync).not.toHaveBeenCalled();
+
+    await fireEvent.press(view.getByLabelText('Turn on Location'));
+    await flush();
+    expect(view.getByText('Ready to calibrate?')).toBeTruthy();
+    expect(Location.watchPositionAsync).not.toHaveBeenCalled();
+
+    mockedLocation.getProviderStatusAsync.mockResolvedValue(providerStatus());
+    (Location.watchPositionAsync as jest.Mock).mockResolvedValue({ remove: jest.fn() });
+    await fireEvent.press(view.getByTestId('gps-calibration-confirm-start'));
+    await flush();
+    expect(view.getByText('Keep the phone still')).toBeTruthy();
+    expect(Location.watchPositionAsync).toHaveBeenCalledTimes(1);
   });
 });

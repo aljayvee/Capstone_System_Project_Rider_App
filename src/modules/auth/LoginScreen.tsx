@@ -214,7 +214,7 @@ export const LoginScreen = () => {
 
   return (
     <View style={styles.rootContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.bgWhite} />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.bgGray} />
 
       {/* Clean White Tactical Vector Grid Background */}
       <TacticalGridBackground />
@@ -604,7 +604,7 @@ export const LoginScreen = () => {
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: Colors.bgWhite,
+    backgroundColor: Colors.bgGray,
   },
   scrollContainer: {
     flexGrow: 1,

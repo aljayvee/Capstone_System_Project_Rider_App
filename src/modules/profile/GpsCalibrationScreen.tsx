@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -33,8 +33,10 @@ import {
   FontWeights,
   MAX_CONTENT_WIDTH,
   Spacing,
+  moderateScale,
   scaledFontSize,
 } from '../../config/theme';
+import { ProfileColors } from './profileTheme';
 
 type Phase = 'intro' | 'starting' | 'running' | 'done' | 'blocked';
 
@@ -82,6 +84,7 @@ export default function GpsCalibrationScreen() {
     pin: null,
   });
   const [turningOn, setTurningOn] = React.useState(false);
+  const [showStartModal, setShowStartModal] = React.useState(false);
 
   const subscriptionRef = React.useRef<Location.LocationSubscription | null>(null);
   const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -327,7 +330,7 @@ export default function GpsCalibrationScreen() {
                 Not checked on this phone yet. Your pin holds still within {formatMeters(lockRadius)} until you run it.
               </Text>
             )}
-            <PrimaryButton label="Start calibration" icon="start" onPress={start} testID="gps-calibration-start" />
+            <PrimaryButton label="Start calibration" icon="start" onPress={() => setShowStartModal(true)} testID="gps-calibration-start" />
           </View>
         )}
 
@@ -364,11 +367,11 @@ export default function GpsCalibrationScreen() {
                 disabled={turningOn}
                 onPress={async () => {
                   await turnOnLocationAccuracy();
-                  void start();
+                  if (mountedRef.current) setShowStartModal(true);
                 }}
               />
             ) : (
-              <PrimaryButton label="Try again" icon="again" onPress={start} />
+              <PrimaryButton label="Try again" icon="again" onPress={() => setShowStartModal(true)} />
             )}
           </View>
         )}
@@ -432,10 +435,55 @@ export default function GpsCalibrationScreen() {
                 Nothing was changed. Your pin still holds still within {formatMeters(lockRadius)}.
               </Text>
             )}
-            <PrimaryButton label="Run again" icon="again" onPress={start} />
+            <PrimaryButton label="Run again" icon="again" onPress={() => setShowStartModal(true)} />
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={showStartModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowStartModal(false)}
+        testID="gps-calibration-start-modal"
+      >
+        <SafeAreaView edges={['top', 'bottom']} style={styles.modalBackdrop}>
+          <View style={styles.modalContent} accessibilityViewIsModal>
+            <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalBody} bounces={false}>
+              <Crosshair size={32} color={ProfileColors.accent} />
+              <Text style={styles.modalTitle} accessibilityRole="header" maxFontSizeMultiplier={1.25}>
+                Ready to calibrate?
+              </Text>
+              <Text style={styles.modalText} maxFontSizeMultiplier={1.25}>
+                Stop in a safe place with open sky, or stand near a window.
+              </Text>
+              <Text style={styles.modalText} maxFontSizeMultiplier={1.25}>
+                Set your phone down or hold it screen up. Keep it still for {CALIBRATION_SECONDS} seconds once the check starts.
+              </Text>
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <PrimaryButton
+                label="Begin calibration"
+                icon="start"
+                testID="gps-calibration-confirm-start"
+                onPress={() => {
+                  setShowStartModal(false);
+                  void start();
+                }}
+              />
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setShowStartModal(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Not now"
+              >
+                <Text style={styles.modalCancelText} maxFontSizeMultiplier={1.25}>Not now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -658,6 +706,55 @@ function PrimaryButton({
 }
 
 const styles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: moderateScale(20, 0.5),
+    backgroundColor: Colors.overlayDark,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: Math.min(MAX_CONTENT_WIDTH, moderateScale(420, 0.5)),
+    maxHeight: '90%',
+    backgroundColor: ProfileColors.surface,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+  },
+  modalScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  modalBody: {
+    padding: moderateScale(24, 0.5),
+    gap: moderateScale(12, 0.5),
+  },
+  modalTitle: {
+    color: Colors.navy,
+    fontSize: scaledFontSize(FontSizes.xl, 0.35),
+    fontWeight: FontWeights.bold,
+  },
+  modalText: {
+    color: Colors.textMedium,
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
+    lineHeight: moderateScale(24, 0.5),
+  },
+  modalActions: {
+    paddingHorizontal: moderateScale(24, 0.5),
+    paddingBottom: moderateScale(16, 0.5),
+    gap: Spacing.sm,
+  },
+  modalCancel: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  modalCancelText: {
+    color: ProfileColors.accent,
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
+    fontWeight: FontWeights.semibold,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.bgGray,
@@ -900,6 +997,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   primaryText: {
+    flexShrink: 1,
+    textAlign: 'center',
     color: Colors.onPrimary,
     fontSize: scaledFontSize(FontSizes.md, 0.20),
     fontWeight: FontWeights.bold as any,

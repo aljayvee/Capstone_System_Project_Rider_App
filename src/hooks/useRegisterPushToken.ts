@@ -4,6 +4,10 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { riderApiService } from '../config/apiConfig';
+import { notificationTapped } from '../services/notificationEvents';
+
+/** The tap that launched the app is read once per app process, not per sign-in. */
+let coldStartTapHandled = false;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => {
@@ -103,9 +107,30 @@ export function useRegisterPushToken(riderId: number | undefined, onNotification
       }
     })();
 
-    const subscription = Notifications.addNotificationResponseReceivedListener(() => {
+    // A tap refreshes the mission (as before) and is routed to what it is about
+    // (AuthedNavigator listens: offer, errand, or the dispatcher chat).
+    const routeTap = (response: Notifications.NotificationResponse | null | undefined) => {
+      const data = (response?.notification?.request?.content?.data ?? {}) as Record<string, unknown>;
+      notificationTapped.emit({
+        type: typeof data.type === 'string' ? data.type : undefined,
+        errandId: data.errandId != null ? String(data.errandId) : undefined,
+        dispatcherId: data.dispatcherId as number | string | undefined,
+      });
+    };
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       tappedRef.current?.();
+      routeTap(response);
     });
+
+    // A tap that opened the app from closed arrives before any listener exists.
+    if (!coldStartTapHandled && typeof Notifications.getLastNotificationResponseAsync === 'function') {
+      coldStartTapHandled = true;
+      void Notifications.getLastNotificationResponseAsync()
+        .then((response) => {
+          if (response && !cancelled) routeTap(response);
+        })
+        .catch(() => {});
+    }
 
     return () => {
       cancelled = true;

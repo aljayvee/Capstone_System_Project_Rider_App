@@ -5,6 +5,7 @@ import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, 
 
 import { Errand, MergedErrand } from '../../../types/rider';
 import { formatEarnings } from '../../../utils/earnings';
+import { HomeColors } from '../homeTheme';
 
 interface CompletedCardProps {
   errand: MergedErrand | Errand;
@@ -19,14 +20,14 @@ export function CompletedCard({ errand, riderFirstName, onAcceptNext }: Complete
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <CheckCircle size={32} color={Colors.primary} />
+        <CheckCircle size={32} color={Colors.success} />
       </View>
-      <Text style={styles.title} maxFontSizeMultiplier={1.2}>Errand delivered</Text>
-      <Text style={styles.subtitle} maxFontSizeMultiplier={1.15}>Great job, {greetingName}! Payment collected.</Text>
+      <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={1.2}>Errand delivered</Text>
+      <Text style={styles.subtitle} maxFontSizeMultiplier={1.25}>Thanks, {greetingName}. The errand is complete.</Text>
 
       <View style={styles.earningsBox}>
+        <Text style={styles.earningsLabel} maxFontSizeMultiplier={1.25}>Your earnings</Text>
         <Text style={styles.earningsValue} maxFontSizeMultiplier={1.2}>{earnings}</Text>
-        <Text style={styles.earningsLabel} maxFontSizeMultiplier={1.15}>YOU EARNED</Text>
       </View>
 
       <TouchableOpacity
@@ -42,67 +43,68 @@ export function CompletedCard({ errand, riderFirstName, onAcceptNext }: Complete
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
+    paddingVertical: moderateScale(24, 0.5),
+    paddingHorizontal: moderateScale(8, 0.5),
     alignItems: 'center',
-    backgroundColor: Colors.primary,
   },
   iconContainer: {
     width: moderateScale(60, 0.20),
     height: moderateScale(60, 0.20),
     borderRadius: moderateScale(30, 0.20),
-    backgroundColor: Colors.bgWhite,
+    backgroundColor: Colors.successBg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
   },
   title: {
-    color: Colors.textWhite,
-    fontSize: scaledFontSize(FontSizes.xl, 0.20),
+    color: Colors.navy,
+    fontSize: scaledFontSize(FontSizes.xl, 0.35),
     fontWeight: FontWeights.bold as any,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
   subtitle: {
-    color: Colors.whiteOverlayText,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    color: Colors.textMedium,
+    fontSize: scaledFontSize(FontSizes.sm, 0.35),
+    lineHeight: moderateScale(22, 0.5),
     textAlign: 'center',
   },
   earningsBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginTop: Spacing.lg,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.bgWhite,
+    paddingVertical: moderateScale(16, 0.5),
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: HomeColors.divider,
     alignItems: 'center',
     width: '100%',
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 2,
+    gap: Spacing.md,
+    flexWrap: 'wrap',
   },
   earningsValue: {
-    color: Colors.primary,
-    fontSize: scaledFontSize(FontSizes.xxl, 0.20),
-    fontWeight: FontWeights.black as any,
+    color: Colors.success,
+    fontSize: scaledFontSize(FontSizes.lg, 0.35),
+    fontWeight: FontWeights.bold as any,
   },
   earningsLabel: {
-    color: Colors.primaryStrong,
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    color: Colors.navy,
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
     fontWeight: FontWeights.bold as any,
-    letterSpacing: 0.5,
   },
   button: {
     marginTop: Spacing.lg,
     width: '100%',
     paddingVertical: moderateScale(12, 0.20),
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.bgWhite,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     minHeight: 48,
     justifyContent: 'center',
   },
   buttonText: {
-    color: Colors.primary,
+    color: Colors.onPrimary,
     fontWeight: FontWeights.bold as any,
-    fontSize: scaledFontSize(FontSizes.md, 0.20),
+    fontSize: scaledFontSize(FontSizes.md, 0.35),
   },
 });

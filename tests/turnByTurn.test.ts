@@ -105,6 +105,46 @@ describe('TurnByTurnNavigation Engine', () => {
     it("has nothing to say without steps", () => {
       expect(remainingRouteSeconds([], 0, 100)).toBeNull();
     });
+
+    it("calibrates travel time based on real-time rider speed when heading to store (isStorePhase: true)", () => {
+      // 500m left in step 0 + 500m (step 1) + 200m (step 2) = 1200m total remaining.
+      // At 10 m/s (~36 km/h): 1200 / 10 = 120 seconds.
+      expect(
+        remainingRouteSeconds(steps, 0, 500, {
+          isStorePhase: true,
+          speedMps: 10,
+        })
+      ).toBe(120);
+
+      // At 15 m/s (~54 km/h): 1200 / 15 = 80 seconds.
+      expect(
+        remainingRouteSeconds(steps, 0, 500, {
+          isStorePhase: true,
+          speedMps: 15,
+        })
+      ).toBe(80);
+    });
+
+    it("freezes countdown progress when stationary (< 2.0 m/s) at an intersection during store trip", () => {
+      // Stationary (0.3 m/s) at a red light: freezes and retains previous seconds
+      expect(
+        remainingRouteSeconds(steps, 0, 500, {
+          isStorePhase: true,
+          speedMps: 0.3,
+          previousSeconds: 120,
+        })
+      ).toBe(120);
+    });
+
+    it("preserves nominal step road durations during delivery to customer (isStorePhase: false)", () => {
+      // Even if rider moves fast, customer delivery phase uses nominal road model
+      expect(
+        remainingRouteSeconds(steps, 0, 500, {
+          isStorePhase: false,
+          speedMps: 15,
+        })
+      ).toBe(160);
+    });
   });
 
   describe('displayedStepIndex', () => {

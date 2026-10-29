@@ -1,5 +1,78 @@
 # 🌐 DUAL-MODEL COLLABORATION TUNNEL (CLAUDE ◄► GEMINI) - RIDER MOBILE APP
 
+## 2026-10-29 - Release v1.1.0: Red Motorcycle Sprite & EAS Production Build (Gemini 3.8 Flash High)
+
+* **Request / finding**: User requested bumping Rider Mobile App from v1.0.0 to v1.1.0, replacing the navigation arrow puck with a custom red motorcycle driven by a person in pink clothes, and building with EAS.
+* **Status**: Implemented, verified, and queued for EAS Android production build.
+* **Version Bumps**:
+  - `app.json`: Bumped `version` to `1.1.0`, `runtimeVersion` to `1.1.0`, added `versionCode: 2` under `android`.
+  - `package.json`: Bumped `version` to `1.1.0`.
+  - `android/app/build.gradle`: Bumped `versionCode` to `2` and `versionName` to `"1.1.0"`.
+* **Sprite Asset Pipeline** (`assets/rider-motorcycle*`):
+  - Created North-up ($0^\circ$) vector blueprint: `assets/rider-motorcycle.svg` (44 dp).
+  - Generated transparent multi-DPI hardware sprite textures via Blender Cycles:
+    - `@1x`: `rider-motorcycle.png` (44x44 px)
+    - `@2x`: `rider-motorcycle@2x.png` (88x88 px)
+    - `@3x`: `rider-motorcycle@3x.png` (132x132 px)
+  - Colors: SUGO Red (`#DC2626`) chassis, dark rubber tires (`#1E293B`), pink jacket (`#EC4899`), pink helmet (`#F472B6`) with dark visor, soft ambient ground shadow.
+* **Marker Integration** (`src/components/GlidingRiderMarker.tsx`):
+  - Updated line 8 to require `../../assets/rider-motorcycle.png`.
+  - Retains `{ x: 0.5, y: 0.5 }` center anchor, `flat={true}`, and 60 FPS `requestAnimationFrame` native rotation/coordinates loop without React re-renders.
+* **Verification**:
+  - `npx tsc --noEmit`: PASS (0 errors).
+  - Jest `tests/GlidingRiderMarker.test.tsx`: 11/11 tests PASS.
+* **Next session**: Complete EAS production build download and install on Samsung Galaxy A04 test device. Validate road movement with new vehicle sprite.
+
+## 2026-10-29 - Fix continuous rider gliding under real GPS timing (Codex)
+
+* **Request / finding**: User observed 1,100 ms jitter on the Rider app's own map using an installed APK on Samsung A04. Inspection reproduced the source defects: the fixed tween exhausted its frames at 1,100 ms (900 ms frozen with a 2 s fix gap), interrupted tweens changed velocity abruptly, and an immediate heading write followed by interpolation caused a 90-degree heading to jump backward to about 46 degrees. The old five mocked marker tests passed while three temporary continuity diagnostics failed. This entry supersedes the October 27 claim that `GLIDE_MS = 1100` guarantees continuous real-world movement. `timeInterval: 1000` is a minimum interval, not a guaranteed delivery cadence.
+* **Status**: Implemented and verified in local source. No APK built, OTA published, app installed, server deployed, or Samsung A04 road test performed in this session. Preserve all unrelated existing uncommitted changes.
+* **Motion** (`src/utils/riderMotion.ts`, new): Accepted GPS timestamps determine interpolation duration (400-2,000 ms); `performance.now()` drives rendering independently of wall-clock adjustments and frame drops. Hermite interpolation carries the current position and velocity into a new fix. Short gaps continue with a velocity-continuous taper to rest, limited to 2 s of prediction and 25 m beyond the last target. Stale or stopped fixes do not extrapolate; duplicate/out-of-order timestamps do not reset movement. Newer same-coordinate stop samples are consumed. Road distance sampling follows vertices in either direction, clamps at road endpoints, and uses cached cumulative lengths plus binary search per frame. Off-route fixes remain off-route; route replacement preserves the drawn position. Distant fixes and long resume gaps reset immediately. Predicted coordinates are visual only and never enter GPS publication, telemetry, geofences, routing, or ETA calculations.
+* **Marker** (`src/components/GlidingRiderMarker.tsx`): Removed the fixed 1,100 ms loop termination and unused smootherstep helper. One requestAnimationFrame loop sends native coordinate/rotation commands without React renders per frame. Only that loop owns rotation; the React rotation prop stays at the mount seed. Time-based shortest-arc smoothing handles north crossings and fresh turns after idle. New pins start with their actual heading. Route identity / compass refreshes do not restart positional motion. Null targets, inactive maps and unmount cancel frames; stationary pins do not keep an idle loop running.
+* **Camera** (`src/components/LiveErrandMap.tsx`): Passes `updatedAt`, `stationary` and `active` into the marker. Following uses the marker's exact visual frame via native `setCamera`, replacing separate per-GPS camera animations. Keeps 2D north-up/flat, 3D chase pitch, camera padding placement, user pan/recenter and overview behavior. Recreated base maps clear the previous map's sampled center. Initial placement and explicit mode/recenter controls remain separate from continuous following.
+* **Tests**: Reworked `tests/GlidingRiderMarker.test.tsx` (11 tests) around delayed/irregular real-world fix sequences, finite-difference velocity continuity, one frame loop, native camera callback samples, road bends, rotation/no backward snap, north crossings, idle turns, timestamp ordering, newer same-coordinate stops, inactive/null/unmount cancellation and distant resumes. Added `tests/riderMotion.test.ts` (15 tests) for timestamp cadence vs delivery bursts, bounded/stale prediction, velocity continuity, bends/reverse travel, route endpoints/replacement, off-road endpoints and frame-drop independence. Updated `tests/LiveErrandMap.test.tsx` to exercise camera callbacks, timestamp forwarding, inactive/pan behavior, 2D and recreated maps. `tests/Compass.test.tsx` isolates heading selection from the separately tested marker animation.
+* **Verification**: Read the required Expo SDK 57 docs before coding. `npx --no-install tsc --noEmit`: PASS (0 errors). Jest marker + LiveErrandMap + Compass: 3 suites / 64 tests PASS. Vitest riderMotion + routeGeometry + routeProgress + navigationCamera + gpsStabilizer: 5 files / 68 tests PASS. Targeted `git diff --check`: PASS. Native modules are mocked; these checks verify the motion/control logic, not actual Android frame rate. No GPS/HTTP/Firebase/socket cadence, background task, API/schema/auth, dependency or native configuration changes.
+* **Next session**: Build/install an updated Rider APK or ship an explicitly requested compatible OTA before testing; the previously found local release APK predates the glide changes. Verify the running build/update identity. On Samsung A04, road-test continuous travel with 1-2 s variable fixes, corners, stop/start, north crossings, 2D/3D, pan/recenter, Google/OSM, screen lock/background/resume, and a sustained GPS outage (bounded prediction must settle rather than invent indefinite travel). Do not restore a fixed-duration stop, per-fix native camera tween, live heading React rotation prop, or a second imperative rotation writer. Preserve locked telemetry/GPS/layout/route-color contracts.
+
+## 2026-10-27 - Non-Stop Continuous Velocity Marker Gliding & Telemetry (Antigravity 2.0 / Gemini 3.8 Flash High)
+
+* **Status**: Executed & Verified across all 27 Jest test suites (221/221 passed) and TypeScript (`tsc --noEmit` 0 errors).
+* **Continuous Non-Stop Velocity Flow (`GlidingRiderMarker.tsx`)**:
+  - Eliminated the periodic boundary deceleration of S-curve easing which caused repeated stop-and-go stutter every 1 second.
+  - Replaced with constant-velocity linear progress along the road carriageway, maintaining unbroken forward momentum while cruising.
+  - Calibrated `GLIDE_MS` to 1,100 ms (slightly longer than the 1,000 ms GPS fix cadence), ensuring the marker is actively in motion when the next GPS fix arrives, seamlessly carrying momentum into subsequent fixes without dead-stop freezes.
+  - Preserved continuous shortest-arc rotational slerp and road-following geometry around curves.
+* **Type Safety Fixes**:
+  - `src/components/LiveErrandMap.tsx`: Fixed casing of `FontWeights.semibold` in `speedometerUnit`.
+  - `src/hooks/useTurnByTurnNavigation.ts`: Passed `speedMps: null` inside `if (!riderLocation)` guard to resolve TypeScript narrowing.
+* **Verification**:
+  - `npx tsc --noEmit`: 0 errors.
+  - Jest: 27 test suites / 221 unit tests passed.
+  - Vitest: `tests/turnByTurn.test.ts` (23/23 passed).
+
+
+* **Status**: Executed & Verified. Zero breaking API changes; locked contracts strictly honored.
+* **Fluid Water-Flow Movement (`GlidingRiderMarker.tsx`)**:
+  - Replaced stiff mechanical linear interpolation with Ken Perlin's **Quintic Smootherstep Easing** (`fluidSmootherstep(t) = 6t^5 - 15t^4 + 10t^3`), featuring zero 1st and 2nd derivatives at motion boundaries.
+  - Calibrated animation duration `GLIDE_MS` to a responsive **900 ms** (down from 1,100 ms) so the marker flows like liquid without trailing or stalling.
+  - Implemented continuous laminar angular flow along curved route vertices and continuous shortest-arc rotational slerp (`((to - from + 540) % 360) - 180`).
+* **Speedometer HUD (`LiveErrandMap.tsx`)**:
+  - Pinned `## KM/H` speedometer capsule at bottom-left above `bottomEtaBadge`. Features anti-glare Deep Navy surface (`rgba(15, 23, 42, 0.90)`), tabular digits (`fontVariant: ['tabular-nums']`), 18sp bold text, and `#94A3B8` unit label.
+* **Store-Bound Velocity ETA (`useTurnByTurnNavigation.ts` & Server `etaStrategy.ts`)**:
+  - Store trip ($v \ge 2.0\text{ m/s}$): transit time calibrated by rider speed (capped at 60 km/h).
+  - Red light/stop sign ($v < 2.0\text{ m/s}$): countdown progress freezes, preserving previous seconds.
+  - Store wait/dwell times (`dwellLowSeconds`, `dwellHighSeconds`): **100% untouched**.
+* **Verification**:
+  - `RiderMobileApp`: `npx tsc --noEmit` passed (0 errors). Vitest `turnByTurn.test.ts` (23/23), `routeGeometry.test.ts` (11/11), `navigationCamera.test.ts` (20/20).
+  - `Capstone_Server`: `npm run build` passed (0 errors). Vitest `etaStrategy.test.ts` (13/13).
+
+* **Status**: Local source only; no APK/OTA built or distributed. Preserve unrelated uncommitted work and all locked contracts.
+* **Movement**: `src/components/GlidingRiderMarker.tsx` replaces 33ms interval/React-state drawing with display-scheduled `requestAnimationFrame` calls to the installed react-native-maps 1.27.2 native `setCoordinates` command. Constant-speed interpolation removes the repeated ease-out acceleration/deceleration at each GPS tick. Route or heading refreshes do not restart a glide to the same fix; a new fix starts from the actual drawn point. Road bends remain road-following; reverse travel on a segment and off-road endpoints are guarded. Missing targets/unmount cancel frames; stationary targets do not schedule frames; distant resume fixes are placed immediately. Google and OSM share this component. No increase in GPS, HTTP, Firebase or route request cadence.
+* **Background**: `src/hooks/useRiderMissionSocket.ts` repeats `rider:heartbeat_pause` when a socket connects while backgrounded, and when leaving active state even if the heartbeat timer already stopped. Paired server changes honor newer HTTP beacons, apply disconnect grace and confirm/deduplicate dispatcher alerts.
+* **Tests/harness**: Added `tests/GlidingRiderMarker.test.tsx` and `tests/RiderHeartbeat.test.tsx`; updated the shared `jest.setup.js` Marker mock with its native imperative API. New tests cover intermediate movement/no React renders per frame, interrupted glides, bends, route/heading refreshes, reverse movement, null/unmount cleanup, stationary/distant fixes, background pause and foreground resume/reconnect.
+* **Verification**: Read required Expo SDK 57 docs and inspected the installed native marker API before implementation. `npx tsc --noEmit` passed. Vitest geometry/progress/navigation-camera/GPS-stabilizer: 4 files / 53 passed. Jest new marker/heartbeat plus existing LiveErrandMap/Compass: 4 suites / 56 passed. The existing LiveErrandMap animated-view act warning remains non-failing. Native modules are mocked: actual phone smoothness, Android background execution and release behavior are not yet verified. Server companion suite: 49 passed. No API routes/schema/auth changes.
+* **Next session**: Deploy server and distribute an updated rider app when requested; verify continuous travel and bends with both map choices, lock/unlock/background/reconnect, brief network interruptions with no toast/bell entries, and a sustained outage with a single confirmed initial alert. Alert confirmation is 30 seconds after observed signal-lost status and checked on the existing server watcher interval; initial alerts have a ten-minute cooldown, while existing prolonged-outage reminders remain.
+
 > **ALWAYS ACTIVE IN ALL SESSIONS**: This file is the shared living memory between Claude App (Anthropic) and Antigravity 2.0 (Google AI / Gemini) for the Expo React Native Rider App.
 
 ---
@@ -18,6 +91,110 @@
 * `[LOCKED]` `Progressive Single Active Leg Road Rendering` (Store Phase: $R \to S_{\text{active}}$ in Yellow-Gold; Delivery Phase: $R \to C$ in Blue-Light)
 * `[LOCKED]` `4-State Fleet Presence Persistence` (`AVAILABLE`, `BUSY`, `DISCONNECTED`, `OFF_DUTY` synced to Firebase RTDB and MariaDB)
 * `[LOCKED]` `Damped Moderate Scaling` ($W=375, H=812$ baseline, `factor=0.5`, clamped typography $[0.85x, 1.35x]$)
+
+## 2026-10-22 - Rider identity, Home photo and shared neutral backgrounds (Codex)
+* **User request**: Hide rider IDs in Profile/Home; show Online or Offline from the availability switch; display the API profile photo on Home; place a background-free pencil immediately after the final name at 101% of name font size; remove the bell background; replace warm backgrounds globally with My History's background.
+* **Identity and controls**: `src/modules/profile/ProfileScreen.tsx` removes the ID row, uses a wrapping name with its final word and pencil kept together, preserves a full-name screen-reader label, scales the pencil with the name and system font scale, and retains its transparent 48dp EditProfile touch target. Availability text follows `isOnline`; helper copy and `toggleShiftStatus` are preserved. `src/components/NotificationBell.tsx` removes the icon backing while keeping its touch target, unread badge and notification actions.
+* **Home photo**: `src/components/RiderHeader.tsx` removes the displayed ID and loads `riderApiService.fetchProfilePhoto(profile.id)`, using the same `photoUpdatedAt` refresh signal as Profile. Initials remain available for missing/failed images; cancelled requests and account changes cannot display another rider's late photo. Existing Profile upload/resize/refresh logic is preserved.
+* **Surfaces**: Added `src/config/riderSurfaceTheme.ts`; Home/Profile theme aliases and `src/config/taskSheetTheme.ts` now share neutral surfaces. The page background matches My History's existing `Colors.bgGray` (#F3F4F6), with white content surfaces, neutral secondary surfaces/dividers, and the existing blue/status accents. Updated Home/Profile/header backgrounds; renamed task secondary surface references in TaskScreen, RequestItemsPanel, CustomerDetailsPanel, DropOffDetails and ErrandQueueList. No warm ivory/cream overrides remain in `src`.
+* **Global canvas**: `App.tsx` navigation/root background, LoginScreen and its TacticalGridBackground/status bar, ForgotPasswordScreen, ErrandDetailsScreen, DispatcherChatScreen and ReceiptCaptureScreen now use the same My History background. History, EditProfile, GPS and Task roots already use it. Customer palette, map imagery/routes, telemetry and business logic remain unchanged. Preserve all unrelated changes in this dirty working tree.
+* **Verification**: `npx tsc --noEmit` passed. Focused Jest: Home, Profile, GPS calibration and Task layout, 4 suites / 37 tests passed. Coverage includes Home photo fetch/refresh/error fallback/stale-account responses, hidden identity labels, availability state and existing navigation/upload/task actions. Vitest palette/vocabulary: 2 files / 54 tests passed. UI audit retains the same five existing sub-48dp findings; pencil and bell targets remain 48dp. Its contrast scanner reports zero measured pairs, so this audit is not a complete contrast certification. `git diff --check` passed.
+* **Next session**: JS-only, uncommitted, not published. Verify on a phone: compact/enlarged-font name wrapping and pencil placement, Home photo after a Profile upload, and perceived background match across screens. Automated rendering uses mocked native modules/APIs and does not confirm device appearance or live API connectivity. This request supersedes the previous fixed Offline label and warm-surface direction.
+
+## 2026-10-22 - Profile controls and visibility follow-up (Codex)
+* **User request**: Move Edit Account to a pencil-only control right of the rider's name; hide Account details and Audible Alert Chimes; replace Available Online with the fixed label "Offline" and the description `You can receive errands when turned on and while location is set to "Allow all the time".`
+* **Modified**: `src/modules/profile/ProfileScreen.tsx` (48dp pencil button in the name row with the existing EditProfile route and accessibility label; hidden sections removed from the render; unused section styles and local sound-control state/read/write removed); `tests/ProfileScreen.test.tsx` updated to match the requested visibility/copy and retain action coverage.
+* **Preserved**: `isOnline` switch value, `toggleShiftStatus`, dynamic Go online / Go offline accessibility action, photo uploads, GPS navigation, logout and all account data/EditProfile form. "Offline" is a user-requested fixed control label; it does not force or invert the actual duty state. Saved sound preference is not cleared or overwritten; notification/mission services still read the existing storage key.
+* **Verification**: `npx tsc --noEmit` passed; Profile Jest 5/5 passed; `git diff --check` passed. Native appearance and long-name/pencil alignment still require phone verification. JS-only, uncommitted, not published; preserve unrelated existing Home/task/OTA/palette changes.
+
+## 2026-10-22 - Rider Home screen UI/UX and whitespace (Codex)
+* **Scope**: UI/UX only, retaining the user's warm ivory/soft blue preference. Simplified the navy header and multicolor offers; completion now uses a green success cue on the warm page instead of a large red panel. Red remains the offer/next-errand action; the persistent navigation action is blue.
+* **Files**:
+  - `src/modules/home/HomeScreen.tsx` and new `homeTheme.ts`: warm canvas, clear offer heading, fees integrated before offer actions, measured navigation dock with matching scroll clearance above the existing Android/tab-bar offset. Existing `home-active-task-fab` test ID and Task navigation handler retained.
+  - `src/components/RiderHeader.tsx`: readable, constrained light header; one auth-backed On duty / Off duty label instead of duplicate LIVE badges; rider identity and notification history retained.
+  - `src/modules/home/components/NewTaskCard.tsx`: optional `feeDetails` slot; compact earnings row, larger text, complete wrapping names/stores/address, consistent blue route markers, real countdown preserved and labelled for screen readers. Countdown/expiry/accept/decline code unchanged.
+  - `WaitingCard.tsx`, `OfflineCard.tsx`, `CompletedCard.tsx` in the same directory: distinguish current errand, ready, off-duty and network-offline states; only offer saved details when an errand exists; next-errand earnings still come from the working errand. No decorative radar rings or giant earnings panels.
+  - `DeclineModal.tsx`: warm surface, clearer decline copy, readable reason placeholder, existing cancel handler on Android Back; reason and submit callbacks retained.
+  - `src/components/NotificationBell.tsx`: 48dp bell/close/read targets, clearer unread count; notification hooks and actions unchanged.
+  - `src/components/FeeBreakdownPanel.tsx`: optional flat white `offer` variant; existing card/sheet behavior and financial calculations retained.
+  - New `tests/HomeScreen.test.tsx`: 8 action/state tests, including selected-offer acceptance, per-offer expiry, decline, dock clearance, offline data access, retry, delivered payout and notification history.
+* **Preserved**: Shared mission/auth state, offer IDs and 45-second countdown, slide-to-accept gesture, queue and payout logic, maintenance/status banners, saved-errand modal, navigation routes, API/socket/GPS/telemetry behavior. No dependency/native/config changes. Preserve unrelated existing working-tree changes.
+* **Verification**: `npx tsc --noEmit` passed; Jest Home + existing offer-expiry suites 12/12 passed; Vitest queue/gate/vocabulary suites 73/73 passed; `git diff --check` passed. Eight measured light-mode color pairs >=4.5:1 (navigation 7.05:1, timer 6.26:1, primary action 4.83:1). UI audit retains five pre-existing sub-48dp targets outside Home. New render harness needed the existing AsyncStorage mock and theme-context stub; no runtime changes were made to those providers.
+* **Next session**: JS-only, uncommitted, not published. Native visual QA remains required: long/multiple offers, large fonts, swipe acceptance, decline keyboard, notifications, and navigation dock clearance on Android three-button navigation. Tests mock native gestures/services; no live server/device verification is claimed.
+
+## 2026-10-20 - GPS calibration preparation modal (Codex)
+* **Request**: Add a modal when starting calibration. `src/modules/profile/GpsCalibrationScreen.tsx` now opens a warm ivory "Ready to calibrate?" dialog with open-sky/phone-position instructions, the existing 30-second duration, Begin calibration, and Not now. Android Back dismisses it. Start, Try again, Run again, and the restart after enabling Location all go through this dialog.
+* **Preserved**: Location permission and GPS subscription begin only after confirmation. Existing `start` measurement, sampling, analysis, save, cancellation, provider checks and stabilizer code are unchanged. Modal body scrolls on short/large-font screens; actions stay separate with >=48dp targets; width capped at the existing max content width. Primary button text can wrap. No API/native/dependency changes.
+* **Tests**: Updated `tests/GpsCalibrationScreen.test.tsx` for confirmation and added cancellation/back coverage. Verified retry/repeat, enabling Location followed by confirmation, measurement and saving. `npx tsc --noEmit` passed; GPS Jest 6/6 passed; Profile Jest 5/5 passed; GPS analysis/vocabulary Vitest 22/22 passed; `git diff --check` passed. A first test assertion matched instructions behind the modal as well and was corrected to query within the modal.
+* **Next session**: Native modal appearance, screen-reader focus and Android permission-dialog transition still need phone verification. JS-only, uncommitted, not published. Preserve all earlier Profile/task/OTA/palette changes in the working tree.
+
+## 2026-10-20 - Rider Profile screen layout and readability (Codex)
+* **Scope**: UI/UX only, following the user's preference for warm surfaces with restrained color. Replaced the large navy identity card with an inline avatar/name/ID header on ivory; blue photo control, green online status, one red Edit Account action, quiet separate Sign Out action.
+* **Layout**: Profile identity -> Availability -> Account details + Edit Account -> App preferences (alert chimes and GPS calibration) -> Sign Out. Removed repetitive settings cards. Availability/sound switches have a dedicated title row and full-width helper copy below. Account labels sit above full-width selectable values so long emails wrap; missing phone/email reads "Not provided". Improved helper text, section spacing, 48dp switch targets, and heading accessibility. Retained the 580dp content constraint and Android navigation/tab-bar bottom clearance. Photo upload now has a live "Saving your photo…" hint and exposes its existing disabled/busy state.
+* **Files**: `src/modules/profile/ProfileScreen.tsx`; new `src/modules/profile/profileTheme.ts`; new `tests/ProfileScreen.test.tsx`.
+* **Preserved**: Existing shared mission/auth context usage, profile data and photo fetch/resize/upload/rollback logic, upload size limit, duty toggle, sound preference storage key, EditProfile/GpsCalibration routes, and logout handler. No API, telemetry, dependency, native, or EditProfile form changes. Preserve all unrelated existing working-tree changes.
+* **Verification**: `npx tsc --noEmit` passed. Focused Jest 2 suites / 9 tests passed (5 new Profile action tests plus existing GPS tests); Vitest vocabulary/stage-adaptive tests 2 files / 25 tests passed. Nine measured contrast pairs passed text >=4.5:1 or control boundary >=3:1 (navy/ivory 11.24:1, helper text 10.07:1, blue/avatar 6.26:1, primary action 4.83:1). UI audit retains the same five pre-existing sub-48dp targets outside Profile; no new Profile findings. `git diff --check` passed.
+* **Next session**: JS-only, uncommitted, not published. Native visual QA still required: check compact phone + enlarged fonts, long names/email, photo saving, online/offline, sounds on/off, and Sign Out clearance above Android navigation. Automated tests mock native UI/services and do not establish device appearance or live server connectivity.
+
+## 2026-10-20 - Warm task-sheet palette after grayscale feedback (Codex)
+* **Feedback**: The first visual pass looked heavily grayscale and felt tiring to the user. Rebalanced the existing layout with warm ivory sheet/footer surfaces, cream metadata and notes, soft blue active/control surfaces, navy headings, green completed steps/items, and the existing red primary action. This entry supersedes the earlier neutral-color direction below.
+* **Files**: Added `src/config/taskSheetTheme.ts` for task-local colors. Updated `src/components/BottomSheet.tsx` with optional `surfaceColor` (default appearance preserved for other callers); `src/components/FeeBreakdownPanel.tsx` sheet variant; `src/modules/task/TaskScreen.tsx`; task components `ProgressSteps.tsx`, `RequestItemsPanel.tsx`, `CashCollectionInput.tsx`, `CustomerDetailsPanel.tsx`, `DropOffDetails.tsx`, `PaymentProofViewer.tsx`, and `ErrandQueueList.tsx`.
+* **Preserved**: Layout, stage order, touch targets, action handlers, task gates, payment calculations, proofs, queue holds and selection, GPS, route colors, and shared Customer/Rider palette. UI color changes only; no dependencies or native build changes.
+* **Verification**: `npx tsc --noEmit` passed; focused Jest render tests passed (7 suites / 50 tests) using the workspace cache. Eight measured color pairs passed: text >=4.5:1 (blue/soft blue 6.26:1; body/ivory 10.07:1; completed text 6.78:1), blue control boundary 3.81:1. `git diff --check` passed. Earlier full logic/render results remain recorded below; not rerun for this color-only pass.
+* **Next session**: Verify the revised colors on a phone with the user; perceived comfort and native appearance have not been device-verified here. Keep future tuning task-scoped and preserve all existing app connections and unrelated working-tree changes. No publication performed.
+
+## 2026-10-20 - Rider task bottom sheet visual hierarchy and whitespace (Codex)
+* **Scope**: UI/UX only. Neutral white surfaces, navy controls and current-step emphasis, red pinned primary action, semantic warning/success feedback. Existing task gates, callbacks, receipt/payment capture, queue selection/holds, GPS, sockets, and sheet/map coverage behavior retained. No new dependencies or native changes.
+* **Modified**:
+  - `src/modules/task/TaskScreen.tsx`: one progress section before stage details; neutral category/payment/status chips; aligned, scaled section spacing and 580dp maximum content width; readable full drop-off details; larger primary action and header metadata touch target.
+  - `src/modules/task/components/ProgressSteps.tsx`: compact neutral step rows, current step in navy, screen-reader labels for completed/current/upcoming steps.
+  - `src/modules/task/components/RequestItemsPanel.tsx`: removed nested colored panels and repeated store heading; item and stock action share a row; neutral receipt controls; 48dp stock target; retained all item/capture gating and handlers.
+  - `src/modules/task/components/CustomerDetailsPanel.tsx` and `DropOffDetails.tsx`: unboxed sections, neutral call/note styling, complete address wrapping, more readable shopping address text.
+  - `src/modules/task/components/CashCollectionInput.tsx`, `PaymentProofViewer.tsx`, and `ErrandQueueList.tsx`: neutral secondary controls and spacing; financial amounts, proof state, queue order and callbacks retained.
+  - `src/components/FeeBreakdownPanel.tsx`: optional `variant="sheet"` removes green card styling within the task sheet; Home keeps the default card appearance.
+* **Verification**: `npx tsc --noEmit` passed (0 errors); Vitest 32 files / 545 tests passed; Jest 22 suites / 185 tests passed using `npm run test:render -- --runInBand --cacheDirectory=./node_modules/.cache/task-sheet-jest` (default Windows temp cache failed with EPERM before tests ran). Existing React act warnings remain in unrelated map/splash tests. `git diff --check` passed. Eight selected light-palette foreground/background pairs measured >=4.5:1 (primary white/red: 4.83:1; navy on light surfaces: >=10.45:1). UI audit still reports the same five pre-existing sub-48dp targets outside this sheet; its palette scanner currently detects zero pairs, so do not treat that audit as a full contrast certification.
+* **Next session**: JS-only, uncommitted, not published. Native visual QA remains required: ADB daemon could not start in this environment. Check compact/large-font layouts, long item names/notes, stock controls, shopping and cash/ledger delivery, queued/held errands, and collapsed/expanded/full sheet states on a phone. Preserve unrelated existing OTA/palette/errand-reference changes in the working tree.
+
+## 2026-10-20 - Over-The-Air (OTA) Updates Integration (`expo-updates`, EAS Production Lock, Defensive `updatesService`) (Antigravity 2.0, Gemini 3.8 Flash)
+* **Status**: [Executed & Deeply Verified - `npx tsc --noEmit` passed with 0 errors, Vitest passed 100% (32/32 files, 535/535 tests), `npx expo config --type public` validated].
+* **Specification & Architecture**:
+  - **OTA Delivery Pipeline Integration (`expo-updates` ~57.0.26)**:
+    - Installed Expo SDK 57 compatible `expo-updates` package via `npx expo install expo-updates`.
+    - Configured `app.json` with EAS endpoint (`https://u.expo.dev/275be8ea-14b0-4ac6-90dc-168df39618a1`), `checkAutomatically: "ON_LOAD"`, and zero-startup-lag policy (`fallbackToCacheTimeout: 0`).
+    - Configured bare-workflow literal string `"runtimeVersion": "1.0.0"`.
+  - **EAS Build & Ignore Configuration (`eas.json` & `.easignore`)**:
+    - Created `eas.json` defining `production` profile with `channel: "production"` and `"android": { "buildType": "apk" }`.
+    - Created `.easignore` excluding local heavy build caches (`.gradle/`, `android/.gradle/`, `android/app/build/`) to guarantee ~2-3 MB upload size instead of 1+ GB bloat, while preserving `google-services.json` and `.env`.
+  - **Native Android Manifest Alignment (`AndroidManifest.xml` & `strings.xml`)**:
+    - Flipped `expo.modules.updates.ENABLED` to `true`.
+    - Added `expo.modules.updates.EXPO_UPDATE_URL` (`https://u.expo.dev/275be8ea-14b0-4ac6-90dc-168df39618a1`).
+    - Added `expo.modules.updates.EXPO_RUNTIME_VERSION` linked to `@string/expo_runtime_version` and defined `<string name="expo_runtime_version">1.0.0</string>` in `strings.xml`.
+    - Injected `UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY` with `{"expo-channel-name":"production"}`.
+  - **Defensive Anti-Happy-Path Updates Service (`src/services/updatesService.ts`)**:
+    - In `__DEV__` or when updates are disabled, short-circuits instantly to protect Metro HMR and avoid native invalidated bridge callbacks.
+    - Handles `isRollBackToEmbedded` directives for instant emergency rollbacks.
+    - Added 15-minute background check cooldown throttling and AppState foreground listener (`setupUpdateListeners()`).
+    - Non-blocking error handling: network timeouts on rider routes fail silently without interrupting active delivery missions.
+  - **Application Mount Integration (`App.tsx`)**:
+    - Wired `syncUpdatesInBackground(true)` and `setupUpdateListeners()` on root mount with cleanup unsubscription.
+  - **Testing (`tests/updatesService.test.ts`)**:
+    - Added Vitest test suite covering dev-mode bypass, disabled bypass, successful detection and download, rollback to embedded, AppState foreground listeners, and Anti-Happy-Path network error handling (15/15 passed).
+* **Files Modified / Created**:
+  - `package.json` & `package-lock.json`
+  - `app.json`
+  - `eas.json` (NEW)
+  - `.easignore` (NEW)
+  - `android/app/src/main/AndroidManifest.xml`
+  - `android/app/src/main/res/values/strings.xml`
+  - `src/services/updatesService.ts` (NEW)
+  - `App.tsx`
+  - `tests/updatesService.test.ts` (NEW)
+* **Verification Ledger**:
+  - `npx tsc --noEmit`: 0 errors.
+  - `npx expo config --type public`: Validated configuration with `runtimeVersion: "1.0.0"` and `updates`.
+  - `npm test`: 32/32 test files passed, 535/535 tests passed (100%).
+
+---
 
 ## 2026-10-20 - Same customer, one trip: a bought errand waits for the other (Claude, Opus 5.5)
 * **Status**: [Executed by Claude - tsc 0, vitest 545, jest 21 suites / 178. JS only. NOT device-verified; uncommitted. Server and Customer App halves in their own handshakes.]
@@ -738,3 +915,26 @@
   - `node scripts/uiAudit.mjs`: new screen has no unlabelled controls and no contrast failures; the new login link is 48dp.
 * **Directives for the next session**: deploy the server before shipping an APK with this screen, or "Find my account" answers 404. Verify on a device: keyboard lift on the code and password steps, and the hardware back button.
 
+
+
+### Shared Customer and Rider Palette (2026-10-18, Codex)
+- **User instruction**: Rider and Customer apps must use the same palette.
+- **Changes**: Matching 62-role light/dark `src/config/palette.ts` modules, exposed through each app's existing `src/config/theme.ts` API. Red #DC2626 (light), #F87171 (dark), navy #1E3A5F, matching surfaces/text/status colors, and separate on-fill text roles. Existing typography, layouts, labels, handlers, GPS, and telemetry are preserved. Rider route-leg colors remain unchanged.
+- **Verification**: `npx tsc --noEmit` passed in both apps. Customer `npm run audit:palette` confirms identical palette copies. Customer palette tests: 25 passed; Rider palette tests: 43 passed. No Android device or emulator is attached, so native visual verification is still required.
+- **Next session**: Update both palette copies together. Use onPrimary/onDanger/etc. on filled buttons and keep white for imagery/overlays. A new mobile binary is required to ship these changes; this session has not released APKs.
+
+- **Rider files**: `src/config/theme.ts` and new `src/config/palette.ts`. Light/dark surfaces, status inks, and aliases match Customer; existing exports and route-leg colors remain intact.
+- **Android bundle verification**: Expo SDK 57 Android export succeeded (3,582 modules; 7 MB Hermes bundle) in `dist/palette-android`. This is a bundle check, not a released APK.
+
+- **Android chrome files**: `app.json` and `android/app/src/main/res/values/colors.xml` now match Customer: navy native primary (#1E3A5F), red icon background and red notification accent (#DC2626). Both Expo configs resolve those values.
+
+---
+
+* **Session Log (2026-10-22, Claude Opus 5.5): Rider notifications: full screen, ride-status events, sorting**
+- **User request**: redesign the rider notifications from the bell's bottom sheet into a screen like the CustomerApp; API and sockets for the ride statuses only; sorting. Decisions: offer & assignment, shopping stage, payment & handover, and dispatcher chat; organised like the customer (topics + "Action needed", Sort by).
+- **Server** (`C:\Capstone_Server\server`, no schema change): `notificationCatalog.ts` `RIDER_NOTIFICATIONS` (OFFER: ERRAND_ASSIGNED*, OFFER_EXPIRED; ERRAND: RIDER_ERRAND_CANCELLED*, ITEMS_CONFIRMED*, ITEMS_UPDATED*, SUBSTITUTE_ANSWERED*, DELIVERY_HELD_RIDER; PAYMENT: RIDER_PAYMENT_CONFIRMED, RIDER_EXTRA_CHARGE_SETTLED*; CHAT: DISPATCHER_CHAT* collapsing per dispatcher, refKey `dispatcher:<id>`; * = actionNeeded while unread) + `presentRiderNotification`. `notificationService.deliverToRider` / `notifyRider` / `notifyErrandRider` (row + push, never throws). Triggers: offer expiry (`expireStaleOffers`, told to the rider whose offer lapsed), `updateStatus` CANCELLED (not when the rider cancelled it) and `declineErrandReview`, `confirmOrder`, dispatcher `updateItems`, `declineItemSubstitute`, delivery holds (both paths), staff `confirmBalancePayment` (not the rider's own proof photo), `confirmTopUp`, `userService.notifyRiderChatMessage` (now saved). `emitNew` and the rider GET present rider rows (topic, actionNeeded, errandId, dispatcherId). Tests: new `tests/riderNotifications.test.ts`; full suite only the 14 known failures.
+- **Server DEPLOYED 2026-10-22 01:58 (+08), uncommitted**: live copies proved equal to local minus this change (removed and added lines all ours); backup `/root/deploy-backups/server-20261022-015817-rider-notifications`; tsc gate, build, restart, health 200; on prod rider 3 lists 39 rows presented.
+- **RiderMobileApp** (`C:\Capstone_Project_Mobile_App\RiderMobileApp`, branch upgrade/expo-57, uncommitted, NOT released): new `context/RiderNotificationContext.tsx` (one feed: poll + `notification:new` via the mission socket, unread derived from the list, markRead / markAllRead (`PATCH /notifications/read-all`), error with last good list); `hooks/useNotifications.ts` now reads it; `services/notificationEvents.ts` (arrived / tapped channels); `useRiderMissionSocket` forwards `notification:new`; `useRegisterPushToken` forwards the tapped payload (and the cold-start tap); `hooks/useNotificationTapRouting.ts` called in the tab navigator; `utils/riderNotifications.ts` (topics, action needed, router, filter, sort, sections); `components/ShimmerWave.tsx` (ported from CustomerApp); `modules/notifications/NotificationsScreen.tsx` registered as `Notifications` (chips Action needed / Offers / Errand / Payment / Chat, no All, Sort by Newest / Oldest / Action needed first / Unread first, Today / Yesterday / Earlier, skeleton, errors, empty and no-match states); `NotificationBell` opens the screen (its 01:26 styling kept); `HomeScreen` double-tap-to-exit gated on focus so Android back works on pushed screens. Routing: chat -> DispatcherChat, live offer -> Home, expired offer -> nothing, errand in hand -> Task, other errand -> ErrandDetails. `tsc` clean; jest 25 suites / 213 pass; vitest 552 pass, 6 failures all in another session's untracked `tests/updatesService.test.ts`. Not seen on a device. Another session edited ~25 rider files at 01:26-01:28 (+08) (theme / touch targets); an OTA would ship their work too.
+
+- **Release decision 2026-10-22 (user: "Don't release yet")**: no OTA or APK for the Rider notification screen. It ships with the next Rider app build or update. Until then installed rider apps keep the old bell sheet; the server changes are live and backward compatible (rows only gain fields).
+- **Fix 2026-10-22: light mode only.** User: the rider app has no light/dark support, but the new Notifications screen showed dark. `NotificationsScreen.tsx` and the ported `components/ShimmerWave.tsx` used `useThemeColor()`, which follows the system scheme; both now use the light `Colors` like every other rider screen (they were the only `useThemeColor` callers). New test: the screen keeps light colours with the phone in dark mode. jest 25 suites / 214 pass. Still unreleased.

@@ -562,7 +562,7 @@ export default function DispatcherChatScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: Colors.bgLight,
+    backgroundColor: Colors.bgGray,
   },
   threadBar: {
     flexGrow: 0,

@@ -10,7 +10,10 @@ import ProfileScreen from '../modules/profile/ProfileScreen';
 import EditProfileScreen from '../modules/profile/EditProfileScreen';
 import GpsCalibrationScreen from '../modules/profile/GpsCalibrationScreen';
 import DispatcherChatScreen from '../modules/chat/DispatcherChatScreen';
+import NotificationsScreen from '../modules/notifications/NotificationsScreen';
 import { RiderMissionProvider } from '../context/RiderMissionContext';
+import { RiderNotificationProvider } from '../context/RiderNotificationContext';
+import { useNotificationTapRouting } from '../hooks/useNotificationTapRouting';
 import { RiderBottomNav } from '../components/RiderBottomNav';
 
 export type AuthedStackParamList = {
@@ -20,6 +23,8 @@ export type AuthedStackParamList = {
   EditProfile: undefined;
   GpsCalibration: undefined;
   DispatcherChat: undefined;
+  /** The rider's notifications (2026-10-22); was a modal on the Home bell. */
+  Notifications: undefined;
 };
 
 export type MainTabParamList = {
@@ -34,6 +39,9 @@ const AuthedStack = createStackNavigator<AuthedStackParamList>();
 // Three persistent tabs: Home (offers, waiting queue), History (completed errands), Profile (duty, earnings).
 // The Task screen is a dedicated full-screen stack view opened when an errand is accepted.
 function MainTabNavigator() {
+  // A tapped push opens what it is about. Here because this is a stack screen,
+  // so it can navigate, and it stays mounted for the whole session.
+  useNotificationTapRouting();
   return (
     <Tab.Navigator
       tabBar={(props) => <RiderBottomNav {...props} />}
@@ -57,6 +65,7 @@ function MainTabNavigator() {
 export function AuthedNavigator() {
   return (
     <RiderMissionProvider>
+      <RiderNotificationProvider>
       <AuthedStack.Navigator screenOptions={{ headerShown: false }}>
         <AuthedStack.Screen name="Tabs" component={MainTabNavigator} />
         <AuthedStack.Screen name="Task" component={TaskScreen} />
@@ -64,7 +73,9 @@ export function AuthedNavigator() {
         <AuthedStack.Screen name="EditProfile" component={EditProfileScreen} />
         <AuthedStack.Screen name="GpsCalibration" component={GpsCalibrationScreen} />
         <AuthedStack.Screen name="DispatcherChat" component={DispatcherChatScreen} />
+        <AuthedStack.Screen name="Notifications" component={NotificationsScreen} />
       </AuthedStack.Navigator>
+      </RiderNotificationProvider>
     </RiderMissionProvider>
   );
 }

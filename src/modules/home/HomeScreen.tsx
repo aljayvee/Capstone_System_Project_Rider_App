@@ -1,13 +1,14 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useRiderDoubleTapBackToExit } from '../../hooks/useRiderBackHandler';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Navigation, ChevronRight } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
+import { useRiderAuth } from '../../context/RiderAuthContext';
 import type { AuthedStackParamList, MainTabParamList } from '../../navigation/AuthedNavigator';
 import RiderHeader from '../../components/RiderHeader';
 import { StatusBanner } from '../../components/StatusBanner';
@@ -17,7 +18,7 @@ import { FeeBreakdownPanel } from '../../components/FeeBreakdownPanel';
 import { WaybillModal } from '../../components/WaybillModal';
 import { OfflineCard, WaitingCard, NewTaskCard, CompletedCard, DeclineModal } from './components';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, FontFamily, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
-import { formatErrandId } from '../../utils/formatErrandId';
+import { HomeColors } from './homeTheme';
 
 type HomeScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Home'>,
@@ -33,12 +34,18 @@ type HomeScreenNavigationProp = CompositeNavigationProp<
  */
 export default function HomeScreen() {
   const mission = useRiderMissionContext();
+  const { isOnline } = useRiderAuth();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const maintenanceNotice = useMaintenanceNotice();
   const insets = useSafeAreaInsets();
+  const [actionDockHeight, setActionDockHeight] = React.useState(0);
 
+  // Only while Home is the screen in front. Home stays mounted under every
+  // pushed screen (Notifications, Task, ErrandDetails), and without this its
+  // "press back again to exit" swallowed Android back on all of them.
+  const homeFocused = useIsFocused();
   useRiderDoubleTapBackToExit(
-    true,
+    homeFocused,
     mission.isMissionAccepted
       ? 'Active errand in progress. Press back again to exit.'
       : 'Press back again to exit'
@@ -75,12 +82,12 @@ export default function HomeScreen() {
   }, [mission]);
 
   const renderBody = () => {
-    if (isOffline) return <OfflineCard setShowWaybill={setShowWaybill} />;
+    if (isOffline) return <OfflineCard setShowWaybill={setShowWaybill} hasErrand={Boolean(errand)} />;
 
     if (phase === 'loading') {
       return (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={HomeColors.accent} accessibilityLabel="Loading your errands" />
         </View>
       );
     }
@@ -88,14 +95,15 @@ export default function HomeScreen() {
     if (phase === 'error') {
       return (
         <View style={styles.centerState}>
-          <Text style={styles.errorText}>{errorMessage}</Text>
+          <Text style={styles.offersHeading} accessibilityRole="header" maxFontSizeMultiplier={1.25}>Errands could not load</Text>
+          <Text style={styles.errorText} maxFontSizeMultiplier={1.25}>{errorMessage}</Text>
           <TouchableOpacity
             style={styles.retryBtn}
             onPress={refresh}
             accessibilityRole="button"
             accessibilityLabel="Try loading your errand again"
           >
-            <Text style={styles.retryBtnText}>Retry</Text>
+            <Text style={styles.retryBtnText} maxFontSizeMultiplier={1.25}>Retry</Text>
           </TouchableOpacity>
         </View>
       );
@@ -113,18 +121,16 @@ export default function HomeScreen() {
       );
     }
 
-    if (offeredErrands.length === 0) return <WaitingCard />;
+    if (offeredErrands.length === 0) return <WaitingCard hasActiveErrand={mission.isMissionAccepted} isOnDuty={isOnline} />;
 
     // One card per offer rather than one merged card. A rider offered two
     // errands was previously shown a single blended one and had to accept or
     // decline both together, with a fee figure that was the sum of two jobs.
     return (
       <>
-        {offeredErrands.length > 1 && (
-          <Text style={styles.offersHeading}>
-            {offeredErrands.length} errands offered to you
-          </Text>
-        )}
+        <Text style={styles.offersHeading} accessibilityRole="header" maxFontSizeMultiplier={1.25}>
+          {offeredErrands.length === 1 ? 'Your offer' : `${offeredErrands.length} errands offered to you`}
+        </Text>
         {offeredErrands.map((offer) => (
           <View key={offer.id} style={styles.offerBlock}>
             <NewTaskCard
@@ -133,15 +139,8 @@ export default function HomeScreen() {
               onDecline={handleDecline}
               onExpire={() => mission.expireOffer(offer.id)}
               isAccepting={mission.isAccepting}
+              feeDetails={<FeeBreakdownPanel errand={offer} variant="offer" />}
             />
-            {/* The breakdown sits with the offer, not behind a tap. What the
-                errand pays is the whole basis of the decision being asked for. */}
-            <View style={styles.breakdownWrap}>
-              <View style={styles.breakdownHeader}>
-                <Text style={styles.breakdownId}>{formatErrandId(offer.id)}</Text>
-              </View>
-              <FeeBreakdownPanel errand={offer} />
-            </View>
           </View>
         ))}
       </>
@@ -156,9 +155,11 @@ export default function HomeScreen() {
       <StatusBanner banner={mission.banner} onDismiss={mission.dismissBanner} />
       <MaintenanceNoticeBanner notice={maintenanceNotice} />
       <ScrollView
+        testID="home-scroll"
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md },
+          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md + (mission.isMissionAccepted ? actionDockHeight + Spacing.md : 0) },
         ]}
       >
         {renderBody()}
@@ -179,27 +180,33 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* Floating Action Button: Appears only when an errand is accepted */}
+      {/* The navigation action has its own space above the tab bar. */}
       {mission.isMissionAccepted && (
-        <TouchableOpacity
-          style={[
-            styles.floatingTaskFab,
-            { bottom: Math.max(insets.bottom, Spacing.sm) + 64 + Spacing.md },
-          ]}
-          onPress={() => navigation.navigate('Task')}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Open active task in navigation"
-          testID="home-active-task-fab"
+        <View
+          style={[styles.taskDock, { bottom: Math.max(insets.bottom, Spacing.sm) + 64 + Spacing.md }]}
+          onLayout={(event) => {
+            const next = Math.round(event.nativeEvent.layout.height);
+            setActionDockHeight((previous) => previous === next ? previous : next);
+          }}
+          testID="home-task-dock"
         >
-          <View style={styles.fabIconWrap}>
-            <Navigation size={18} color={Colors.onPrimary} strokeWidth={2.4} />
-          </View>
-          <Text style={styles.fabText} maxFontSizeMultiplier={1.15}>
-            Active Task
-          </Text>
-          <ChevronRight size={18} color={Colors.onPrimary} strokeWidth={2.2} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.navigationButton}
+            onPress={() => navigation.navigate('Task')}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Open active task in navigation"
+            testID="home-active-task-fab"
+          >
+            <View style={styles.fabIconWrap}>
+              <Navigation size={18} color={Colors.onPrimary} strokeWidth={2.4} />
+            </View>
+            <Text style={styles.fabText} maxFontSizeMultiplier={1.25}>
+              Open navigation
+            </Text>
+            <ChevronRight size={18} color={Colors.onPrimary} strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -208,11 +215,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bgGray,
+    backgroundColor: HomeColors.background,
   },
   scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.lg,
+    padding: moderateScale(20, 0.5),
+    gap: moderateScale(20, 0.5),
     maxWidth: MAX_CONTENT_WIDTH,
     width: '100%',
     alignSelf: 'center',
@@ -226,7 +233,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: Colors.textGray,
-    fontSize: scaledFontSize(FontSizes.base, 0.20),
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
     textAlign: 'center',
   },
   retryBtn: {
@@ -241,47 +248,40 @@ const styles = StyleSheet.create({
   retryBtnText: {
     color: Colors.onPrimary,
     fontWeight: FontWeights.bold as any,
-    fontSize: scaledFontSize(FontSizes.base, 0.20),
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
   },
   offersHeading: {
-    fontSize: scaledFontSize(FontSizes.md, 0.20),
+    fontSize: scaledFontSize(FontSizes.md, 0.35),
     fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    color: Colors.navy,
   },
   offerBlock: {
-    gap: Spacing.md,
+    marginBottom: moderateScale(12, 0.5),
   },
-  breakdownWrap: {
-    gap: Spacing.xs,
-  },
-  breakdownHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  breakdownId: {
-    fontSize: scaledFontSize(FontSizes.xs, 0.20),
-    fontWeight: FontWeights.bold as any,
-    color: Colors.textGray,
-    letterSpacing: 0.4,
-  },
-  floatingTaskFab: {
+  taskDock: {
     position: 'absolute',
-    bottom: Spacing.xl,
-    right: Spacing.lg,
+    left: 0,
+    right: 0,
+    paddingVertical: moderateScale(12, 0.5),
+    paddingHorizontal: moderateScale(20, 0.5),
+    backgroundColor: HomeColors.surface,
+    borderTopWidth: 1,
+    borderTopColor: HomeColors.divider,
+    zIndex: 50,
+  },
+  navigationButton: {
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH - moderateScale(40, 0.5),
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.primary,
-    paddingVertical: moderateScale(12, 0.20),
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: HomeColors.accent,
+    paddingVertical: moderateScale(14, 0.5),
     paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.full,
-    minHeight: 48,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
-    zIndex: 50,
+    borderRadius: BorderRadius.md,
+    minHeight: Math.max(52, moderateScale(54, 0.5)),
   },
   fabIconWrap: {
     marginRight: 2,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   fabText: {
     flexShrink: 1,
     fontFamily: FontFamily.bold,
-    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontSize: scaledFontSize(FontSizes.base, 0.35),
     fontWeight: FontWeights.bold as any,
     color: Colors.onPrimary,
     letterSpacing: 0.2,
