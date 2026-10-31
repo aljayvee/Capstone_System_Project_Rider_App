@@ -9,6 +9,7 @@ expo-env.d.ts
 .gradle/
 android/.gradle/
 android/app/build/
+android/app/.cxx/
 android/build/
 
 # Native keys & artifacts
