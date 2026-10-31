@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  followCameraDurationMs,
   headingDelta,
   lineTrailMeters,
   markerSnapMeters,
@@ -166,13 +165,5 @@ describe('lineTrailMeters', () => {
     expect(lineTrailMeters(null)).toBe(6);
     expect(lineTrailMeters(10)).toBeCloseTo(18, 5);
     expect(lineTrailMeters(40)).toBe(25);
-  });
-});
-
-describe('followCameraDurationMs', () => {
-  it("moves the camera over the dot's whole glide while riding", () => {
-    expect(followCameraDurationMs(1100, 'road')).toBe(1100);
-    // Turning the phone by hand stays quick.
-    expect(followCameraDurationMs(1100, 'compass')).toBe(300);
   });
 });

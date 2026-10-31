@@ -272,7 +272,7 @@ export function LiveErrandMap({
     riderProjection != null && riderProjection.distanceMeters > markerSnapMeters(riderLocation?.speed);
 
   // Only the road still ahead, cut a little behind the rider so the dot, which
-  // glides a second behind each fix, always sits on its own line
+  // rides on along the road between fixes, always sits on its own line
   // (navigationCamera.lineTrailMeters). Off the road the cut is exactly where
   // they will join it, which is where the dashed link below meets the line.
   // Rounded to 2 m steps so the polyline is not re-sent to the native map for
@@ -819,7 +819,7 @@ export function LiveErrandMap({
           />
         )}
 
-        {/* Smooth Gliding Rider Pin with Heading Rotation */}
+        {/* The rider's icon, ridden continuously along the road line (utils/riderMotion) */}
         <GlidingRiderMarker
           target={markerTarget}
           route={isFallback ? null : activeRouteLine}

@@ -125,12 +125,12 @@ export function navigationZoom(speedMps: number | null | undefined): number {
 /**
  * How far behind the rider the drawn line starts, in metres.
  *
- * The line was cut exactly at the newest fix, while the dot takes a full glide
- * to get there, so for most of every second the dot sat on bare map behind the
- * start of its own line, and the gap snapped shut when the next fix landed:
- * the flicker at the head of the route. Starting the line about one glide's
- * travel behind the fix keeps it running under the dot the whole time. The
- * puck covers this much of it at navigation zoom.
+ * The line was cut exactly at the newest fix, while the dot, riding on along
+ * the road (riderMotion), can trail it when the rider speeds up, so it sat on
+ * bare map behind the start of its own line, and the gap snapped shut when the
+ * next fix landed: the flicker at the head of the route. Starting the line
+ * about a second's travel behind the fix keeps it running under the dot the
+ * whole time. The puck covers this much of it at navigation zoom.
  */
 export function lineTrailMeters(speedMps: number | null | undefined): number {
   const speed = typeof speedMps === 'number' && speedMps > 0 ? speedMps : 0;
@@ -164,19 +164,6 @@ export function steadyNavigationZoom(previousZoom: number | null, speedMps: numb
   while (band + 1 < ZOOM_BANDS.length && speed > ZOOM_BANDS[band + 1].enterAbove) band++;
   while (band > 0 && speed < ZOOM_BANDS[band].leaveBelow) band--;
   return ZOOM_BANDS[band].zoom;
-}
-
-/**
- * How long each camera move takes, following fix after fix.
- *
- * The rider's dot glides from one fix to the next over GLIDE_MS
- * (GlidingRiderMarker). A camera that got there in 400 ms and then waited
- * moved in bursts, a quarter turn at a time through every corner, and the dot
- * slid across the screen behind it and back each second. Over the same span as
- * the dot, the two move together and a turn is one continuous swing.
- */
-export function followCameraDurationMs(glideMs: number, source: 'road' | 'compass' | string): number {
-  return source === 'compass' ? 300 : glideMs;
 }
 
 /**

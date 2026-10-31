@@ -1,138 +1,192 @@
 import { describe, expect, it } from 'vitest';
-import { RiderMotion } from '../src/utils/riderMotion';
+import {
+  MAX_ACCEL_MPS2, MAX_BRAKE_MPS2, MAX_LEAD_METERS, RiderMotion, type RiderMotionFrame,
+} from '../src/utils/riderMotion';
 import { metresBetween, projectOntoPath } from '../src/utils/routeGeometry';
+import type { MapCoordinate } from '../src/utils/coords';
 
 const epoch = 1_000_000;
+const M = 111195;
 const origin = { latitude: 6.68, longitude: 124.66 };
-const east = (meters: number) => ({ latitude: origin.latitude, longitude: origin.longitude + meters / (111195 * Math.cos(origin.latitude * Math.PI / 180)) });
-const road = [origin, east(200)];
-const push = (motion: RiderMotion, coordinate: typeof origin, now: number, extra: Partial<Parameters<RiderMotion['push']>[1]> = {}) =>
+const COS = Math.cos(origin.latitude * Math.PI / 180);
+const east = (meters: number, from: MapCoordinate = origin) => ({ latitude: from.latitude, longitude: from.longitude + meters / (M * COS) });
+const north = (meters: number, from: MapCoordinate = origin) => ({ latitude: from.latitude + meters / M, longitude: from.longitude });
+/** Metres east of the origin, and the eastward speed of a frame. */
+const eastOf = (c: MapCoordinate) => (c.longitude - origin.longitude) * M * COS;
+const speedEast = (f: RiderMotionFrame) => f.velocity.longitude * M * COS;
+const road = [origin, east(400)];
+
+type Extra = Partial<Parameters<RiderMotion['push']>[1]>;
+interface Fix { at: number; coordinate: MapCoordinate; extra?: Extra }
+const push = (motion: RiderMotion, coordinate: MapCoordinate, now: number, extra: Extra = {}) =>
   motion.push(coordinate, { now, wallNow: epoch + now, recordedAt: epoch + now, route: null, speedMps: 10, ...extra });
 
-describe('the rider visual motion timeline', () => {
-  it('keeps travelling past 1100ms when the next accepted fix is delayed', () => {
+/** A rider at a steady speed, one fix at each arrival time. */
+const steady = (arrivals: number[], where: (t: number) => MapCoordinate, extra: Extra = {}): Fix[] =>
+  arrivals.map((at) => ({ at, coordinate: where(at), extra }));
+
+/** Plays fixes in time order, drawing a frame every `step` ms like the marker's loop does. */
+function play(motion: RiderMotion, fixes: Fix[], until: number, step = 16) {
+  const frames: { t: number; frame: RiderMotionFrame }[] = [];
+  let next = 0;
+  for (let t = 0; t <= until; t += step) {
+    while (next < fixes.length && fixes[next].at <= t) {
+      push(motion, fixes[next].coordinate, fixes[next].at, fixes[next].extra);
+      next++;
+    }
+    frames.push({ t, frame: motion.sample(t)! });
+  }
+  return frames;
+}
+
+describe('riding the icon along the road line', () => {
+  it('rides on between fixes, however irregular, and never stops at one', () => {
     const motion = new RiderMotion();
-    push(motion, origin, 0);
-    push(motion, east(10), 1000);
-    const at1100 = motion.sample(2100)!;
-    const at1900 = motion.sample(2900)!;
-    expect(at1100.moving).toBe(true);
-    expect(at1900.coordinate.longitude).toBeGreaterThan(at1100.coordinate.longitude);
-    expect(at1900.velocity.longitude).toBeGreaterThan(0);
+    const fixes = steady([0, 1000, 2300, 4100, 5400, 7400, 8600], (t) => east(t / 100), { route: road });
+    const riding = play(motion, fixes, 8600).filter(({ t }) => t > 1000);
+    for (let i = 1; i < riding.length; i++) {
+      const speed = (eastOf(riding[i].frame.coordinate) - eastOf(riding[i - 1].frame.coordinate)) / ((riding[i].t - riding[i - 1].t) / 1000);
+      expect(speed).toBeGreaterThan(6);
+      expect(speed).toBeLessThan(18);
+      expect(riding[i].frame.moving).toBe(true);
+    }
   });
 
-  it.each([null, road])('retains position and velocity through an interrupted glide (route=%s)', (route) => {
+  it('stays exactly on the road line through a bend instead of cutting the corner', () => {
+    const corner = east(30);
+    const route = [origin, corner, north(60, corner)];
+    const along = (m: number) => (m <= 30 ? east(m) : north(m - 30, corner));
+    const motion = new RiderMotion();
+    const frames = play(motion, steady([0, 1000, 2000, 3000, 4000, 5000, 6000], (t) => along(t / 100), { route }), 6500);
+    for (const { frame } of frames) expect(projectOntoPath(frame.coordinate, route)!.distanceMeters).toBeLessThan(0.01);
+    expect(frames.at(-1)!.frame.coordinate.latitude).toBeGreaterThan(north(20, corner).latitude);
+  });
+
+  it.each([null, road])('never moves the icon or changes its speed when a fix lands (route=%s)', (route) => {
     const motion = new RiderMotion();
     push(motion, origin, 0, { route });
     push(motion, east(10), 1000, { route });
+    const step = motion.sample(1799)!;
     const before = motion.sample(1800)!;
-    const beforeStep = motion.sample(1799)!;
     push(motion, east(20), 1800, { route });
     const after = motion.sample(1800)!;
-    const afterStep = motion.sample(1801)!;
-    expect(metresBetween(before.coordinate, after.coordinate)).toBeLessThan(0.001);
-    expect(after.velocity.longitude).toBeCloseTo(before.velocity.longitude, 10);
-    const vBefore = before.coordinate.longitude - beforeStep.coordinate.longitude;
-    const vAfter = afterStep.coordinate.longitude - after.coordinate.longitude;
-    expect(vAfter / vBefore).toBeCloseTo(1, 2);
+    const next = motion.sample(1801)!;
+    expect(metresBetween(before.coordinate, after.coordinate)).toBeLessThan(1e-6);
+    expect(after.velocity.longitude).toBeCloseTo(before.velocity.longitude, 12);
+    const ratio = (next.coordinate.longitude - after.coordinate.longitude) / (before.coordinate.longitude - step.coordinate.longitude);
+    expect(ratio).toBeCloseTo(1, 2);
   });
 
-  it('uses GPS sample intervals rather than the delivery burst interval', () => {
+  it('speeds up and brakes within what a motorcycle can do', () => {
     const motion = new RiderMotion();
-    push(motion, origin, 0);
-    push(motion, east(20), 50, { recordedAt: epoch + 2000, wallNow: epoch + 2000 });
-    expect(motion.sample(1150)!.coordinate.longitude).toBeLessThan(east(20).longitude);
-    expect(metresBetween(motion.sample(2050)!.coordinate, east(20))).toBeLessThan(0.001);
+    const fixes: Fix[] = [
+      { at: 0, coordinate: origin, extra: { route: road, speedMps: 0 } },
+      ...steady([1000, 2000, 3000, 4000, 5000], (t) => east(t / 100), { route: road }),
+      { at: 6000, coordinate: east(52), extra: { route: road, speedMps: 0, stationary: true } },
+    ];
+    const frames = play(motion, fixes, 12000);
+    for (let i = 1; i < frames.length; i++) {
+      const accel = (speedEast(frames[i].frame) - speedEast(frames[i - 1].frame)) / ((frames[i].t - frames[i - 1].t) / 1000);
+      expect(accel).toBeLessThanOrEqual(MAX_ACCEL_MPS2 + 1e-6);
+      expect(accel).toBeGreaterThanOrEqual(-MAX_BRAKE_MPS2 - 1e-6);
+    }
   });
 
-  it('slows to rest after a bounded prediction and never drifts indefinitely', () => {
+  it('settles where the last fix put the rider when fixes stop, never riding on forever', () => {
     const motion = new RiderMotion();
-    push(motion, origin, 0);
-    push(motion, east(10), 1000, { speedMps: 35 });
-    const stopped = motion.sample(6000)!;
+    play(motion, steady([0, 1000, 2000, 3000], (t) => east(t / 100), { route: road }), 20000);
+    const stopped = motion.sample(20000)!;
     expect(stopped.moving).toBe(false);
-    expect(metresBetween(stopped.coordinate, east(10))).toBeLessThanOrEqual(25.01);
+    expect(eastOf(stopped.coordinate) - 30).toBeGreaterThanOrEqual(0);
+    expect(eastOf(stopped.coordinate) - 30).toBeLessThanOrEqual(MAX_LEAD_METERS + 0.01);
     expect(stopped.velocity.longitude).toBe(0);
     expect(motion.sample(60000)).toEqual(stopped);
   });
 
-  it('joins interpolation and prediction with continuous velocity', () => {
-    const motion = new RiderMotion();
-    push(motion, origin, 0);
-    push(motion, east(10), 1000);
-    const atBoundary = motion.sample(2000)!;
-    const after = motion.sample(2000.01)!;
-    expect(after.velocity.longitude / atBoundary.velocity.longitude).toBeCloseTo(1, 4);
-  });
-
-  it('does not extrapolate a stopped or already stale fix', () => {
-    for (const extra of [{ speedMps: 0 }, { stationary: true }, { wallNow: epoch + 10000 }]) {
+  it('does not ride on from a stopped, stationary or stale fix', () => {
+    for (const extra of [{ speedMps: 0 }, { stationary: true }, { wallNow: epoch + 11000 }]) {
       const motion = new RiderMotion();
-      push(motion, origin, 0);
-      push(motion, east(10), 1000, extra);
-      expect(metresBetween(motion.sample(3000)!.coordinate, east(10))).toBeLessThan(0.001);
-      expect(motion.sample(3000)!.moving).toBe(false);
+      const frames = play(motion, [{ at: 0, coordinate: origin }, { at: 1000, coordinate: east(10), extra }], 10000);
+      for (const { frame } of frames) expect(eastOf(frame.coordinate)).toBeLessThanOrEqual(10.01);
+      expect(metresBetween(motion.sample(10000)!.coordinate, east(10))).toBeLessThan(0.001);
+      expect(motion.sample(10000)!.moving).toBe(false);
     }
   });
 
-  it('ignores out-of-order and duplicate samples without altering an active glide', () => {
+  it('brakes for a rider who stops and settles on them, not past them', () => {
     const motion = new RiderMotion();
-    push(motion, origin, 0);
-    push(motion, east(10), 1000);
-    const before = motion.sample(1800);
-    expect(push(motion, east(-10), 1500, { recordedAt: epoch + 500 })).toBe(false);
-    expect(push(motion, east(-10), 1600, { recordedAt: epoch + 1000 })).toBe(false);
-    expect(motion.sample(1800)).toEqual(before);
+    const fixes = [
+      ...steady([0, 1000, 2000, 3000, 4000], (t) => east(t / 100), { route: road }),
+      { at: 5000, coordinate: east(46), extra: { route: road, speedMps: 4 } },
+      { at: 6000, coordinate: east(48), extra: { route: road, speedMps: 0, stationary: true } },
+    ];
+    const frames = play(motion, fixes, 20000);
+    // Past them by no more than the one second it took to learn they were braking.
+    for (const { frame } of frames) expect(eastOf(frame.coordinate)).toBeLessThan(48 + 10);
+    expect(metresBetween(motion.sample(20000)!.coordinate, east(48))).toBeLessThan(0.001);
+    expect(motion.sample(20000)!.moving).toBe(false);
   });
 
-  it('accepts a newer stationary sample at identical coordinates and stops prediction', () => {
+  it('waits for the rider instead of backing up for GPS scatter along the road', () => {
     const motion = new RiderMotion();
-    push(motion, origin, 0);
-    push(motion, east(10), 1000);
-    push(motion, east(10), 2200, { stationary: true });
-    expect(motion.sample(4000)!.moving).toBe(false);
-    expect(metresBetween(motion.sample(4000)!.coordinate, east(10))).toBeLessThan(0.001);
+    const fixes = steady([0, 1000, 2000, 3000, 4000, 5000], (t) => east(t === 3000 ? 22 : t / 100), { route: road });
+    const frames = play(motion, fixes, 6000).filter(({ t }) => t >= 1000);
+    for (let i = 1; i < frames.length; i++) {
+      expect(eastOf(frames[i].frame.coordinate)).toBeGreaterThanOrEqual(eastOf(frames[i - 1].frame.coordinate) - 1e-9);
+    }
   });
 
-  it('follows road vertices through prediction and can reverse through a bend', () => {
-    const corner = east(10);
-    const north = { ...corner, latitude: corner.latitude + 30 / 111195 };
-    const route = [origin, corner, north];
+  it('turns back for a real U-turn', () => {
     const motion = new RiderMotion();
-    push(motion, origin, 0, { route });
-    push(motion, corner, 1000, { route });
-    const pastCorner = motion.sample(2300)!;
-    expect(pastCorner.coordinate.latitude).toBeGreaterThan(corner.latitude);
-    expect(projectOntoPath(pastCorner.coordinate, route)!.distanceMeters).toBeLessThan(0.001);
-    push(motion, origin, 3000, { route });
-    expect(metresBetween(motion.sample(5000)!.coordinate, origin)).toBeLessThan(0.001);
+    const metres = [0, 10, 20, 30, 40, 50, 40, 30, 20, 10];
+    play(motion, metres.map((m, i) => ({ at: i * 1000, coordinate: east(m), extra: { route: road } })), 16000);
+    expect(eastOf(motion.sample(16000)!.coordinate)).toBeLessThan(15);
   });
 
-  it('never predicts beyond the end of the known route', () => {
+  it('places a late-arriving fix where the rider is by now', () => {
+    const motion = new RiderMotion();
+    const fixes = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000].map((recorded) => ({
+      at: recorded + 600,
+      coordinate: east(recorded / 100),
+      extra: { route: road, recordedAt: epoch + recorded, wallNow: epoch + recorded + 600 },
+    }));
+    for (const { t, frame } of play(motion, fixes, 8600)) {
+      if (t >= 5000) expect(Math.abs(eastOf(frame.coordinate) - t / 100)).toBeLessThan(1.5);
+    }
+  });
+
+  it('never rides past the end of the known route', () => {
     const motion = new RiderMotion();
     const route = [origin, east(10)];
-    push(motion, origin, 0, { route });
-    push(motion, east(10), 1000, { route });
-    expect(metresBetween(motion.sample(2600)!.coordinate, east(10))).toBeLessThan(0.001);
-    expect(motion.sample(2600)!.velocity.longitude).toBe(0);
+    const frames = play(motion, steady([0, 1000], (t) => east(t / 100), { route }), 8000);
+    for (const { frame } of frames) expect(eastOf(frame.coordinate)).toBeLessThanOrEqual(10 + 1e-6);
+    expect(motion.sample(8000)!.velocity.longitude).toBe(0);
+    expect(motion.sample(8000)!.moving).toBe(false);
   });
 
-  it('keeps a genuinely off-route fix off the road', () => {
+  it('keeps a genuinely off-road fix off the road', () => {
     const motion = new RiderMotion();
-    const offRoad = { ...east(10), latitude: origin.latitude + 100 / 111195 };
+    const offRoad = north(100, east(10));
     push(motion, origin, 0, { route: road });
     push(motion, offRoad, 1000, { route: road, speedMps: 0 });
-    expect(metresBetween(motion.sample(2000)!.coordinate, offRoad)).toBeLessThan(0.001);
+    play(motion, [], 9000);
+    expect(metresBetween(motion.sample(9000)!.coordinate, offRoad)).toBeLessThan(0.001);
   });
 
-  it('does not jump sideways on route replacement', () => {
+  it('slides onto a replacement road from where it is drawn, without a sideways jump', () => {
     const motion = new RiderMotion();
     push(motion, origin, 0, { route: road });
     push(motion, east(10), 1000, { route: road });
+    const step = motion.sample(1699)!;
     const before = motion.sample(1700)!;
-    const newRoute = road.map((p) => ({ ...p, latitude: p.latitude + 20 / 111195 }));
-    push(motion, east(20), 1700, { route: newRoute });
-    expect(metresBetween(before.coordinate, motion.sample(1700)!.coordinate)).toBeLessThan(0.001);
+    const newRoute = road.map((p) => north(20, p));
+    push(motion, north(20, east(20)), 1700, { route: newRoute });
+    const after = motion.sample(1700)!;
+    const next = motion.sample(1701)!;
+    expect(metresBetween(before.coordinate, after.coordinate)).toBeLessThan(1e-6);
+    expect(after.velocity.latitude).toBeCloseTo(before.velocity.latitude, 12);
+    expect((next.coordinate.longitude - after.coordinate.longitude) / (before.coordinate.longitude - step.coordinate.longitude)).toBeCloseTo(1, 2);
+    expect(projectOntoPath(motion.sample(5000)!.coordinate, newRoute)!.distanceMeters).toBeLessThan(0.05);
   });
 
   it('resets immediately for a distant fix or a long resume gap', () => {
@@ -145,12 +199,28 @@ describe('the rider visual motion timeline', () => {
     expect(motion.sample(20000)!.moving).toBe(false);
   });
 
-  it('is independent of dropped frames and wall-clock changes during a glide', () => {
+  it('draws the same ride at any frame rate and through dropped frames', () => {
+    const start = () => {
+      const motion = new RiderMotion();
+      push(motion, origin, 0, { route: road });
+      push(motion, east(10), 1000, { route: road });
+      return motion;
+    };
+    const direct = start().sample(2500);
+    for (const step of [16, 33, 8.3, 250]) {
+      const motion = start();
+      for (let time = 1000; time < 2500; time += step) motion.sample(time);
+      expect(motion.sample(2500)).toEqual(direct);
+    }
+  });
+
+  it('ignores out-of-order and duplicate samples', () => {
     const motion = new RiderMotion();
     push(motion, origin, 0);
     push(motion, east(10), 1000);
-    const direct = motion.sample(2500);
-    for (let time = 1000; time <= 2500; time += 16) motion.sample(time);
-    expect(motion.sample(2500)).toEqual(direct);
+    const before = motion.sample(1800);
+    expect(push(motion, east(-10), 1500, { recordedAt: epoch + 500 })).toBe(false);
+    expect(push(motion, east(-10), 1600, { recordedAt: epoch + 1000 })).toBe(false);
+    expect(motion.sample(1800)).toEqual(before);
   });
 });

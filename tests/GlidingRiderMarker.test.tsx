@@ -61,7 +61,7 @@ async function frame(ms: number) {
 const drawn = () => mockDraw.mock.calls.at(-1)![0];
 const angle = () => mockNativeProps.mock.calls.at(-1)![0].rotation;
 
-it('keeps gliding beyond 1100ms through a delayed fix without React renders per frame', async () => {
+it('keeps riding through a late fix without React renders per frame', async () => {
   const onPositionChange = jest.fn();
   const props = { route: null, speedMps: 10, headingDeg: 90, onPositionChange };
   const view = await render(<GlidingRiderMarker {...props} target={origin} recordedAt={T0} />);
@@ -114,19 +114,25 @@ it('keeps one uninterrupted frame loop through irregular real-world fix interval
   }
 });
 
-it('follows bends and does not restart on route identity or heading changes', async () => {
-  const corner = east(10);
-  const north = { ...corner, latitude: corner.latitude + 30 / 111195 };
-  const route = [origin, corner, north];
+it('rides the road line through a bend and does not restart on route identity or heading changes', async () => {
+  const corner = east(30);
+  const route = [origin, corner, { ...corner, latitude: corner.latitude + 60 / 111195 }];
+  const along = (m: number) => (m <= 30 ? east(m) : { ...corner, latitude: corner.latitude + (m - 30) / 111195 });
   const view = await render(<GlidingRiderMarker target={origin} route={route} recordedAt={T0} speedMps={10} />);
-  await frame(1000);
-  await view.rerender(<GlidingRiderMarker target={corner} route={route} recordedAt={T0 + 1000} speedMps={10} />);
-  await frame(2000);
-  expect(metresBetween(drawn(), corner)).toBeLessThan(0.001);
-  await view.rerender(<GlidingRiderMarker target={corner} route={[...route]} recordedAt={T0 + 1000} speedMps={10} headingDeg={90} />);
-  await frame(2300);
+  for (const second of [1, 2, 3, 4, 5]) {
+    for (let time = (second - 1) * 1000 + 16; time < second * 1000; time += 16) {
+      await frame(time);
+      if (mockDraw.mock.calls.length) expect(projectOntoPath(drawn(), route)!.distanceMeters).toBeLessThan(0.01);
+    }
+    await frame(second * 1000);
+    await view.rerender(<GlidingRiderMarker target={along(second * 10)} route={route} recordedAt={T0 + second * 1000} speedMps={10} />);
+  }
   expect(drawn().latitude).toBeGreaterThan(corner.latitude);
-  expect(projectOntoPath(drawn(), route)!.distanceMeters).toBeLessThan(0.001);
+  const before = drawn();
+  await view.rerender(<GlidingRiderMarker target={along(50)} route={[...route]} recordedAt={T0 + 5000} speedMps={10} headingDeg={90} />);
+  await frame(5016);
+  expect(metresBetween(drawn(), before)).toBeLessThan(0.5);
+  expect(projectOntoPath(drawn(), route)!.distanceMeters).toBeLessThan(0.01);
 });
 
 it('uses one rotation controller without snapping forward then backward', async () => {
@@ -181,13 +187,14 @@ it('does not restart for an out-of-order GPS sample', async () => {
   expect(drawn().longitude).toBeGreaterThan(before);
 });
 
-it('accepts a newer stop at identical coordinates and ends bounded prediction', async () => {
+it('brakes for a newer stop at identical coordinates, settles there and stops its loop', async () => {
   const view = await render(<GlidingRiderMarker target={origin} route={null} recordedAt={T0} speedMps={10} />);
   await frame(1000);
   await view.rerender(<GlidingRiderMarker target={east(10)} route={null} recordedAt={T0 + 1000} speedMps={10} />);
   await frame(2200);
   await view.rerender(<GlidingRiderMarker target={east(10)} route={null} recordedAt={T0 + 2200} speedMps={0} stationary />);
-  await frame(4000);
+  // A dead stop from 10 m/s inside a second: it brakes, rolls back onto the spot and settles.
+  for (let time = 2216; time <= 16000 && frames.size > 0; time += 16) await frame(time);
   expect(metresBetween(drawn(), east(10))).toBeLessThan(0.001);
   expect(frames.size).toBe(0);
 });
