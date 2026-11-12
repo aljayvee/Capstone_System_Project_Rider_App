@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { API_BASE_URL, fetchWithTimeout } from "../config/apiConfig";
 import {
   setRiderToken,
@@ -14,7 +16,10 @@ import {
 import { endRealtimeSession, ensureRealtimeSession } from "../firebase/realtimeSession";
 import { WAYBILL_CACHE_KEY } from "../adapters/storageAdapter";
 import { forgetAll } from "../services/requestCache";
+import { clearLocationQueue } from "../services/locationQueue";
+import { clearArrivalQueue } from "../services/arrivalQueue";
 import { getDeviceHeaders } from "../utils/deviceInfo";
+import { getMfaTrustToken, setMfaTrustToken } from "../services/mfaTrust";
 import { Alert, AppState } from "react-native";
 import {
   clearShift,
@@ -26,6 +31,29 @@ import {
 
 /** How often an open app checks whether the shift has run past 12:00 AM. */
 const MIDNIGHT_CHECK_MS = 30 * 1000;
+
+// The SMS sign-in check runs on the web portal, because Firebase Phone Auth
+// needs a browser (reCAPTCHA) that React Native does not have. The page sends
+// a Firebase ID token back to MFA_REDIRECT_URL, which must use the "scheme"
+// in app.json and the matching intent-filter in AndroidManifest.xml.
+const PORTAL_BASE_URL = (
+  process.env.EXPO_PUBLIC_PORTAL_URL || "https://portal.sugo-express.org"
+).replace(/\/+$/, "");
+const MFA_REDIRECT_URL = "sugorider://mfa-verified";
+
+/** Set on errors that mean the sign-in itself has run out; only starting over helps. */
+export const CHALLENGE_EXPIRED = "CHALLENGE_EXPIRED";
+
+export const isChallengeExpired = (err: unknown): boolean =>
+  (err as { code?: string } | null)?.code === CHALLENGE_EXPIRED;
+
+const challengeExpiredError = (message = "This sign-in timed out. Please start over."): Error =>
+  Object.assign(new Error(message), { code: CHALLENGE_EXPIRED });
+
+/** How a "Text me a code" attempt ended, when it did not throw. */
+export type SmsCheckOutcome = "signed-in" | "cancelled";
+
+export type MfaFactor = "SMS" | "EMAIL";
 
 export interface RiderUser {
   id: number;
@@ -47,17 +75,69 @@ export interface AuthSession {
 // with a challenge instead of a token: a code is emailed to the address the
 // admin registered, and the session only exists once that code is verified.
 //
+// Since MFA, the same challenge also comes on any phone that has not passed
+// the second check in 30 days (no accepted mfaTrustToken). The rider then
+// picks SMS (Firebase Phone Auth on the web portal) or an emailed code.
+//
 // Held in React state only — never SecureStore or AsyncStorage. It is a
 // pre-authentication credential, so killing the app should cancel it.
 export interface PendingChallenge {
   step: "PROFILE_SETUP" | "OTP";
   challengeToken: string;
   maskedEmail: string | null;
+  // The second factors the server accepts for this sign-in. A server from
+  // before MFA sends none; that means the emailed code it already sent.
+  factors: MfaFactor[];
+  // Last four digits of the registered mobile, for "number ending 1234".
+  phoneHint: string | null;
+  maskedPhone: string | null;
+  reason: "FIRST_LOGIN" | "NEW_DEVICE" | null;
+  // Whether an email code has gone out for this challenge. The server only
+  // waits for the rider to choose when this build sent `x-sugo-mfa: 1` and it
+  // answered `mfaRequired`; otherwise it emailed the code at once.
+  emailCodeSent: boolean;
+  // Client clock deadline from expiresInSeconds, or null when not given.
+  // Only used to skip a doomed SMS round trip; the server still decides.
+  expiresAt: number | null;
   // What the rider typed into the sign-in form. Carried through so the
   // post-verification user object has the same username fallback the direct
   // login path uses.
   identifier: string;
 }
+
+const MFA_FACTORS: readonly MfaFactor[] = ["SMS", "EMAIL"];
+
+/**
+ * Shapes a challenge body (from /riders/login or /auth/resend-login-otp) into
+ * PendingChallenge. `previous` fills anything a resend answer leaves out.
+ */
+const toPendingChallenge = (
+  data: any,
+  identifier: string,
+  emailCodeSent: boolean,
+  previous?: PendingChallenge | null
+): PendingChallenge => {
+  const factors = Array.isArray(data?.factors)
+    ? (data.factors as unknown[]).filter((f): f is MfaFactor => MFA_FACTORS.includes(f as MfaFactor))
+    : [];
+  const expiresInSeconds = Number(data?.expiresInSeconds);
+  const reason = data?.reason === "FIRST_LOGIN" || data?.reason === "NEW_DEVICE" ? data.reason : null;
+  return {
+    step: data?.profileSetupRequired ? "PROFILE_SETUP" : "OTP",
+    challengeToken: data?.challengeToken,
+    maskedEmail: data?.maskedEmail ?? previous?.maskedEmail ?? null,
+    factors: factors.length > 0 ? factors : previous?.factors ?? ["EMAIL"],
+    phoneHint: data?.phoneHint ?? previous?.phoneHint ?? null,
+    maskedPhone: data?.maskedPhone ?? previous?.maskedPhone ?? null,
+    reason: reason ?? previous?.reason ?? null,
+    emailCodeSent,
+    expiresAt:
+      Number.isFinite(expiresInSeconds) && expiresInSeconds > 0
+        ? Date.now() + expiresInSeconds * 1000
+        : null,
+    identifier,
+  };
+};
 
 interface RiderAuthContextType {
   rider: RiderUser | null;
@@ -67,7 +147,10 @@ interface RiderAuthContextType {
   pendingChallenge: PendingChallenge | null;
   login: (username: string, password?: string) => Promise<void>;
   verifyLoginOtp: (code: string) => Promise<void>;
-  resendLoginOtp: () => Promise<void>;
+  /** Opens the portal's SMS check and signs in with the token it returns. */
+  verifyLoginSms: () => Promise<SmsCheckOutcome>;
+  /** Sends (or sends again) the email code; the challenge token is replaced. */
+  sendLoginEmailCode: () => Promise<void>;
   cancelChallenge: () => void;
   logout: () => Promise<void>;
   toggleShiftStatus: () => Promise<void>;
@@ -283,6 +366,7 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // by every auth call so they all fail the same way.
   const toAuthError = (err: any): Error => {
     if (
+      isChallengeExpired(err) ||
       err?.message === "Invalid username or password" ||
       err?.message?.includes("token") ||
       err?.message?.includes("Access denied") ||
@@ -325,6 +409,32 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     throw new Error(errorMsg);
   };
 
+  // The challenge endpoints answer 401 only when the sign-in itself is no
+  // longer usable (expired, already completed, account gone). Anything else,
+  // a wrong or expired code included, can still be fixed in the same modal.
+  const readChallengeError = async (res: Response, fallback: string): Promise<never> => {
+    if (res.status === 401) {
+      let message: string | undefined;
+      try {
+        message = (await res.json())?.error;
+      } catch (_) {
+        // fallback
+      }
+      throw challengeExpiredError(message || undefined);
+    }
+    return readError(res, fallback);
+  };
+
+  const assertChallengeLive = (challenge: PendingChallenge | null): PendingChallenge => {
+    if (!challenge) {
+      throw challengeExpiredError("Your sign-in session expired. Please sign in again.");
+    }
+    if (challenge.expiresAt !== null && Date.now() >= challenge.expiresAt) {
+      throw challengeExpiredError();
+    }
+    return challenge;
+  };
+
   const login = async (username: string, password?: string) => {
     if (loginInFlightRef.current) {
       return loginInFlightRef.current;
@@ -336,6 +446,9 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let refreshToken: string | undefined;
 
       try {
+        // Proof this phone passed the second check recently. Left out when
+        // there is none, so the request matches what older builds send.
+        const mfaTrustToken = await getMfaTrustToken();
         const res = await fetchWithTimeout(
           `${API_BASE_URL}/riders/login`,
           {
@@ -346,7 +459,9 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               // without guessing from a user-agent string.
               ...(await getDeviceHeaders()),
             },
-            body: JSON.stringify({ username, password }),
+            body: JSON.stringify(
+              mfaTrustToken ? { username, password, mfaTrustToken } : { username, password }
+            ),
           },
           20000
         );
@@ -361,12 +476,12 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // that legitimately carries no token, and the old code treated that as a
         // fatal "server did not return a JWT" error.
         if (responseData.otpRequired || responseData.profileSetupRequired) {
-          setPendingChallenge({
-            step: responseData.profileSetupRequired ? "PROFILE_SETUP" : "OTP",
-            challengeToken: responseData.challengeToken,
-            maskedEmail: responseData.maskedEmail ?? null,
-            identifier: username,
-          });
+          // `mfaRequired` means the server is waiting for the rider to pick
+          // SMS or email. Without it (a server from before MFA) the email
+          // code is already on its way.
+          setPendingChallenge(
+            toPendingChallenge(responseData, username, !responseData.mfaRequired)
+          );
           return;
         }
 
@@ -379,6 +494,9 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         riderUser = toRiderUser(userPayload, username);
         sessionToken = responseData.token;
         refreshToken = responseData.refreshToken;
+        if (responseData.mfaTrustToken) {
+          await setMfaTrustToken(responseData.mfaTrustToken);
+        }
       } catch (err: any) {
         throw toAuthError(err);
       }
@@ -395,11 +513,13 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  const verifyLoginOtp = async (code: string) => {
-    if (!pendingChallenge) {
-      throw new Error("Your sign-in session expired. Please sign in again.");
-    }
-
+  // Spends the challenge with either second factor. Shared by the email code
+  // and the SMS check so both end in the same session and both keep the new
+  // mfaTrustToken.
+  const completeChallenge = async (
+    challenge: PendingChallenge,
+    proof: { code: string } | { firebaseIdToken: string }
+  ) => {
     let riderUser: RiderUser;
     let sessionToken: string;
     let refreshToken: string | undefined;
@@ -413,13 +533,18 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             "Content-Type": "application/json",
             ...(await getDeviceHeaders()),
           },
-          body: JSON.stringify({ challengeToken: pendingChallenge.challengeToken, code }),
+          body: JSON.stringify({ challengeToken: challenge.challengeToken, ...proof }),
         },
         20000
       );
 
       if (!res.ok) {
-        await readError(res, "Incorrect verification code.");
+        await readChallengeError(
+          res,
+          "code" in proof
+            ? "Incorrect verification code."
+            : "We could not confirm your number. Try again, or use email instead."
+        );
       }
 
       const responseData = await res.json();
@@ -429,9 +554,13 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw new Error("Server did not return a valid authentication JWT token.");
       }
 
-      riderUser = toRiderUser(userPayload, pendingChallenge.identifier);
+      riderUser = toRiderUser(userPayload, challenge.identifier);
       sessionToken = responseData.token;
       refreshToken = responseData.refreshToken;
+      // This phone now skips the second check for 30 days.
+      if (responseData.mfaTrustToken) {
+        await setMfaTrustToken(responseData.mfaTrustToken);
+      }
     } catch (err: any) {
       throw toAuthError(err);
     }
@@ -439,35 +568,74 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     await applySession(riderUser, sessionToken, refreshToken);
   };
 
-  const resendLoginOtp = async () => {
-    if (!pendingChallenge) {
-      throw new Error("Your sign-in session expired. Please sign in again.");
+  const verifyLoginOtp = async (code: string) => {
+    const challenge = assertChallengeLive(pendingChallenge);
+    await completeChallenge(challenge, { code });
+  };
+
+  const verifyLoginSms = async (): Promise<SmsCheckOutcome> => {
+    const challenge = assertChallengeLive(pendingChallenge);
+
+    const query = [
+      "purpose=mfa",
+      challenge.phoneHint ? `hint=${encodeURIComponent(challenge.phoneHint)}` : null,
+      `redirect=${encodeURIComponent(MFA_REDIRECT_URL)}`,
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    let result: WebBrowser.WebBrowserAuthSessionResult;
+    try {
+      result = await WebBrowser.openAuthSessionAsync(
+        `${PORTAL_BASE_URL}/verify-phone?${query}`,
+        MFA_REDIRECT_URL
+      );
+    } catch {
+      throw new Error("Could not open the SMS check on this phone. Use email instead.");
     }
+
+    // Closed, backed out of, or never finished: nothing was spent, so the
+    // rider can simply try again or switch to email.
+    if (result.type !== "success") return "cancelled";
+
+    const token = Linking.parse(result.url).queryParams?.token;
+    const firebaseIdToken = Array.isArray(token) ? token[0] : token;
+    if (!firebaseIdToken) {
+      throw new Error("We could not confirm your number. Try again, or use email instead.");
+    }
+
+    await completeChallenge(challenge, { firebaseIdToken });
+    return "signed-in";
+  };
+
+  const sendLoginEmailCode = async () => {
+    const challenge = assertChallengeLive(pendingChallenge);
 
     try {
       const res = await fetchWithTimeout(
         `${API_BASE_URL}/auth/resend-login-otp`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ challengeToken: pendingChallenge.challengeToken }),
+          headers: {
+            "Content-Type": "application/json",
+            // The same device (and x-sugo-mfa) the server saw at /riders/login.
+            ...(await getDeviceHeaders()),
+          },
+          body: JSON.stringify({ challengeToken: challenge.challengeToken }),
         },
         20000
       );
 
       if (!res.ok) {
-        await readError(res, "Could not send a new code. Please try again.");
+        await readChallengeError(res, "Could not send a new code. Please try again.");
       }
 
       const responseData = await res.json();
       // The server re-mints the token so the sign-in window restarts with the
       // new code; keeping the old one would fail on the next submit.
-      setPendingChallenge({
-        step: "OTP",
-        challengeToken: responseData.challengeToken,
-        maskedEmail: responseData.maskedEmail ?? null,
-        identifier: pendingChallenge.identifier,
-      });
+      setPendingChallenge(
+        toPendingChallenge({ ...responseData, profileSetupRequired: false }, challenge.identifier, true, challenge)
+      );
     } catch (err: any) {
       throw toAuthError(err);
     }
@@ -519,6 +687,9 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (err) {
       console.error("Logout persistence error:", err);
     } finally {
+      await Promise.all([clearLocationQueue(), clearArrivalQueue()]).catch((err) => {
+        console.error("Logout queue cleanup failed:", err);
+      });
       setRider(null);
       setToken(null);
       setRiderToken(null);
@@ -555,7 +726,8 @@ export const RiderAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         pendingChallenge,
         login,
         verifyLoginOtp,
-        resendLoginOtp,
+        verifyLoginSms,
+        sendLoginEmailCode,
         cancelChallenge,
         logout,
         toggleShiftStatus,

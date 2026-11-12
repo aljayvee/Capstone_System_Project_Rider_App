@@ -17,9 +17,11 @@ jest.mock('../src/context/RiderAuthContext', () => ({
     login: mockLogin,
     pendingChallenge: null,
     verifyLoginOtp: jest.fn(),
-    resendLoginOtp: jest.fn(),
+    verifyLoginSms: jest.fn(),
+    sendLoginEmailCode: jest.fn(),
     cancelChallenge: jest.fn(),
   }),
+  isChallengeExpired: () => false,
 }));
 
 describe('Login screen: forgot password', () => {

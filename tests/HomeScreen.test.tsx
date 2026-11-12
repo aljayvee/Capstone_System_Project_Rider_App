@@ -112,10 +112,16 @@ describe('Home screen actions and states', () => {
   it('accepts only the selected offer and keeps each fee breakdown with its offer', async () => {
     mockMission.offeredErrands = [offer('offer-a', 'Customer A'), offer('offer-b', 'Customer B', 40)];
     const view = await render(<HomeScreen />);
-    expect(view.getAllByText('Fee Breakdown')).toHaveLength(2);
+    expect(view.getAllByText('Fee Breakdown')).toHaveLength(1);
     expect(view.getByText('Customer A')).toBeTruthy();
+    expect(view.queryByText('Customer B')).toBeNull();
+    expect(view.getByText('Offer 1 of 2')).toBeTruthy();
+    await fireEvent.press(view.getByLabelText('Next offer'));
+    expect(view.getByText('Offer 2 of 2')).toBeTruthy();
     expect(view.getByText('Customer B')).toBeTruthy();
-    await fireEvent.press(view.getAllByLabelText('Slide to accept')[1]);
+    expect(view.queryByText('Customer A')).toBeNull();
+    expect(view.getAllByText('Fee Breakdown')).toHaveLength(1);
+    await fireEvent.press(view.getByLabelText('Slide to accept'));
     expect(mockMission.acceptMission.mock.calls).toEqual([['offer-b']]);
     expect(mockNavigate.mock.calls).toEqual([['Task']]);
   });
@@ -132,7 +138,7 @@ describe('Home screen actions and states', () => {
     mockMission.declineReason = 'Vehicle needs repair';
     await view.rerender(<HomeScreen />);
     await fireEvent.press(view.getByLabelText('Confirm and decline this errand'));
-    expect(mockMission.declineMission).toHaveBeenCalledTimes(1);
+    expect(mockMission.declineMission).toHaveBeenCalledWith('offer-a');
     await fireEvent.press(view.getByLabelText('Keep this errand'));
     expect(mockMission.setShowDeclineModal).toHaveBeenCalledWith(false);
   });
@@ -145,19 +151,41 @@ describe('Home screen actions and states', () => {
     expect(mockMission.setShowDeclineModal).not.toHaveBeenCalled();
   });
 
-  it('resumes the active errand and reserves scrolling space for the measured navigation dock', async () => {
+  it('keeps new offers and the active navigation action in separate layout regions', async () => {
     mockMission.isMissionAccepted = true;
     mockMission.errand = offer('current', 'Current customer');
+    mockMission.offeredErrands = [offer('next', 'Next customer')];
     const view = await render(<HomeScreen />);
-    expect(view.getByText('Your errand is in progress')).toBeTruthy();
-    expect(view.queryByText('Ready for next errand')).toBeNull();
+    expect(view.getByText('Next customer')).toBeTruthy();
+    expect(view.getByText('Slide to accept')).toBeTruthy();
     const dock = view.getByTestId('home-task-dock');
-    await fireEvent(dock, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 84 } } });
-    const bottom = StyleSheet.flatten(dock.props.style).bottom as number;
-    const padding = StyleSheet.flatten(view.getByTestId('home-scroll').props.contentContainerStyle).paddingBottom as number;
-    expect(padding).toBeGreaterThanOrEqual(bottom + 84);
+    expect(StyleSheet.flatten(dock.props.style).position).not.toBe('absolute');
+    expect(StyleSheet.flatten(dock.props.style).flexShrink).toBe(0);
+    const details = view.getByTestId('home-offer-details-next');
+    expect(StyleSheet.flatten(details.props.style).flex).toBe(1);
+    expect(within(details).queryByText('Slide to accept')).toBeNull();
+    expect(within(details).queryByText('Decline')).toBeNull();
+    expect(within(details).queryByText('Open navigation')).toBeNull();
+    const actions = view.getByTestId('home-offer-actions-next');
+    expect(StyleSheet.flatten(actions.props.style).flexShrink).toBe(0);
+    expect(within(actions).getByLabelText('Slide to accept')).toBeTruthy();
+    expect(within(dock).getByText('Open navigation')).toBeTruthy();
     await fireEvent.press(within(dock).getByLabelText('Open active task in navigation'));
     expect(mockNavigate).toHaveBeenCalledWith('Task');
+  });
+
+  it('shows the next available offer when the selected offer is removed', async () => {
+    const first = offer('offer-a', 'Customer A');
+    mockMission.offeredErrands = [first, offer('offer-b', 'Customer B')];
+    const view = await render(<HomeScreen />);
+    await fireEvent.press(view.getByLabelText('Next offer'));
+    mockMission.offeredErrands = [first];
+    await view.rerender(<HomeScreen />);
+    expect(view.queryByText('Customer B')).toBeNull();
+    expect(view.getByText('Customer A')).toBeTruthy();
+    expect(view.getAllByLabelText('Slide to accept')).toHaveLength(1);
+    await fireEvent.press(view.getByLabelText('Slide to accept'));
+    expect(mockMission.acceptMission).toHaveBeenCalledWith('offer-a');
   });
 
   it('distinguishes off duty from no connection and only offers saved details when an errand exists', async () => {

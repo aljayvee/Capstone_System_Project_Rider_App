@@ -1,12 +1,12 @@
 import { Colors } from './theme';
 
-/** Neutral Rider surfaces, using the same page background as My History. */
+/** Neutral Rider surfaces with authentic Sugo Red brand accents. */
 export const RiderSurfaceColors = {
   background: Colors.bgGray,
   surface: Colors.bgWhite,
   mutedSurface: Colors.bgLight,
   divider: Colors.border,
-  accent: '#245D85',
-  accentSurface: '#E9F3FA',
-  accentBorder: '#537F9E',
+  accent: Colors.primary,
+  accentSurface: Colors.primarySurface,
+  accentBorder: '#FECACA',
 } as const;

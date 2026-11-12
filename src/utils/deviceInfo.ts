@@ -49,5 +49,9 @@ export async function getDeviceHeaders(): Promise<Record<string, string>> {
     'x-device-id': deviceId,
     'x-device-platform': Platform.OS,
     'x-device-os': `${Platform.OS} ${Platform.Version || ''}`.trim(),
+    // Tells the server this build can choose its second factor (SMS or
+    // email). Without it the server emails the sign-in code at once, which
+    // is what keeps rider builds older than this one working.
+    'x-sugo-mfa': '1',
   };
 }

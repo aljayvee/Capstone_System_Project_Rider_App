@@ -102,18 +102,24 @@ const errand = {
 let mockUnread = false;
 let mockArrivingAt: any = null;
 let mockErrands: any[] = [errand];
+let mockStatus = 'Traveling';
+const farFromEverything = { latitude: 6.68, longitude: 124.67, heading: null, updatedAt: 0, accuracyMeters: 5 };
+let mockLocation: any = farFromEverything;
+const mockReportArrival = jest.fn().mockResolvedValue(undefined);
+const mockAdvanceStatus = jest.fn();
+jest.mock('../src/services/arrivalQueue', () => ({ reportStoreArrival: (...args: unknown[]) => mockReportArrival(...args) }));
 
 jest.mock('../src/context/RiderMissionContext', () => ({
   useRiderMissionContext: () => ({
     phase: 'active',
     isOffline: false,
-    currentStatus: 'Traveling',
+    currentStatus: mockStatus,
     errand,
     activeErrands: mockErrands,
     offeredErrands: [],
-    workingErrand: errand,
+    workingErrand: mockErrands[0] ?? errand,
     progressFor: () => ({
-      currentStatus: 'Traveling',
+      currentStatus: mockStatus,
       completedSubtasks: {},
       handoverCaptured: false,
       collectedAmount: '',
@@ -125,11 +131,13 @@ jest.mock('../src/context/RiderMissionContext', () => ({
     }),
     startErrandFirst: jest.fn(),
     completedSubtasks: {},
+    departedStoreIds: [],
+    deferredStoreIds: [],
     stepIndex: 0,
     paymentMode: 'COD',
     collectedAmount: '',
-    advanceStatus: jest.fn(),
-    riderLocation: { latitude: 6.68, longitude: 124.67, heading: null, updatedAt: 0, accuracyMeters: 5 },
+    advanceStatus: mockAdvanceStatus,
+    riderLocation: mockLocation,
     isDelivered: false,
     setShowWaybill: jest.fn(),
     setUnreadDR: jest.fn(),
@@ -178,10 +186,23 @@ function flatStyle(node: any) {
   return Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean));
 }
 
+it('reports the current store before manually advancing arrival', async () => {
+  mockReportArrival.mockClear();
+  mockAdvanceStatus.mockClear();
+  mockStatus = 'Traveling';
+  mockErrands = [{ ...errand, pinpoints: [{ id: 101, storeName: 'Store A', latitude: 6.68, longitude: 124.67, sequence: 0 }] }];
+  const view = await renderTask();
+  await act(async () => { fireEvent.press(view.getByTestId('emergency-arrival-btn')); });
+  expect(mockReportArrival).toHaveBeenCalledWith('e-1', 101);
+  expect(mockAdvanceStatus).toHaveBeenCalledTimes(1);
+});
+
 beforeEach(() => {
   mockUnread = false;
   mockArrivingAt = null;
   mockErrands = [errand];
+  mockStatus = 'Traveling';
+  mockLocation = farFromEverything;
 });
 
 describe('map mode while riding', () => {
@@ -333,7 +354,9 @@ describe('the floating layers at the top', () => {
     expect(flatStyle(view.getByTestId('fee-capsule-layer')).top).toBeGreaterThanOrEqual(82);
   });
 
-  it('are not covered by the open sheet', async () => {
+  it('are not covered by the open sheet: they give way to it', async () => {
+    // The sheet used to open part way and stop short of these layers. It now
+    // opens in full, so they are taken off rather than left underneath it.
     const view = await renderTask();
     await fireEvent(view.getByTestId('task-screen'), 'layout', layout(700));
     await act(async () => {
@@ -341,8 +364,177 @@ describe('the floating layers at the top', () => {
     });
     await fireEvent(view.getByTestId('fee-capsule-layer'), 'layout', layout(40));
     await fireEvent(view.getByTestId('bottom-sheet-footer'), 'layout', layout(90));
-    // Capsules end at 134 + 40 = 174; the sheet plus its footer must fit in the 700 - 174 - 8 below.
-    const sheetHeight = flatStyle(view.getByTestId('bottom-sheet')).height;
-    expect(sheetHeight + 90).toBeLessThanOrEqual(700 - 174 - 8);
+    // Closed, they are all there, above a sheet that shows only its peek.
+    expect(view.getByTestId('fee-capsule-layer')).toBeTruthy();
+    expect(view.getByTestId('task-top-header')).toBeTruthy();
+    expect(mockMapProps.directionsVisible).toBe(true);
+
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Expand errand sheet')[0]);
+    });
+    expect(flatStyle(view.getByTestId('bottom-sheet')).height).toBe(700 - 90);
+    expect(view.queryByTestId('fee-capsule-layer')).toBeNull();
+    expect(view.queryByTestId('task-top-header')).toBeNull();
+    expect(mockMapProps.directionsVisible).toBe(false);
+  });
+});
+
+/**
+ * The sheet and its button are off the screen while riding, and used to come
+ * back only once a fix landed inside the stop's circle. So "GPS not detecting?
+ * Confirm Arrival" was hidden for as long as the GPS was not detecting.
+ */
+describe('the sheet coming back when the GPS has not placed the rider in the store', () => {
+  const store = { id: 5, storeName: 'Store A', latitude: 6.69, longitude: 124.67, sequence: 0 };
+  const northOfStore = (meters: number, extra: Record<string, unknown> = {}) => ({
+    latitude: store.latitude + meters / 111_195,
+    longitude: store.longitude,
+    heading: null,
+    updatedAt: 0,
+    accuracyMeters: 8,
+    ...extra,
+  });
+  beforeEach(() => {
+    mockErrands = [{ ...errand, pinpoints: [store] }];
+  });
+
+  it('stays away on the road to the store', async () => {
+    mockLocation = northOfStore(900);
+    const view = await renderTask({ open: 'map' });
+    expect(view.queryByTestId('emergency-arrival-btn')).toBeNull();
+    expect(mockMapProps.bottomInset).toBe(0);
+  });
+
+  it('comes back close to the store though no fix is inside its circle', async () => {
+    // 110 m out: outside the 75 m circle, so nothing says "arriving".
+    mockLocation = northOfStore(110);
+    const view = await renderTask({ open: 'map' });
+    expect(view.getByTestId('emergency-arrival-btn')).toBeTruthy();
+    expect(view.getByTestId('navigating-capsule')).toBeTruthy();
+    // Shown, not opened: the map keeps everything above the peek.
+    expect(view.queryByTestId('full-task-back-btn')).toBeNull();
+    expect(mockMapProps.bottomInset).toBeGreaterThan(0);
+  });
+
+  it('comes back for a rider stopped not far off, and goes away again when they ride on', async () => {
+    mockLocation = northOfStore(300, { stationary: true });
+    const view = await renderTask({ open: 'map' });
+    expect(view.getByTestId('emergency-arrival-btn')).toBeTruthy();
+
+    // It was a red light: riding again, the whole map is the directions again.
+    mockLocation = northOfStore(280, { stationary: false });
+    await act(async () => {
+      view.rerender(<TaskScreen />);
+    });
+    expect(view.queryByTestId('emergency-arrival-btn')).toBeNull();
+    expect(mockMapProps.bottomInset).toBe(0);
+  });
+
+  it('does not take the sheet away from a rider who opened it meanwhile', async () => {
+    mockLocation = northOfStore(300, { stationary: true });
+    const view = await renderTask({ open: 'map' });
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Expand errand sheet')[0]);
+    });
+    mockLocation = northOfStore(280, { stationary: false });
+    await act(async () => {
+      view.rerender(<TaskScreen />);
+    });
+    expect(view.getByTestId('emergency-arrival-btn')).toBeTruthy();
+  });
+
+  it('comes back when the fix is too coarse for the circle to count it', async () => {
+    mockLocation = northOfStore(40, { accuracyMeters: 90 });
+    const view = await renderTask({ open: 'map' });
+    expect(view.getByTestId('emergency-arrival-btn')).toBeTruthy();
+  });
+});
+
+/**
+ * At the customer's door the handover is the screen: the cash, the photo, the
+ * button. The sheet used to open to the half height it takes over a map that is
+ * still being ridden by, less a tall action dock, which left a strip of it.
+ */
+describe("the sheet at the customer's door", () => {
+  const door = { id: -1, storeName: 'the delivery address', latitude: 6.69, longitude: 124.68, sequence: 99 };
+  beforeEach(() => {
+    mockStatus = 'Delivering';
+    mockArrivingAt = door;
+  });
+
+  it('opens in full when the rider opens it, not to half over the map', async () => {
+    const view = await renderTask({ open: 'map' });
+    await fireEvent(view.getByTestId('task-screen'), 'layout', layout(700));
+    await fireEvent(view.getByTestId('bottom-sheet-footer'), 'layout', layout(170));
+    // Arriving, it is back at its peek with the handover button.
+    expect(view.getByLabelText("I've handed it over")).toBeTruthy();
+    expect(view.queryByTestId('full-task-back-btn')).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Expand errand sheet')[0]);
+    });
+    // The whole screen, less what the action dock below it takes.
+    expect(flatStyle(view.getByTestId('bottom-sheet')).height).toBe(700 - 170);
+    expect(view.getByTestId('full-task-back-btn')).toBeTruthy();
+    expect(view.queryByTestId('fee-capsule-layer')).toBeNull();
+    expect(mockMapProps.directionsVisible).toBe(false);
+  });
+
+  it('closes back to the peek at the door, not off the screen', async () => {
+    const view = await renderTask({ open: 'map' });
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Expand errand sheet')[0]);
+    });
+    await act(async () => {
+      fireEvent.press(view.getByTestId('full-task-back-btn'));
+    });
+    expect(view.queryByTestId('full-task-back-btn')).toBeNull();
+    expect(view.getByLabelText("I've handed it over")).toBeTruthy();
+    expect(mockMapProps.directionsVisible).toBe(true);
+  });
+
+});
+
+describe('the sheet at a store', () => {
+  beforeEach(() => {
+    mockStatus = 'At Store';
+  });
+
+  it('opens in full when the rider opens it, as it does at the door', async () => {
+    const view = await renderTask({ open: 'map' });
+    await fireEvent(view.getByTestId('task-screen'), 'layout', layout(700));
+    await fireEvent(view.getByTestId('bottom-sheet-footer'), 'layout', layout(90));
+    // At the store it is on screen at its peek, the map's layers above it.
+    expect(view.queryByTestId('full-task-back-btn')).toBeNull();
+    expect(view.getByTestId('fee-capsule-layer')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Expand errand sheet')[0]);
+    });
+    expect(flatStyle(view.getByTestId('bottom-sheet')).height).toBe(700 - 90);
+    expect(view.getByTestId('full-task-back-btn')).toBeTruthy();
+    expect(view.queryByTestId('fee-capsule-layer')).toBeNull();
+  });
+
+  it('closes back to the peek, on the back arrow and on the title alike', async () => {
+    const view = await renderTask({ open: 'map' });
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Expand errand sheet')[0]);
+    });
+    await act(async () => {
+      fireEvent.press(view.getByTestId('full-task-back-btn'));
+    });
+    expect(view.queryByTestId('full-task-back-btn')).toBeNull();
+    expect(view.getByTestId('fee-capsule-layer')).toBeTruthy();
+    expect(view.getByTestId('store-finish-btn')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Expand errand sheet')[0]);
+    });
+    await act(async () => {
+      fireEvent.press(view.getAllByLabelText('Collapse errand sheet')[0]);
+    });
+    expect(view.queryByTestId('full-task-back-btn')).toBeNull();
+    expect(view.getByTestId('store-finish-btn')).toBeTruthy();
   });
 });

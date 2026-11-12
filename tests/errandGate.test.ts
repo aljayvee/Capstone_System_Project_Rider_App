@@ -77,7 +77,7 @@ describe("at the door", () => {
       handoverCaptured: true,
     });
     expect(g.canAdvance).toBe(false);
-    expect(g.blockedReason).toBe("Say what you collected first");
+    expect(g.blockedReason).toBe("Photograph the payment first");
   });
 
   it("still asks for the figure on a mode it does not recognise", () => {
@@ -94,7 +94,7 @@ describe("at the door", () => {
       handoverCaptured: true,
     });
     expect(g.canAdvance).toBe(false);
-    expect(g.blockedReason).toBe("Say what you collected first");
+    expect(g.blockedReason).toBe("Photograph the payment first");
   });
 
   it("still asks for the figure when the customer has not confirmed a mode", () => {
@@ -107,7 +107,7 @@ describe("at the door", () => {
         handoverCaptured: true,
       });
       expect(g.canAdvance).toBe(false);
-      expect(g.blockedReason).toBe("Say what you collected first");
+      expect(g.blockedReason).toBe("Photograph the payment first");
     }
   });
 
@@ -228,7 +228,7 @@ describe("goods held on the downpayment plan", () => {
     });
 
     expect(g.canAdvance).toBe(false);
-    expect(g.blockedReason).toBe("Say what you collected first");
+    expect(g.blockedReason).toBe("Photograph the payment first");
   });
 
   it("lets the rider finish once the balance is in", () => {
@@ -265,7 +265,7 @@ describe("every non-COD channel behaves the same", () => {
     });
 
     expect(g.canAdvance).toBe(false);
-    expect(g.blockedReason).toBe("Say what you collected first");
+    expect(g.blockedReason).toBe("Photograph the payment first");
   });
 
   it.each(["GCash / PayMaya", "Bank Transfer"])("holds the goods on %s until paid", (mode) => {

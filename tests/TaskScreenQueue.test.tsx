@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
+jest.mock('../src/services/arrivalQueue', () => ({ reportStoreArrival: jest.fn().mockResolvedValue(undefined) }));
 
 /**
  * Two errands in hand on the Task tab. The bug this covers: the rider

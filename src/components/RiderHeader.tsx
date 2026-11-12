@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { ScreenLayout, ScreenSpacing } from '../config/screenLayout';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { Bike } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, FontFamily, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, FontFamily, scaledFontSize, moderateScale } from '../config/theme';
 import { HomeColors } from '../modules/home/homeTheme';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { NotificationBell } from './NotificationBell';
 import { riderApiService } from '../config/apiConfig';
 
 import type { UseRiderMissionReturn } from '../hooks/useRiderMission';
+
+// The Sugo scooter mark, white on transparent (scripts/export-brand-icons.mjs); tintColor recolours it.
+const SUGO_MARK = require('../../assets/brand/sugo-mark-white.png');
 
 export interface RiderHeaderProps {
   mission?: UseRiderMissionReturn;
@@ -54,10 +57,10 @@ export function RiderHeader({
       <View style={styles.topRow}>
         <View style={styles.brandContainer}>
           <View style={styles.logoBox}>
-            <Bike size={22} color={HomeColors.accent} strokeWidth={2.2} />
+            <Image source={SUGO_MARK} style={styles.logoMark} resizeMode="contain" accessible={false} />
           </View>
           <View style={styles.brandText}>
-            <Text style={styles.companyName} maxFontSizeMultiplier={1.25}>Sugo Express</Text>
+            <Text style={styles.companyName} maxFontSizeMultiplier={1.25}>Sugo Rider</Text>
             <Text style={[styles.dutyStatus, !isOffline && styles.onDutyText]} maxFontSizeMultiplier={1.25}>{isOffline ? 'Off duty' : 'On duty'}</Text>
           </View>
         </View>
@@ -91,13 +94,12 @@ export function RiderHeader({
 
 const styles = StyleSheet.create({
   container: {
+    ...ScreenLayout.frame,
+    flexShrink: 0,
     backgroundColor: HomeColors.background,
-    paddingHorizontal: moderateScale(20, 0.5),
-    paddingTop: moderateScale(12, 0.5),
-    paddingBottom: moderateScale(20, 0.5),
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    paddingHorizontal: ScreenSpacing.horizontal,
+    paddingTop: ScreenSpacing.top,
+    paddingBottom: ScreenSpacing.top,
     borderBottomWidth: 1,
     borderBottomColor: HomeColors.divider,
   },
@@ -121,6 +123,11 @@ const styles = StyleSheet.create({
     backgroundColor: HomeColors.accentSurface,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  logoMark: {
+    width: moderateScale(26, 0.2),
+    aspectRatio: 1.5,
+    tintColor: HomeColors.accent,
   },
   companyName: {
     color: Colors.navy,

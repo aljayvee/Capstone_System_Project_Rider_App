@@ -24,14 +24,15 @@ export interface UploadFailure {
 }
 
 export function describeUploadFailure(err: any): UploadFailure {
-  const status: number | null = err?.response?.status ?? null;
+  const status: number | null = err?.status ?? err?.response?.status ?? null;
   const data = err?.response?.data;
 
   // The API answers `{ error }` (server errorHandler.ts). This used to read
   // `message`, which the API never sends, so every refusal (an unreadable
   // photo, scanning down, a rate limit) reached the rider as "No signal".
   const serverText =
-    typeof data?.error === 'string' ? data.error : typeof data?.message === 'string' ? data.message : null;
+    typeof data?.error === 'string' ? data.error : typeof data?.message === 'string' ? data.message
+      : typeof err?.message === 'string' ? err.message : null;
 
   if (status !== null && serverText) {
     return { message: serverText, retryable: status === 503 || status === 429, status };

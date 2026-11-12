@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing } from '../config/theme';
+import { ScreenLayout, ScreenSpacing } from '../config/screenLayout';
 
 interface EmptyStateProps {
   Icon?: LucideIcon;
@@ -21,18 +22,19 @@ export function EmptyState({ Icon, title, hint }: EmptyStateProps) {
   return (
     <View style={styles.container}>
       {Icon ? <Icon size={32} color={Colors.textLight} /> : null}
-      <Text style={styles.title}>{title}</Text>
-      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      <Text style={styles.title} maxFontSizeMultiplier={1.25}>{title}</Text>
+      {hint ? <Text style={styles.hint} maxFontSizeMultiplier={1.25}>{hint}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    ...ScreenLayout.frame,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.huge * 2,
-    paddingHorizontal: Spacing.xl,
+    paddingVertical: ScreenSpacing.section * 2,
+    paddingHorizontal: ScreenSpacing.horizontal,
     gap: Spacing.md,
   },
   title: {

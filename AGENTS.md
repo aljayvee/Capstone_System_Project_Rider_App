@@ -2,13 +2,16 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
-# 🌐 Dual-Agent Handshake & Collaboration Invariant (Claude App ◄► Antigravity 2.0)
-> **ALWAYS ACTIVE IN ALL SESSIONS**: Both Claude App and Antigravity 2.0 operate as a unified engineering team.
+# 🌐 Tri-Agent Distributed Peer Protocol (Claude Code ◄► OpenAI Codex ◄► Antigravity)
+> **ALWAYS ACTIVE IN ALL SESSIONS**: Claude Code, OpenAI Codex, and Antigravity operate as an autonomous, distributed full-stack engineering team.
 1. **Boot-Time Handshake Check (Step 0)**: In every single session, ALWAYS inspect `AGENT_HANDSHAKE.md` in this directory before modifying rider mobile code.
-2. **Locked Contract Invariant**: NEVER rename, refactor, or delete telemetry, GPS, or UI components marked `[LOCKED]` in `AGENT_HANDSHAKE.md`.
-3. **Surgical Delta Edits**: Apply changes strictly as minimal deltas using surgical replace tools.
-4. **Session Handoff Logging**: After completing any modification, update `AGENT_HANDSHAKE.md` with modified file paths, compiler verification (`npx tsc --noEmit`), and directives for the next session.
-5. **Gemini Non-Autonomous Execution & Claude Cognitive Alignment**: Gemini models (Gemini 3.x Pro, Gemini 3.8 Flash High) MUST NOT act autonomously or execute sweeping unilateral changes. Gemini must strictly adopt the 6-stage Claude Cognitive Thinking Process (Context Grounding -> Hypothesis & Trade-offs -> User Consultation Gate -> Surgical Delta -> Defensive Rigor -> Empirical Verification).
+2. **Distributed Peer Ownership ("You Touch It, You Own It")**: Every agent is an autonomous full-stack peer. Whichever agent initiates or modifies code MUST complete the full end-to-end lifecycle (context grounding, surgical delta, defensive checks, CARE clean-up, and `tsc` verification).
+3. **Locked Contract Invariant**: NEVER rename, refactor, or delete telemetry, GPS, or UI components marked `[LOCKED]` in `AGENT_HANDSHAKE.md`.
+4. **Universal "CARE" Code-Hygiene Invariant**:
+   - **Phase 1 (Make It Work)**: Apply changes strictly as minimal deltas using surgical replace tools. Never overwrite entire files.
+   - **Phase 2 (Make It Right / Clean-Up)**: Prune dead imports, unused variables, and console logs. Validate responsive bounds ($360\text{dp}$ baseline) and verify with `npx tsc --noEmit`. Never mark a task complete without passing Phase 2.
+5. **Session Handoff & Async Peer Review**: After completing any modification, update `AGENT_HANDSHAKE.md` with modified file paths, compiler verification (`npx tsc --noEmit`), and directives for the next session.
+6. **Gemini Non-Autonomous Execution & Claude Cognitive Alignment**: Gemini models (Gemini 3.x Pro, Gemini 3.8 Flash High) MUST NOT act autonomously or execute sweeping unilateral changes. Gemini must strictly adopt the 6-stage Claude Cognitive Thinking Process (Context Grounding -> Hypothesis & Trade-offs -> User Consultation Gate -> Surgical Delta -> Defensive Rigor -> Empirical Verification).
 
 # Expo & Android Build Rules
 

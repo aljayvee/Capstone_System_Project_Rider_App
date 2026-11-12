@@ -34,6 +34,7 @@ import { applyDeliveryHolds, canSwitchWorkingErrand, deliveryHolds, orderErrandQ
 import { routePhaseFor } from '../services/routePhase';
 import { formatErrandId } from '../utils/formatErrandId';
 import { requestSections, type RequestSection } from '../services/requestSections';
+import { hasUncheckedReceiptItems } from '../services/receiptChecklist';
 import {
   cashDueAtDoorFor,
   deriveErrandProgress,
@@ -47,6 +48,12 @@ import { hasPending, trackPending, whenSettled } from '../services/requestCache'
 import { proofRollbackMessage, undoHandover, undoSectionReceipt } from '../services/proofRollback';
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+function canCaptureStoreReceipt(section: RequestSection): boolean {
+  if (!hasUncheckedReceiptItems(section)) return true;
+  Alert.alert('Check the items first', 'Mark every item for this store as Purchased or Out of Stock before taking a receipt photo.');
+  return false;
+}
 
 /** Which section of the shopping list the open camera is filing a receipt for. */
 export interface ReceiptTarget {
@@ -185,7 +192,7 @@ export interface UseRiderMissionReturn {
 
   // Actions
   refresh: () => void;
-  advanceStatus: () => void;
+  advanceStatus: (choice?: unknown) => void;
   /** Return to Traveling status when moving to the next store in multi-store errands */
   returnToTraveling: () => void;
   deferredStoreIds: number[];
@@ -201,7 +208,7 @@ export interface UseRiderMissionReturn {
   isRequestingHalf: boolean;
   /** Accepts one specific offer by its real errand id — never the whole batch. */
   acceptMission: (errandId: string) => void;
-  declineMission: () => Promise<void>;
+  declineMission: (offerId?: string) => Promise<void>;
   /** One offer's countdown ran out: hand that offer back, no reason asked. */
   expireOffer: (offerId: string) => void;
   resetForNextErrand: () => void;
@@ -242,6 +249,8 @@ export interface UseRiderMissionReturn {
 // ACTIVE_STATUSES keeps both because the merged `errand` and the offline cache
 // still operate on the pair — only the per-errand accept/decline/progress
 // actions below need to tell them apart.
+/** The rider's own answer to "take the handover photo": finish without one. */
+const WITHOUT_HANDOVER_PHOTO = Object.freeze({ withoutHandoverPhoto: true });
 const OFFERED_STATUSES: Errand["status"][] = ["Assigned"];
 const ACCEPTED_STATUSES: Errand["status"][] = ["Traveling"];
 const ACTIVE_STATUSES: Errand["status"][] = [...OFFERED_STATUSES, ...ACCEPTED_STATUSES];
@@ -729,7 +738,12 @@ export function useRiderMission(): UseRiderMissionReturn {
     if (bannerTimer.current) clearTimeout(bannerTimer.current);
   }, []);
 
-  const advanceStatus = useCallback(async () => {
+  // Set once the handover camera is declared further down; read by the
+  // question advanceStatus asks, which is defined before it.
+  const openHandoverCaptureRef = useRef<() => void>(() => {});
+  const advanceStatusRef = useRef<(choice?: unknown) => void>(() => {});
+
+  const advanceStatus = useCallback(async (choice?: unknown) => {
     // Only the front of the queue ever advances — everything else in
     // activeErrands is queued behind it (TaskScreen's "This one is queued"
     // note already says so). Operating on the whole activeMissions array here
@@ -740,7 +754,34 @@ export function useRiderMission(): UseRiderMissionReturn {
     const target = activeErrands[0];
     if (!target || !frontErrandId) return;
     if (currentStatus === "Delivering" && isCashCollected(paymentMode) && !collectedAmount) {
-      Alert.alert("Validation Error", "Please enter the collected amount.");
+      // Says what to do, in the words of the button that does it. There is no
+      // amount to type: the payment is recorded by photographing the cash, or
+      // on a half-paid errand the customer's receipt (CashCollectionInput).
+      Alert.alert(
+        "Payment not recorded yet",
+        "Photograph the cash you collected, or the customer's payment receipt, before you tap \"I've handed it over\"."
+      );
+      return;
+    }
+
+    // Delivered is never reached without the handover photo having been asked
+    // for. It used to be optional and unasked: the button finished the errand
+    // the moment the payment was recorded, so one press (or anything that
+    // stood in for one) closed it with no picture of what was handed over
+    // (261110-6447B-0008, 261110-B420D-0011). The photo still cannot strand a
+    // rider whose camera fails: delivering without it stays possible, as an
+    // answer given here, never as the default. `choice` is the press event
+    // when a button calls this, so only the exact object below skips the ask.
+    if (currentStatus === "Delivering" && !handoverCaptured && choice !== WITHOUT_HANDOVER_PHOTO) {
+      Alert.alert(
+        "Take the handover photo",
+        "Photograph the items you handed to the customer before you finish this errand.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Deliver without a photo", style: "destructive", onPress: () => advanceStatusRef.current(WITHOUT_HANDOVER_PHOTO) },
+          { text: "Take photo", onPress: () => openHandoverCaptureRef.current() },
+        ]
+      );
       return;
     }
 
@@ -825,8 +866,9 @@ export function useRiderMission(): UseRiderMissionReturn {
     // was a tap charged for reading the screen.
   }, [
     activeErrands, frontErrandId, currentStatus, paymentMode, collectedAmount, shortPayment,
-    proofImageId, riderNote, showBanner, updateProgress,
+    proofImageId, riderNote, showBanner, updateProgress, handoverCaptured,
   ]);
+  advanceStatusRef.current = advanceStatus;
 
   const deferredStoreIds = useMemo(
     () => frontProgress.deferredStoreIds ?? [],
@@ -945,15 +987,14 @@ export function useRiderMission(): UseRiderMissionReturn {
     [activeMissions, isAccepting, showBanner, updateProgress, refresh]
   );
 
-  const declineMission = useCallback(async () => {
-    // Declines every still-OFFERED errand, never an already-accepted one —
-    // this used to sweep the whole (offer + accepted) activeMissions array,
-    // so opening the decline modal while a delivery was already in progress
-    // could decline that in-progress errand too.
-    if (!declineReason.trim() || offeredErrands.length === 0) return;
+  const declineMission = useCallback(async (offerId?: string) => {
+    // Home shows one offer at a time. Its decline action must answer only
+    // that offer, even if another arrives while the reason modal is open.
+    const offersToDecline = offerId ? offeredErrands.filter((offer) => offer.id === offerId) : offeredErrands;
+    if (!declineReason.trim() || offersToDecline.length === 0) return;
     try {
       await Promise.all(
-        offeredErrands.map((m) => riderApiService.declineErrand(m.id, declineReason.trim()))
+        offersToDecline.map((m) => riderApiService.declineErrand(m.id, declineReason.trim()))
       );
     } catch {
       Alert.alert("Error", "Failed to decline the errand. Please try again.");
@@ -962,15 +1003,14 @@ export function useRiderMission(): UseRiderMissionReturn {
     showBanner("info", "Declined. The dispatcher has been notified.");
     setShowDeclineModal(false);
     setDeclineReason("");
-    const declinedIds = new Set(offeredErrands.map((m) => m.id));
+    const declinedIds = new Set(offersToDecline.map((m) => m.id));
     setActiveMissions((prev) => {
       const remaining = (prev ?? []).filter((m) => !declinedIds.has(m.id));
       return remaining.length > 0 ? remaining : null;
     });
   }, [declineReason, offeredErrands, showBanner]);
 
-  // Only the offer whose clock ran out, unlike declineMission above, which
-  // answers every open offer at once. The card goes immediately; the server
+  // Only the offer whose clock ran out. The offer goes immediately; the server
   // call is best-effort, because when it fails (no signal) the server's own
   // expiry takes the offer back about 15 seconds later anyway. A 409 just means
   // that already happened.
@@ -1011,12 +1051,14 @@ export function useRiderMission(): UseRiderMissionReturn {
   // photograph was taken and nothing reached the server — the rider was being
   // shown a progress bar for an upload that did not exist.
   const openReceiptCapture = useCallback((section: RequestSection, index: number) => {
+    if (!canCaptureStoreReceipt(section)) return;
     setReceiptTarget({ index, name: section.name, pinpointId: section.pinpointId, kind: 'RECEIPT' });
   }, []);
 
   // Same target, different evidence: the photo is of the goods and the rider
   // supplies the figure, because the shop supplied nothing to read.
   const openNoReceiptCapture = useCallback((section: RequestSection, index: number) => {
+    if (!canCaptureStoreReceipt(section)) return;
     setReceiptTarget({ index, name: section.name, pinpointId: section.pinpointId, kind: 'NO_RECEIPT' });
   }, []);
 
@@ -1025,6 +1067,7 @@ export function useRiderMission(): UseRiderMissionReturn {
   const openHandoverCapture = useCallback(() => {
     setReceiptTarget({ index: -1, name: 'Handover', pinpointId: null, kind: 'PROOF_OF_DELIVERY' });
   }, []);
+  openHandoverCaptureRef.current = openHandoverCapture;
 
   // The GCash/Maya path: the rider photographs the receipt the customer shows
   // at the door. Read by Cloud Vision and fraud-checked server-side (same

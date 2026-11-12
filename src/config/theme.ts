@@ -49,10 +49,10 @@ export const Colors = LightColors;
 export type ThemeColors = Record<keyof typeof LightColors, string>;
 
 export const FontFamily = {
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
+  regular: 'Urbanist_400Regular',
+  medium: 'Urbanist_500Medium',
+  semibold: 'Urbanist_600SemiBold',
+  bold: 'Urbanist_700Bold',
   mono: 'JetBrainsMono_500Medium',
   monoBold: 'JetBrainsMono_700Bold',
   monoExtraBold: 'JetBrainsMono_800ExtraBold',

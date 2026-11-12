@@ -1,4 +1,5 @@
 import React from 'react';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import {
   ActivityIndicator,
   Alert,
@@ -51,6 +52,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthedStackParamList } from '../../navigation/AuthedNavigator';
 import ReceiptCaptureScreen from '../../screens/ReceiptCaptureScreen';
+import { reportStoreArrival } from '../../services/arrivalQueue';
 // Directly, not through ./components: the TaskScreen suites mock that barrel.
 import { DropOffDetails } from './components/DropOffDetails';
 import { useLiveRoute } from '../../hooks/useLiveRoute';
@@ -64,8 +66,10 @@ import { merchantCategoryLabel } from '../../services/merchantCategory';
 import {
   nearestOutstandingStop,
   isStoreEligibleForDelay,
+  DELIVERY_ARRIVAL_RADIUS_METERS,
   STORE_DELAY_THRESHOLD_MS,
 } from '../../services/storeArrival';
+import { arrivalAssist } from '../../services/arrivalAssist';
 import { STEP_META, STATUS_STEPS } from '../../types/rider';
 import { formatErrandId } from '../../utils/formatErrandId';
 import { formatPeso } from '../../utils/format';
@@ -78,7 +82,6 @@ import {
   FontFamily,
   scaledFontSize,
   moderateScale,
-  MAX_CONTENT_WIDTH,
 } from '../../config/theme';
 
 /**
@@ -288,13 +291,34 @@ export default function TaskScreen() {
   React.useEffect(() => {
     if (fullTask && (!sheetExpanded || sheetHidden)) setFullTask(false);
   }, [fullTask, sheetExpanded, sheetHidden]);
+  // Opening the sheet opens it in full: at a store, at the customer's door,
+  // and on the way to either once it has come back near the stop. It used to
+  // stop at SHEET_MAX_COVER_RATIO to leave the road in view, but the sheet is
+  // off the screen while riding, so it is only ever opened once stopped; and
+  // under the action dock the half height left the checklist or the handover
+  // (the cash card, the photo, the items) a strip a few lines high, over the
+  // map and cut off. Only the finished errand's summary keeps the half height.
+  const opensInFull = currentStatus !== 'Delivered';
+  React.useEffect(() => {
+    if (opensInFull && sheetExpanded && !sheetHidden && !fullTask) {
+      // Closing it goes back to the peek it was opened from, not off the screen.
+      hiddenBeforeFullRef.current = false;
+      setFullTask(true);
+    }
+  }, [opensInFull, sheetExpanded, sheetHidden, fullTask]);
+  const sheetInFull = fullTask || opensInFull;
   // Hardware back key safety hierarchy:
   // 1. If full task view is open -> close full task view back to the map.
   // 2. If bottom sheet is expanded -> collapse bottom sheet to peek height.
   // 3. If bottom sheet is shown while riding -> hide sheet to restore turn-by-turn map view.
   // 4. Otherwise -> navigate back safely to Tabs without crashing or dropping mission state.
+  // All of it only while the task is in front (2026-11-06). The dispatcher
+  // chat opened from here sits on top while this listener stays registered,
+  // and it is set up again on every sheet change, so it is usually the newest
+  // and asked first. It collapsed the hidden sheet and left the chat open.
   React.useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (navigation.isFocused && !navigation.isFocused()) return false;
       if (fullTask) {
         closeFullTask();
         return true;
@@ -416,6 +440,58 @@ export default function TaskScreen() {
   const activeTargetName = isShopping
     ? (activeStoreTarget?.storeName ?? merchantCategoryLabel(workingErrand?.merchantCategories) ?? 'Store')
     : workingErrand?.customer;
+
+  // The sheet also comes back, while riding, when the rider is probably at the
+  // stop though no fix has landed inside its circle: close to it, stopped not
+  // far off, a fix too coarse to count, or no fix at all
+  // (services/arrivalAssist). It used to wait for the circle, so "GPS not
+  // detecting? Confirm Arrival" stayed off the screen for exactly as long as
+  // the GPS was not detecting. It comes back at its peek, with that button;
+  // the step itself still moves only by the circle or by the rider's tap.
+  const legStartedAtRef = React.useRef(Date.now());
+  React.useEffect(() => {
+    legStartedAtRef.current = Date.now();
+  }, [currentStatus]);
+  // A fix going stale causes no render of its own: look again every ten seconds.
+  React.useEffect(() => {
+    if (!riding) return;
+    const timer = setInterval(() => setNow(Date.now()), 10_000);
+    return () => clearInterval(timer);
+  }, [riding]);
+  const arrivalTarget = React.useMemo(
+    () =>
+      isShopping
+        ? activeStoreTarget
+        : destination
+          ? { ...destination, geofenceRadiusMeters: DELIVERY_ARRIVAL_RADIUS_METERS }
+          : null,
+    [isShopping, activeStoreTarget, destination]
+  );
+  const arrivalNeedsAHand =
+    riding &&
+    arrivalAssist({ target: arrivalTarget, location: riderLocation, now, legStartedAt: legStartedAtRef.current }) !== null;
+  // Whether this is what brought the sheet back, so it alone may put it away.
+  const shownForArrivalRef = React.useRef(false);
+  React.useEffect(() => {
+    if (arrivalNeedsAHand) {
+      // Read inside the update: a new step in this same commit has just asked
+      // for the sheet to be hidden, and that is the state this replaces.
+      setSheetHidden((wasHidden) => {
+        if (wasHidden) shownForArrivalRef.current = true;
+        return false;
+      });
+      return;
+    }
+    // Riding on (it was a red light near the stop, or the GPS came back): the
+    // whole map again, unless the rider has opened the sheet meanwhile or is
+    // inside the stop's circle by now.
+    if (shownForArrivalRef.current) {
+      shownForArrivalRef.current = false;
+      if (riding && !nearStop && !sheetExpanded && !fullTask) setSheetHidden(true);
+    }
+    // Only when the answer changes; the rider's own toggles in between stand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrivalNeedsAHand]);
 
   const canStartAnotherFirst = queuedErrands.length > 0 && canSwitchWorkingErrand(currentStatus);
 
@@ -625,7 +701,12 @@ export default function TaskScreen() {
             </View>
             <TouchableOpacity
               style={styles.emergencyArrivalBtn}
-              onPress={advanceStatus}
+              onPress={async () => {
+                if (workingErrand && activeStoreTarget) {
+                  await reportStoreArrival(workingErrand.id, activeStoreTarget.id);
+                }
+                await advanceStatus();
+              }}
               accessibilityRole="button"
               accessibilityLabel="Confirm arrival manually if GPS is not detecting"
               testID="emergency-arrival-btn"
@@ -906,13 +987,13 @@ export default function TaskScreen() {
         collapsedHeight={collapsedHeight}
         // In full, the whole screen below the status bar: the map is not
         // being navigated by while the rider reads the task.
-        expandedRatio={fullTask ? 1 : undefined}
+        expandedRatio={sheetInFull ? 1 : undefined}
         expanded={sheetExpanded}
         onExpandedChange={setSheetExpanded}
         onPeekChange={setSheetPeek}
         onCoverChange={setSheetCover}
-        maxHeight={fullTask ? fullTaskHeight : sheetMaxHeight}
-        maxCoverRatio={fullTask ? undefined : SHEET_MAX_COVER_RATIO}
+        maxHeight={sheetInFull ? fullTaskHeight : sheetMaxHeight}
+        maxCoverRatio={sheetInFull ? undefined : SHEET_MAX_COVER_RATIO}
         hidden={sheetHidden}
         onHiddenChange={setSheetHidden}
         padSafeAreaBottom={true}
@@ -1307,10 +1388,8 @@ const styles = StyleSheet.create({
     right: 0,
   },
   sheetHeader: {
-    width: '100%',
-    maxWidth: MAX_CONTENT_WIDTH,
-    alignSelf: 'center',
-    paddingHorizontal: moderateScale(20),
+    ...ScreenLayout.frame,
+    paddingHorizontal: ScreenSpacing.horizontal,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
@@ -1396,12 +1475,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetBody: {
-    width: '100%',
-    maxWidth: MAX_CONTENT_WIDTH,
-    alignSelf: 'center',
-    padding: moderateScale(20),
-    gap: moderateScale(24),
-    paddingBottom: moderateScale(30),
+    ...ScreenLayout.content,
+    gap: ScreenSpacing.section,
   },
   badgesRow: {
     flexDirection: 'row',
@@ -1459,16 +1534,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   stickyActionDock: {
-    width: '100%',
-    maxWidth: MAX_CONTENT_WIDTH,
-    alignSelf: 'center',
-    borderTopWidth: 1,
+    ...ScreenLayout.actionDock,
     borderTopColor: Colors.borderLight,
     backgroundColor: TaskSheetColors.surface,
-    paddingHorizontal: moderateScale(20),
-    paddingTop: moderateScale(12),
-    paddingBottom: Spacing.md,
-    gap: Spacing.sm,
   },
   blockedNote: {
     flexDirection: 'row',

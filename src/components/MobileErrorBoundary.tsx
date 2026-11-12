@@ -159,7 +159,8 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
-    height: 46,
+    minHeight: 54,
+    paddingVertical: Spacing.sm,
     borderRadius: 14,
     backgroundColor: '#DC2626',
     flexDirection: 'row',

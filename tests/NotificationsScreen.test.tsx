@@ -43,7 +43,10 @@ const LIST = [
   { id: 1, type: 'ERRAND_ASSIGNED', title: 'New Errand Assigned', body: 'Errand 261022-ABCDE-0001, Gaisano', isRead: false, createdAt: minutesAgo(2), topic: 'OFFER', actionNeeded: true, errandId: 'e-new' },
   { id: 2, type: 'ITEMS_UPDATED', title: 'Items list changed', body: 'Check the list before you buy.', isRead: false, createdAt: minutesAgo(10), topic: 'ERRAND', actionNeeded: true, errandId: 'e-active' },
   { id: 3, type: 'RIDER_PAYMENT_CONFIRMED', title: 'Payment confirmed', body: 'Nothing to collect.', isRead: false, createdAt: minutesAgo(20), topic: 'PAYMENT', actionNeeded: false, errandId: 'e-old' },
-  { id: 4, type: 'DISPATCHER_CHAT', title: 'Message from Ana (2 new)', body: 'Nasa store ka na?', isRead: true, createdAt: minutesAgo(60 * 40), topic: 'CHAT', actionNeeded: false, dispatcherId: 7 },
+  // Three days back: "Earlier" at any hour. It was 40 hours, which is
+  // "Yesterday" from 16:00 to midnight, so "groups by day" failed every
+  // evening (2026-11-06).
+  { id: 4, type: 'DISPATCHER_CHAT', title: 'Message from Ana (2 new)', body: 'Nasa store ka na?', isRead: true, createdAt: minutesAgo(60 * 72), topic: 'CHAT', actionNeeded: false, dispatcherId: 7 },
 ];
 
 async function setup(state: Partial<typeof mockState> = {}) {

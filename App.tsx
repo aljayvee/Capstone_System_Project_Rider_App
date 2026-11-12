@@ -7,11 +7,11 @@ import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useFonts } from 'expo-font';
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  Urbanist_400Regular,
+  Urbanist_500Medium,
+  Urbanist_600SemiBold,
+  Urbanist_700Bold,
+} from '@expo-google-fonts/urbanist';
 import {
   JetBrainsMono_500Medium,
   JetBrainsMono_700Bold,
@@ -136,7 +136,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Something went wrong</Text>
           <Text style={styles.errorText}>
-            {this.state.error?.message || "An unexpected error occurred in Sugo Express."}
+            {this.state.error?.message || "An unexpected error occurred in Sugo Rider."}
           </Text>
         </View>
       );
@@ -147,10 +147,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Urbanist_400Regular,
+    Urbanist_500Medium,
+    Urbanist_600SemiBold,
+    Urbanist_700Bold,
     JetBrainsMono_500Medium,
     JetBrainsMono_700Bold,
     JetBrainsMono_800ExtraBold,

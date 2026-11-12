@@ -47,6 +47,15 @@ const RESET_METERS = 500;
 const RESUME_GAP_MS = 10_000;
 const MAX_TICKS_PER_SAMPLE = 12_000;
 const METERS_PER_DEGREE = 111_195;
+/**
+ * How far ahead of the drawn rider its heading is read from the road: about a
+ * second's travel, so it leans into a bend as it reaches it instead of
+ * snapping round at the corner. Short at walking pace, where a long reach
+ * would have it pointing across a junction it is still metres from.
+ */
+const HEADING_AHEAD_S = 1.2;
+const MIN_HEADING_AHEAD_METERS = 6;
+const MAX_HEADING_AHEAD_METERS = 24;
 
 /** East and north, in metres or metres per second. */
 interface Vec { x: number; y: number }
@@ -102,6 +111,13 @@ export interface RiderMotionFrame {
   /** Coordinate degrees per second. Continuous: a fix never makes it jump. */
   velocity: MapCoordinate;
   moving: boolean;
+  /**
+   * Compass bearing of the road just ahead of where the rider is drawn, forward
+   * along the route. It turns with the drawn position, frame by frame, so the
+   * arrow and the map sweep through a bend instead of stepping once per fix.
+   * Null off the road, where there is no line to read it from.
+   */
+  roadHeading: number | null;
 }
 
 interface Fix { coordinate: MapCoordinate; recordedAt: number | undefined; receivedAt: number }
@@ -145,6 +161,16 @@ function roadPoint(road: Road, meters: number) {
   const segment = metresFrom(a, b);
   const unit = length > 0 ? scale(segment, 1 / Math.max(1e-9, size(segment))) : vec(0, 0);
   return { coordinate: offsetBy(a, scale(segment, t)), unit };
+}
+
+/** Which way the road runs from `here`, `meters` along it, towards the point a little further on. */
+function headingAlong(road: Road, meters: number, speed: number, here: { coordinate: MapCoordinate; unit: Vec }): number | null {
+  const reach = clamp(Math.abs(speed) * HEADING_AHEAD_S, MIN_HEADING_AHEAD_METERS, MAX_HEADING_AHEAD_METERS);
+  const chord = metresFrom(here.coordinate, roadPoint(road, Math.min(road.total, meters + reach)).coordinate);
+  // At the end of the road nothing lies ahead: the last stretch's own direction.
+  const direction = size(chord) > 0.5 ? chord : here.unit;
+  if (size(direction) === 0) return null;
+  return (Math.atan2(direction.x, direction.y) * 180 / Math.PI + 360) % 360;
 }
 
 function joinOffset(join: Join | null, now: number) {
@@ -245,6 +271,7 @@ function frameOf(ride: Ride, now: number): RiderMotionFrame {
       coordinate,
       velocity: degreesPerSecond(coordinate, add(scale(point.unit, speed), join.velocity)),
       moving: !ride.settled,
+      roadHeading: headingAlong(ride.road, s, speed, point),
     };
   }
   const p = add(ride.p, add(scale(ride.v, tau), scale(ride.a, tau * tau / 2)));
@@ -254,6 +281,7 @@ function frameOf(ride: Ride, now: number): RiderMotionFrame {
     coordinate,
     velocity: degreesPerSecond(coordinate, add(add(ride.v, scale(ride.a, tau)), join.velocity)),
     moving: !ride.settled,
+    roadHeading: null,
   };
 }
 
@@ -307,7 +335,7 @@ export class RiderMotion {
     if (!drawn || !previous || metresBetween(drawn.coordinate, coordinate) > RESET_METERS || now - previous.receivedAt > RESUME_GAP_MS) {
       this.ride = null;
       this.progress = null;
-      this.resting = { coordinate, velocity: { latitude: 0, longitude: 0 }, moving: false };
+      this.resting = { coordinate, velocity: { latitude: 0, longitude: 0 }, moving: false, roadHeading: null };
       this.restingSpeed = speed;
       return true;
     }

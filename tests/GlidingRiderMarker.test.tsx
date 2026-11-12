@@ -226,3 +226,90 @@ it('places distant resume fixes immediately and does not animate stationary fixe
   expect(drawn()).toEqual(far);
   expect(frames.size).toBe(0);
 });
+
+describe('the arrow facing the road ahead', () => {
+  // 30 m east, then a right-angle turn north, ridden at 10 m/s with a fix a second.
+  const corner = east(30);
+  const route = [origin, corner, { ...corner, latitude: corner.latitude + 90 / 111195 }];
+  const along = (m: number) => (m <= 30 ? east(m) : { ...corner, latitude: corner.latitude + (m - 30) / 111195 });
+
+  async function rideTheBend(props: { headingDeg: number; followRoad?: boolean }) {
+    const angles: number[] = [];
+    const view = await render(<GlidingRiderMarker target={origin} route={route} recordedAt={T0} speedMps={10} {...props} />);
+    for (const second of [1, 2, 3, 4, 5, 6]) {
+      for (let time = (second - 1) * 1000 + 16; time < second * 1000; time += 16) {
+        await frame(time);
+        if (mockNativeProps.mock.calls.length) angles.push(angle());
+      }
+      await frame(second * 1000);
+      await view.rerender(
+        <GlidingRiderMarker target={along(second * 10)} route={route} recordedAt={T0 + second * 1000} speedMps={10} {...props} />
+      );
+    }
+    return angles;
+  }
+
+  it('turns with the road through a bend, frame by frame, though the heading it is given never changes', async () => {
+    // The heading given stays east throughout: what a fix a second would say
+    // until the rider is already round the corner.
+    const angles = await rideTheBend({ headingDeg: 90 });
+    expect(angles[0]).toBeCloseTo(90, 0);
+    // Facing north by the end, having gone round the short way with no step.
+    expect(Math.min(angles.at(-1)!, 360 - angles.at(-1)!)).toBeLessThan(1);
+    for (let i = 1; i < angles.length; i++) {
+      expect(angles[i]).toBeLessThanOrEqual(angles[i - 1] + 0.001);
+      expect(angles[i - 1] - angles[i]).toBeLessThan(3);
+    }
+  });
+
+  it('draws once per screen refresh on a 120 Hz screen: a new place and a new angle every frame of the turn', async () => {
+    const STEP = 1000 / 120;
+    const view = await render(<GlidingRiderMarker target={origin} route={route} recordedAt={T0} speedMps={10} headingDeg={90} />);
+    const turning: number[] = [];
+    let framesRun = 0;
+    let writes = 0;
+    for (const second of [1, 2, 3, 4, 5, 6]) {
+      for (let time = (second - 1) * 1000 + STEP; time < second * 1000 - 0.001; time += STEP) {
+        const before = { draws: mockDraw.mock.calls.length, last: mockDraw.mock.calls.at(-1)?.[0] };
+        await frame(time);
+        if (frames.size === 0 && mockDraw.mock.calls.length === before.draws) continue; // not riding yet
+        framesRun++;
+        // Exactly one position and one rotation sent to the map for this frame.
+        expect(mockDraw.mock.calls.length).toBe(before.draws + 1);
+        expect(mockNativeProps.mock.calls.length).toBe(mockDraw.mock.calls.length);
+        writes++;
+        if (before.last) expect(metresBetween(before.last, drawn())).toBeGreaterThan(0);
+        if (angle() > 2 && angle() < 88) turning.push(angle());
+      }
+      await frame(second * 1000);
+      await view.rerender(
+        <GlidingRiderMarker target={along(second * 10)} route={route} recordedAt={T0 + second * 1000} speedMps={10} headingDeg={90} />
+      );
+    }
+    expect(writes).toBe(framesRun);
+    // Five seconds of riding at 120 frames a second.
+    expect(framesRun).toBeGreaterThan(550);
+    // The turn takes about a second: over a hundred frames, each at its own angle.
+    expect(turning.length).toBeGreaterThan(100);
+    for (let i = 1; i < turning.length; i++) expect(turning[i]).toBeLessThan(turning[i - 1]);
+  });
+
+  it("keeps to the phone's own heading while that is what turns the map", async () => {
+    const angles = await rideTheBend({ headingDeg: 200, followRoad: false });
+    expect(angles.at(-1)).toBeCloseTo(200, 0);
+  });
+
+  it('keeps drawing frames while the camera says it is still settling', async () => {
+    let settling = true;
+    const onPositionChange = jest.fn(() => settling);
+    const view = await render(<GlidingRiderMarker target={origin} route={null} headingDeg={0} onPositionChange={onPositionChange} />);
+    await view.rerender(<GlidingRiderMarker target={origin} route={null} headingDeg={90} onPositionChange={onPositionChange} />);
+    // The turn itself is over well inside two seconds; the camera is not.
+    for (let time = 16; time < 2000; time += 16) await frame(time);
+    expect(angle()).toBeCloseTo(90, 0);
+    expect(frames.size).toBe(1);
+    settling = false;
+    await frame(2016);
+    expect(frames.size).toBe(0);
+  });
+});

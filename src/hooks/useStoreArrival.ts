@@ -14,7 +14,7 @@ interface UseStoreArrivalOptions {
   /** True once the rider has accepted — nothing fires before that. */
   isActive: boolean;
   /** The existing advance, so arrival takes exactly the manual path. */
-  onArrived: () => void;
+  onArrived: (stop: ErrandPinpoint) => void;
   /** Optional deferred stop IDs (delayed cafes/pharmacies) */
   deferredStopIds?: Set<number> | number[];
   /** Optional completed stop IDs */
@@ -69,8 +69,8 @@ export function useStoreArrival({
   onArrivedRef.current = onArrived;
 
   // Arrival is watched ONLY while actively in transit:
-  // - "Traveling": moving towards store pinpoints
-  // - "Delivering": moving towards the customer door
+  // - "Traveling": moving towards store pinpoints (arriving moves the step)
+  // - "Delivering": moving towards the customer door (presence only, see below)
   // It is explicitly paused while "At Store" (already inside) to prevent duplicate
   // arrival triggers from advancing status to "Delivering" while shopping.
   const watching =
@@ -101,7 +101,8 @@ export function useStoreArrival({
 
     // The door only counts once the shopping is done. Reaching it mid-errand —
     // the customer lives past the store — must not end the delivery.
-    if (isDeliveryWaypoint(stop) && currentStatus !== 'Delivering') return;
+    const door = isDeliveryWaypoint(stop);
+    if (door && currentStatus !== 'Delivering') return;
 
     const result = observeFix(watchRef.current, stop, {
       latitude: location.latitude,
@@ -110,12 +111,21 @@ export function useStoreArrival({
       at: location.updatedAt,
     });
 
-    watchRef.current = result.watch;
-    setArrivingAt(result.watch.insideSince !== null ? stop : null);
+    // At the customer's door, being there is all this watches for: it brings
+    // the task sheet up (arrivingAt) for the handover. It never arrives the
+    // rider, because the next step there is "I've handed it over", a claim
+    // about the customer that GPS cannot make. Arriving used to press that
+    // button: with cash still to record it was refused with a "Validation
+    // Error" dialog, again every 21 s as the watch restarted; with the cash
+    // recorded it delivered the errand with no tap and no handover photo
+    // (errand 261110-6447B-0008). So the rider stays "inside" here, unarrived.
+    const watch = door && result.arrived ? watchRef.current : result.watch;
+    watchRef.current = watch;
+    setArrivingAt(watch.insideSince !== null ? stop : null);
 
-    if (result.arrived) {
+    if (result.arrived && !door) {
       setAdvancedAutomatically(true);
-      onArrivedRef.current();
+      onArrivedRef.current(stop);
     }
     // Driven by each new fix. `pinpoints` is included because a dispatcher can
     // re-pin mid-errand, which changes which stop is next.

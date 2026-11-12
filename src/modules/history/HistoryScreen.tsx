@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Search, X, ArrowUpDown, PackageCheck, ChevronRight, MapPin } from 'lucide-react-native';
@@ -9,7 +10,7 @@ import type { AuthedStackParamList } from '../../navigation/AuthedNavigator';
 import { Badge } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { Pagination } from '../../components/Pagination';
-import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
+import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, MAX_CONTENT_WIDTH } from '../../config/theme';
 import { compareErrandIds, formatErrandId } from '../../utils/formatErrandId';
 import { formatTimestamp, formatPeso } from '../../utils/format';
 import { earningsOf, formatEarnings, totalEarnings } from '../../utils/earnings';
@@ -73,7 +74,6 @@ function searchHaystack(errand: Errand): string {
 export default function HistoryScreen() {
   const { deliveredErrands, phase } = useRiderMissionContext();
   const navigation = useNavigation<StackNavigationProp<AuthedStackParamList>>();
-  const insets = useSafeAreaInsets();
 
   const [query, setQuery] = React.useState('');
   const [sort, setSort] = React.useState<SortKey>('date-desc');
@@ -208,10 +208,8 @@ export default function HistoryScreen() {
       {/* The search field sits above this list while the keyboard covers its
           lower rows; a drag puts the keyboard away so every errand can be reached. */}
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md },
-        ]}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
@@ -293,14 +291,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingHorizontal: ScreenSpacing.horizontal,
+    paddingTop: ScreenSpacing.top,
     paddingBottom: Spacing.xs,
   },
   headerTitle: {
-    fontSize: scaledFontSize(FontSizes.xl, 0.20),
-    fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    ...ScreenLayout.pageTitle,
   },
   headerSub: {
     fontSize: scaledFontSize(FontSizes.xs, 0.20),
@@ -308,7 +304,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   controls: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: ScreenSpacing.horizontal,
     paddingBottom: Spacing.sm,
     gap: Spacing.sm,
     zIndex: 10,
@@ -387,12 +383,11 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold as any,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
+    ...ScreenLayout.content,
     paddingTop: Spacing.xs,
     maxWidth: MAX_CONTENT_WIDTH,
     width: '100%',
     alignSelf: 'center',
-    paddingBottom: moderateScale(110, 0.20),
   },
   loading: {
     marginTop: Spacing.huge,

@@ -23,6 +23,10 @@ vi.mock('expo-updates', () => ({
   checkForUpdateAsync: vi.fn(),
   fetchUpdateAsync: vi.fn(),
   reloadAsync: vi.fn(),
+  // checkAndFetchUpdateSilently feature-checks this with typeof. A vitest
+  // factory mock throws on any export it does not list, and the throw landed
+  // in its try, so every check returned "no update" here (2026-11-06).
+  setUpdateRequestHeadersOverride: vi.fn(),
 }));
 
 vi.mock('react-native', () => ({

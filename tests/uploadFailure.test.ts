@@ -17,6 +17,10 @@ import {
 const answered = (status: number, data: unknown) => ({ response: { status, data } });
 
 describe("describing a failed photo upload", () => {
+  it('surfaces the wrapped server checklist rejection', () => {
+    const error = Object.assign(new Error('Please check all items (Purchased or Out of Stock).'), { status: 422 });
+    expect(describeUploadFailure(error)).toEqual({ message: error.message, status: 422, retryable: false });
+  });
   it("passes on what the server said, from the field the server uses", () => {
     const failure = describeUploadFailure(
       answered(422, { error: "We couldn't read that photo. Move to better light." })

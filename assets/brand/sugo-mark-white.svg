@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512"><title>Sugo Express</title><g transform="translate(256 256) scale(.41) translate(-642 -523)">
+  <mask id="ms" maskUnits="userSpaceOnUse" x="0" y="0" width="1372" height="900"><rect width="1372" height="900" fill="white"/>
+    <path d="M290 760H1000" stroke="black" stroke-width="26"/>
+    <path d="M398 324H600" stroke="black" stroke-width="24"/>
+    <circle cx="462" cy="800" r="42" fill="black"/><circle cx="1055" cy="780" r="44" fill="black"/></mask>
+  <g mask="url(#ms)" fill="#FFFFFF">
+    <circle cx="462" cy="800" r="96"/><circle cx="1055" cy="780" r="102"/>
+    <path d="M296 752C296 640 380 560 470 548H760C700 600 690 690 730 716H900L960 620 930 404 1010 392 1018 600C1080 590 1160 610 1186 692H1030C990 700 960 730 940 752Z"/>
+    <rect x="384" y="324" width="214" height="152" rx="16"/>
+    <path d="M410 326 426 214H514L530 326Z"/>
+    <path d="M440 548 462 476H520L506 548Z"/>
+    <circle cx="985" cy="222" r="70"/><path d="M1000 200 1066 236 1040 252Z"/>
+    <path d="M925 252C820 218 690 262 632 396C622 440 650 470 700 478L860 506C904 512 916 466 884 450L812 420 940 334Z"/>
+  </g>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M446 214A30 30 0 0 1 494 214" stroke-width="22"/>
+    <path d="M870 316 990 362" stroke-width="58"/>
+    <path d="M884 486 812 676H850" stroke-width="56"/>
+    <path d="M216 448H312M98 520H330M150 596H250" stroke-width="56"/>
+  </g>
+</g></svg>

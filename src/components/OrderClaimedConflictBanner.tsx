@@ -29,12 +29,12 @@ export const OrderClaimedConflictBanner: React.FC<OrderClaimedConflictBannerProp
       </View>
 
       <View style={styles.buttonRow}>
-        <TouchableOpacity onPress={onDismiss} style={styles.dismissBtn}>
+        <TouchableOpacity onPress={onDismiss} style={styles.dismissBtn} accessibilityRole="button" accessibilityLabel="Dismiss errand notice">
           <Text style={styles.dismissText}>Dismiss</Text>
         </TouchableOpacity>
 
         {onViewNext && (
-          <TouchableOpacity onPress={onViewNext} style={styles.nextBtn}>
+          <TouchableOpacity onPress={onViewNext} style={styles.nextBtn} accessibilityRole="button" accessibilityLabel="View next errand">
             <Text style={styles.nextText}>View Next Errand</Text>
             <ArrowRight size={14} color="#FFFFFF" />
           </TouchableOpacity>
@@ -91,7 +91,8 @@ const styles = StyleSheet.create({
   },
   dismissBtn: {
     flex: 1,
-    height: 36,
+    minHeight: 48,
+    paddingVertical: Spacing.sm,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#FDE68A',
@@ -106,7 +107,8 @@ const styles = StyleSheet.create({
   },
   nextBtn: {
     flex: 1.5,
-    height: 36,
+    minHeight: 48,
+    paddingVertical: Spacing.sm,
     borderRadius: 10,
     backgroundColor: '#D97706',
     flexDirection: 'row',

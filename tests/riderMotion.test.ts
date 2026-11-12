@@ -224,3 +224,86 @@ describe('riding the icon along the road line', () => {
     expect(motion.sample(1800)).toEqual(before);
   });
 });
+
+describe('the heading of the road under the drawn rider', () => {
+  // 60 m east, then a right-angle turn north.
+  const corner = east(60);
+  const route = [origin, corner, north(120, corner)];
+  const along = (m: number) => (m <= 60 ? east(m) : north(m - 60, corner));
+  const seconds = Array.from({ length: 13 }, (_, i) => i * 1000);
+  const ride = () => play(new RiderMotion(), steady(seconds, (t) => along(t / 100), { route }), 12500);
+  /** The shortest turn between two compass headings, in degrees. */
+  const turn = (from: number, to: number) => Math.abs(((to - from) % 360 + 540) % 360 - 180);
+
+  it('points along the road on each straight, and has none off the road', () => {
+    const frames = ride();
+    expect(frames.find(({ t }) => t >= 2000)!.frame.roadHeading).toBeCloseTo(90, 3);
+    expect(turn(frames.at(-1)!.frame.roadHeading!, 0)).toBeLessThan(0.01);
+
+    const openGround = new RiderMotion();
+    push(openGround, origin, 0);
+    push(openGround, east(10), 1000);
+    expect(openGround.sample(1500)!.roadHeading).toBeNull();
+  });
+
+  it('sweeps through a bend frame by frame, between fixes, never in one step', () => {
+    const headings = ride().map(({ frame }) => frame.roadHeading).filter((h): h is number => h != null);
+    let biggest = 0;
+    let framesTurning = 0;
+    for (let i = 1; i < headings.length; i++) {
+      const change = turn(headings[i - 1], headings[i]);
+      biggest = Math.max(biggest, change);
+      if (change > 0.01) framesTurning++;
+      // East round to north, the short way, never past either.
+      expect(headings[i]).toBeLessThanOrEqual(90.001);
+      expect(headings[i]).toBeGreaterThanOrEqual(-0.001);
+      expect(headings[i]).toBeLessThanOrEqual(headings[i - 1] + 0.001);
+    }
+    // A 90 degree corner taken at 10 m/s: about a second of turning, a degree or two a frame.
+    expect(biggest).toBeLessThan(3);
+    expect(framesTurning).toBeGreaterThan(40);
+  });
+
+  it.each([120, 240])('gives every frame its own place and heading at %i frames a second', (fps) => {
+    const step = 1000 / fps;
+    const frames = play(new RiderMotion(), steady(seconds, (t) => along(t / 100), { route }), 12000, step);
+
+    // On the straight, riding steadily: each frame a little further on, evenly
+    // spaced. Nothing is held for two frames or made up in the next, which is
+    // what a simulation stepping slower than the screen would show.
+    const straight = frames.filter(({ t }) => t > 2000 && t < 5000);
+    let previousGap = 0;
+    for (let i = 1; i < straight.length; i++) {
+      const gap = metresBetween(straight[i - 1].frame.coordinate, straight[i].frame.coordinate);
+      expect(gap).toBeGreaterThan(0);
+      if (previousGap > 0) expect(Math.abs(gap - previousGap) / previousGap).toBeLessThan(0.05);
+      previousGap = gap;
+    }
+
+    // Through the bend the heading moves on every single frame.
+    const bend = frames.map(({ frame }) => frame.roadHeading).filter((h): h is number => h != null && h > 1 && h < 89);
+    for (let i = 1; i < bend.length; i++) expect(bend[i]).toBeLessThan(bend[i - 1]);
+    // About 1.1 s of turning at this speed, so about that many frames of it.
+    expect(bend.length).toBeGreaterThan(fps * 0.9);
+  });
+
+  it('reaches a shorter way ahead at walking pace than at road speed', () => {
+    /** The heading read when the drawn rider is 8 m short of the corner, at a steady speed. */
+    const headingEightShort = (speedMps: number) => {
+      const until = Math.ceil(60 / speedMps) * 1000;
+      const fixes = steady(
+        Array.from({ length: until / 1000 + 1 }, (_, i) => i * 1000),
+        (t) => along((t / 1000) * speedMps),
+        { route, speedMps }
+      );
+      const frames = play(new RiderMotion(), fixes, until);
+      return frames.find(({ frame }) => frame.roadHeading != null && eastOf(frame.coordinate) >= 52)!.frame.roadHeading!;
+    };
+    // Walking, the arrow still faces along the road it is on.
+    expect(headingEightShort(1.4)).toBeCloseTo(90, 3);
+    // Riding, it has begun to lean into the turn 8 m ahead.
+    const riding = headingEightShort(10);
+    expect(riding).toBeLessThan(80);
+    expect(riding).toBeGreaterThan(30);
+  });
+});

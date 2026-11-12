@@ -6,11 +6,14 @@ import {
   Animated,
   Easing,
   StatusBar,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bike } from 'lucide-react-native';
 import { useThemeContext } from '../context/ThemeContext';
 import { FontSizes, Spacing, scaledFontSize, moderateScale } from '../config/theme';
+
+// The Sugo scooter mark, white on transparent (scripts/export-brand-icons.mjs).
+const SUGO_MARK = require('../../assets/brand/sugo-mark-white.png');
 
 interface AnimatedSplashScreenProps {
   /** Triggered once the exit transition finishes to unmount the splash layer */
@@ -223,7 +226,7 @@ export default function AnimatedSplashScreen({
             },
           ]}
         >
-          <Bike size={46} color="#FFFFFF" strokeWidth={2.4} />
+          <Image source={SUGO_MARK} style={styles.emblemMark} resizeMode="contain" accessible={false} />
         </Animated.View>
 
         {/* Operational Brand Wordmark & Field Subtitle */}
@@ -292,6 +295,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.32,
     shadowRadius: 18,
     elevation: 8,
+  },
+  emblemMark: {
+    width: 62,
+    aspectRatio: 1.5,
   },
   textContainer: {
     alignItems: 'center',

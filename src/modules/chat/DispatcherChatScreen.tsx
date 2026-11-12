@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -27,12 +28,9 @@ import {
   X,
   FileText,
   MessageSquare,
-  MapPin,
-  Store,
-  Bike,
 } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
-import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale } from '../../config/theme';
+import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, moderateScale } from '../../config/theme';
 import { formatErrandId } from '../../utils/formatErrandId';
 import DispatcherAvatar from '../../components/DispatcherAvatar';
 import { WaybillModal } from '../../components/WaybillModal';
@@ -565,18 +563,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgGray,
   },
   threadBar: {
+    ...ScreenLayout.frame,
     flexGrow: 0,
     backgroundColor: Colors.textWhite,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(11, 19, 43, 0.08)',
   },
   threadBarContent: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: ScreenSpacing.horizontal,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
   },
   threadTab: {
-    minHeight: 40,
+    minHeight: 48,
     maxWidth: 180,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
@@ -598,13 +597,9 @@ const styles = StyleSheet.create({
     color: Colors.textWhite,
   },
   header: {
+    ...ScreenLayout.header,
     backgroundColor: Colors.navy,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
+    flexWrap: 'wrap',
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   headerLeft: {
@@ -612,6 +607,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     flex: 1,
+    minWidth: 180,
   },
   backButton: {
     minWidth: 48,
@@ -655,9 +651,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs + 2,
-    marginLeft: Spacing.sm,
+    marginLeft: 'auto',
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   errandContextChip: {
+    flexShrink: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
@@ -684,7 +683,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   messageListContent: {
-    paddingHorizontal: Spacing.md,
+    ...ScreenLayout.frame,
+    paddingHorizontal: ScreenSpacing.horizontal,
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
   },
@@ -784,17 +784,15 @@ const styles = StyleSheet.create({
   },
   imageThumbnail: {
     width: moderateScale(220, 0.3),
+    maxWidth: '100%',
     height: moderateScale(150, 0.3),
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.bgDark,
   },
   composerDock: {
+    ...ScreenLayout.actionDock,
     backgroundColor: Colors.card,
-    borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xs,
   },
   photoDraftPreviewBar: {
     flexDirection: 'row',
@@ -864,10 +862,10 @@ const styles = StyleSheet.create({
   },
   composerInput: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 48,
     maxHeight: 110,
     backgroundColor: Colors.bgGray,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingTop: Platform.OS === 'ios' ? Spacing.sm : Spacing.xs + 2,
     paddingBottom: Platform.OS === 'ios' ? Spacing.sm : Spacing.xs + 2,
@@ -892,6 +890,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   actionSheetContent: {
+    ...ScreenLayout.frame,
     backgroundColor: Colors.card,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,

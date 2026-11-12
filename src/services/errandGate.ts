@@ -145,10 +145,11 @@ export function errandGate(
 
   // ── at the door ───────────────────────────────────────────────────────────
   //
-  // Only the cash figure blocks, and only because it already did: advanceStatus
-  // raised an Alert reading "Please enter the collected amount." This turns that
-  // blocking dialog into a reason shown in place, which is the same rule with
-  // one fewer tap.
+  // Only the payment photo blocks, and only because it already did: advanceStatus
+  // raises an Alert ("Payment not recorded yet"). This turns that blocking
+  // dialog into a reason shown in place, which is the same rule with one fewer
+  // tap. Both say "photograph": the payment is recorded by a photo of the cash
+  // or of the customer's receipt, never by typing an amount.
   //
   // The handover photo deliberately does NOT block, even though it is the only
   // evidence that exists if a customer later says nothing arrived. Gating on a
@@ -187,7 +188,7 @@ export function errandGate(
   ) {
     return {
       canAdvance: false,
-      blockedReason: 'Say what you collected first',
+      blockedReason: 'Photograph the payment first',
       progress: null,
     };
   }

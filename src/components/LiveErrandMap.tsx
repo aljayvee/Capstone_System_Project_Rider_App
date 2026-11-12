@@ -14,6 +14,7 @@ import {
   type RouteProgress,
 } from '../utils/routeGeometry';
 import {
+  glideZoom,
   lineTrailMeters,
   markerSnapMeters,
   navigationCamera,
@@ -347,8 +348,11 @@ export function LiveErrandMap({
   const drawnStyleRef = useRef(mapStyle);
   if (!riderLocation || drawnStyleRef.current !== mapStyle) drawnRiderRef.current = null;
   drawnStyleRef.current = mapStyle;
-  // The chase zoom, held inside its speed band (navigationCamera.steadyNavigationZoom).
+  // The chase zoom: the band the speed puts it in (navigationCamera.steadyNavigationZoom),
+  // and the zoom on screen, which eases toward that band frame by frame (glideZoom).
+  const zoomBandRef = useRef<number | null>(null);
   const zoomRef = useRef<number | null>(null);
+  const followedAtRef = useRef<number | null>(null);
 
   // Where the camera looks and which way the road runs, once per fix. Shared
   // with the rider's arrow, so the arrow and the map always agree.
@@ -426,7 +430,9 @@ export function LiveErrandMap({
             headingRef.current = headingRef.current + delta;
           }
         }
-        zoomRef.current = steadyNavigationZoom(zoomRef.current, riderLocation.speed);
+        // Placed outright, so at its band's zoom with no glide left to finish.
+        zoomBandRef.current = steadyNavigationZoom(zoomBandRef.current, riderLocation.speed);
+        zoomRef.current = zoomBandRef.current;
         placeCamera(
           {
             center: drawnRiderRef.current?.coordinate ?? camera.center,
@@ -458,12 +464,27 @@ export function LiveErrandMap({
     [camera, riderLocation?.speed, cameraMode, noteBearing, placeCamera]
   );
 
-  // The puck and camera consume one visual timeline. Per-fix native camera
+  // The arrow and camera consume one visual timeline. Per-fix native camera
   // animations have independent easing and would repeatedly catch up and stop.
-  const followDrawnPosition = useCallback((coordinate: MapCoordinate, rotation: number) => {
+  //
+  // In 3D the map is turned to the arrow's own drawn heading, so the arrow
+  // always points up the screen and the road ahead runs away above it, turning
+  // under the arrow through a bend. The zoom eases between its speed bands on
+  // the same frames. True is returned while it is still easing, which keeps the
+  // marker's frame loop alive for it after the arrow itself has come to rest.
+  const followDrawnPosition = useCallback((coordinate: MapCoordinate, rotation: number): boolean => {
     drawnRiderRef.current = { coordinate, rotation };
-    if (!active || !mapReady || !following || cameraMode === 'overview') return;
-    zoomRef.current = steadyNavigationZoom(zoomRef.current, riderLocation?.speed);
+    if (!active || !mapReady || !following || cameraMode === 'overview') {
+      followedAtRef.current = null;
+      return false;
+    }
+    // Capped, so the first frame after a rest moves the zoom one frame's worth,
+    // not the whole rest's.
+    const now = performance.now();
+    const dt = followedAtRef.current === null ? 0 : Math.min(0.1, Math.max(0, (now - followedAtRef.current) / 1000));
+    followedAtRef.current = now;
+    zoomBandRef.current = steadyNavigationZoom(zoomBandRef.current, riderLocation?.speed);
+    zoomRef.current = glideZoom(zoomRef.current, zoomBandRef.current, dt);
     if (cameraMode === '3d') headingRef.current = rotation;
     mapRef.current?.setCamera({
       center: coordinate,
@@ -471,6 +492,7 @@ export function LiveErrandMap({
       pitch: cameraMode === '3d' ? CHASE_3D_PITCH : PLANE_2D_PITCH,
       zoom: cameraMode === '3d' ? zoomRef.current : PLANE_2D_ZOOM,
     });
+    return cameraMode === '3d' && zoomRef.current !== zoomBandRef.current;
   }, [active, mapReady, following, cameraMode, riderLocation?.speed]);
 
   // The camera centres its target in whatever the padding leaves, so padding
@@ -819,11 +841,14 @@ export function LiveErrandMap({
           />
         )}
 
-        {/* The rider's icon, ridden continuously along the road line (utils/riderMotion) */}
+        {/* The rider's arrow, ridden continuously along the road line (utils/riderMotion).
+            Riding, it faces the road just ahead of where it is drawn; stopped or
+            walking with a usable compass, where the phone faces. */}
         <GlidingRiderMarker
           target={markerTarget}
           route={isFallback ? null : activeRouteLine}
           headingDeg={arrowHeading}
+          followRoad={headingChoice.source !== 'compass'}
           speedMps={riderLocation?.speed ?? null}
           recordedAt={riderLocation?.updatedAt}
           stationary={riderLocation?.stationary}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert } from 'react-native';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 import { RequestItemsPanel } from '../src/modules/task/components/RequestItemsPanel';
 import { riderApiService } from '../src/config/apiConfig';
 
@@ -12,7 +12,7 @@ jest.mock('react-native', () => {
 
 jest.mock('../src/config/apiConfig', () => ({
   riderApiService: {
-    updateItemFulfillmentStatus: jest.fn().mockResolvedValue({}),
+    updateItemFulfillmentStatus: jest.fn().mockResolvedValue(true),
   },
 }));
 
@@ -40,10 +40,41 @@ function createErrand(overrides: any = {}) {
 describe('RequestItemsPanel item confirmation and receipt gating', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(riderApiService.updateItemFulfillmentStatus).mockResolvedValue(true);
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('keeps capture closed until the final item mark is saved, then passes the saved states', async () => {
+    let finish!: (ok: boolean) => void;
+    jest.mocked(riderApiService.updateItemFulfillmentStatus).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const errand = createErrand();
+    errand.payload[0].itemEntries[1].fulfillmentStatus = 'OUT_OF_STOCK';
+    const onUpload = jest.fn();
+    const view = await render(<RequestItemsPanel errand={errand} currentStatus="At Store" completedSubtasks={{}} uploadingSubtask={null} activeStoreTargetId={101} onUpload={onUpload} />);
+    await fireEvent.press(view.getByLabelText(/1kg Rice, unchecked/i));
+    await fireEvent.press(view.getByTestId('confirm-modal-confirm-btn'));
+    await fireEvent.press(view.getByText('Photograph receipt'));
+    expect(onUpload).not.toHaveBeenCalled();
+    await act(async () => { finish(true); });
+    await fireEvent.press(view.getByText('Photograph receipt'));
+    expect(onUpload).toHaveBeenCalledWith(expect.objectContaining({ itemEntries: [
+      expect.objectContaining({ fulfillmentStatus: 'PURCHASED' }),
+      expect.objectContaining({ fulfillmentStatus: 'OUT_OF_STOCK' }),
+    ] }), 0);
+  });
+
+  it('leaves a failed item mark unchecked so the rider can retry', async () => {
+    jest.mocked(riderApiService.updateItemFulfillmentStatus).mockResolvedValueOnce(false);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const view = await render(<RequestItemsPanel errand={createErrand()} currentStatus="At Store" completedSubtasks={{}} uploadingSubtask={null} activeStoreTargetId={101} />);
+    await fireEvent.press(view.getByLabelText(/1kg Rice, unchecked/i));
+    await fireEvent.press(view.getByTestId('confirm-modal-confirm-btn'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('Item not saved', expect.any(String)));
+    expect(view.getByLabelText(/1kg Rice, unchecked/i)).toBeTruthy();
   });
 
   it('opens confirmation modal when clicking an unchecked item row', async () => {
@@ -270,6 +301,34 @@ describe('RequestItemsPanel item confirmation and receipt gating', () => {
       expect(view.getByText('2x Chicken · 5 kg')).toBeTruthy();
       expect(view.getByText('Confirm Item Purchased')).toBeTruthy();
     });
+  });
+
+  it('shows the list but locks it while still riding to the store', async () => {
+    // What the Task screen passes right after accepting: Traveling, routing to
+    // store 101, nothing reached yet.
+    const view = await render(
+      <RequestItemsPanel errand={createErrand()} currentStatus="Traveling" completedSubtasks={{}} uploadingSubtask={null}
+        activeStoreTargetId={101} visitedPinpointIds={[]} />
+    );
+    expect(view.getByText('1kg Rice')).toBeTruthy();
+    expect(view.getByText('Reach this store first')).toBeTruthy();
+    const row = view.getByLabelText(/1kg Rice, unchecked/i);
+    expect(row.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+    expect(view.queryByText('No Stock?')).toBeNull();
+    await fireEvent.press(row);
+    expect(view.queryByTestId('confirm-modal-confirm-btn')).toBeNull();
+    expect(riderApiService.updateItemFulfillmentStatus).not.toHaveBeenCalled();
+  });
+
+  it('unlocks the same list once the rider is at the store', async () => {
+    const props = { errand: createErrand(), completedSubtasks: {}, uploadingSubtask: null, activeStoreTargetId: 101, visitedPinpointIds: [] as number[] };
+    const view = await render(<RequestItemsPanel {...props} currentStatus="Traveling" />);
+    await view.rerender(<RequestItemsPanel {...props} currentStatus="At Store" />);
+    expect(view.queryByText('Reach this store first')).toBeNull();
+    expect(view.getAllByText('No Stock?')).toHaveLength(2);
+    await fireEvent.press(view.getByLabelText(/1kg Rice, unchecked/i));
+    await fireEvent.press(view.getByTestId('confirm-modal-confirm-btn'));
+    await waitFor(() => expect(riderApiService.updateItemFulfillmentStatus).toHaveBeenCalledWith('ERR-TEST-1', 1, 'PURCHASED'));
   });
 
   it('shows the customer note under the item, so the rider sees it at the counter', async () => {

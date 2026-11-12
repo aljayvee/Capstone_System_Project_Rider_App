@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { Colors, FontWeights, BorderRadius } from '../../config/theme';
 import { ChatMessage } from '../../types/rider';
 import { formatErrandId } from '../../utils/formatErrandId';
@@ -150,6 +151,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheet: {
+    ...ScreenLayout.frame,
     backgroundColor: Colors.bgWhite,
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
@@ -160,12 +162,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   header: {
+    ...ScreenLayout.header,
     backgroundColor: Colors.navy,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   headerTitle: {
     color: Colors.textWhite,
@@ -249,25 +247,26 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
   },
   inputContainer: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: ScreenSpacing.dock,
+    paddingHorizontal: ScreenSpacing.horizontal,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     flexDirection: 'row',
     gap: 8,
   },
   textInput: {
+    minHeight: 48,
     flex: 1,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
     fontSize: 13,
   },
   sendButton: {
     backgroundColor: Colors.navy,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
     paddingVertical: 8,
     paddingHorizontal: 16,
     justifyContent: 'center',

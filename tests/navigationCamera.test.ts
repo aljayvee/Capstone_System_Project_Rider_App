@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  glideZoom,
   headingDelta,
   lineTrailMeters,
   markerSnapMeters,
@@ -8,6 +9,7 @@ import {
   navigationZoom,
   settleHeading,
   steadyNavigationZoom,
+  ZOOM_GLIDE_PER_SECOND,
 } from '../src/utils/navigationCamera';
 
 // A road running due east, then turning due north: an L.
@@ -165,5 +167,38 @@ describe('lineTrailMeters', () => {
     expect(lineTrailMeters(null)).toBe(6);
     expect(lineTrailMeters(10)).toBeCloseTo(18, 5);
     expect(lineTrailMeters(40)).toBe(25);
+  });
+});
+
+describe('glideZoom', () => {
+  it('starts at the band zoom when there is no zoom yet', () => {
+    expect(glideZoom(null, 18.5, 0.016)).toBe(18.5);
+  });
+
+  it('moves toward the band at a steady rate, in either direction', () => {
+    expect(glideZoom(18.5, 18, 0.5)).toBeCloseTo(18.5 - ZOOM_GLIDE_PER_SECOND * 0.5, 10);
+    expect(glideZoom(17.5, 18, 0.5)).toBeCloseTo(17.5 + ZOOM_GLIDE_PER_SECOND * 0.5, 10);
+  });
+
+  it('lands exactly on the band and never passes it', () => {
+    expect(glideZoom(18.01, 18, 1)).toBe(18);
+    expect(glideZoom(18, 18, 1)).toBe(18);
+  });
+
+  it('stays put when no time has passed', () => {
+    expect(glideZoom(18.3, 18, 0)).toBe(18.3);
+  });
+
+  it('takes about a second for the half level between two bands, with no jump on the way', () => {
+    let zoom = 18.5;
+    let frames = 0;
+    while (zoom !== 18 && frames < 1000) {
+      const next = glideZoom(zoom, 18, 1 / 60);
+      expect(zoom - next).toBeLessThan(0.01);
+      zoom = next;
+      frames++;
+    }
+    expect(frames / 60).toBeGreaterThan(1);
+    expect(frames / 60).toBeLessThan(1.5);
   });
 });

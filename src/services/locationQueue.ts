@@ -11,6 +11,15 @@ const MAX_QUEUED_POINTS = 2000;
 
 // The server caps a batch at 200 points.
 const MAX_BATCH_SIZE = 200;
+let mutations: Promise<unknown> = Promise.resolve();
+let flight: Promise<{ sent: number; remaining: number }> | null = null;
+let generation = 0;
+
+function mutate<T>(work: () => Promise<T>): Promise<T> {
+  const result = mutations.then(work);
+  mutations = result.catch(() => {});
+  return result;
+}
 
 export interface QueuedPoint {
   clientPointId: string;
@@ -44,11 +53,13 @@ async function readQueue(): Promise<QueuedPoint[]> {
  * queued one is still pending and land points out of order.
  */
 export async function enqueuePoint(point: QueuedPoint): Promise<void> {
-  const queue = await readQueue();
-  queue.push(point);
-  // Drop from the front when over capacity.
-  const trimmed = queue.length > MAX_QUEUED_POINTS ? queue.slice(queue.length - MAX_QUEUED_POINTS) : queue;
-  await storageAdapter.setJSON(LOCATION_QUEUE_KEY, trimmed);
+  await mutate(async () => {
+    const queue = await readQueue();
+    queue.push(point);
+    // Drop from the front when over capacity.
+    const trimmed = queue.length > MAX_QUEUED_POINTS ? queue.slice(queue.length - MAX_QUEUED_POINTS) : queue;
+    await storageAdapter.setJSON(LOCATION_QUEUE_KEY, trimmed);
+  });
 }
 
 export async function queuedCount(): Promise<number> {
@@ -58,13 +69,18 @@ export async function queuedCount(): Promise<number> {
 /**
  * Uploads everything buffered, oldest first, one errand at a time.
  *
- * Points are only removed once the server has confirmed them. A batch that
- * fails stops the flush and leaves that batch and everything after it queued, so
- * the trail can never develop a hole — and because the server keys on
- * clientPointId, re-sending a batch it already committed is harmless.
+ * Acknowledged or permanently rejected batches are removed. Transient failures
+ * stop the flush and retain the rest. Server idempotency makes retries harmless.
  */
-export async function flushLocationQueue(): Promise<{ sent: number; remaining: number }> {
-  const queue = await readQueue();
+export function flushLocationQueue(): Promise<{ sent: number; remaining: number }> {
+  if (flight) return flight;
+  const session = generation;
+  flight = flush(session).finally(() => { flight = null; });
+  return flight;
+}
+
+async function flush(session: number): Promise<{ sent: number; remaining: number }> {
+  const queue = await mutate(readQueue);
   if (queue.length === 0) return { sent: 0, remaining: 0 };
 
   // Oldest first, so a partial flush still leaves a chronologically contiguous
@@ -75,6 +91,7 @@ export async function flushLocationQueue(): Promise<{ sent: number; remaining: n
   let index = 0;
 
   while (index < queue.length) {
+    if (session !== generation) break;
     // A batch may only contain points for one errand, since the errand is in
     // the URL.
     const errandId = queue[index].errandId;
@@ -89,17 +106,24 @@ export async function flushLocationQueue(): Promise<{ sent: number; remaining: n
     sent += batch.length;
   }
 
-  const remaining = queue.slice(sent);
-  if (remaining.length > 0) {
-    await storageAdapter.setJSON(LOCATION_QUEUE_KEY, remaining);
-  } else {
-    await storageAdapter.remove(LOCATION_QUEUE_KEY);
-  }
-  return { sent, remaining: remaining.length };
+  return mutate(async () => {
+    // Re-read before removing acknowledged points: fixes queued during HTTP must
+    // survive, and a flush that outlives logout must never restore the old trail.
+    if (session !== generation) return { sent, remaining: await queuedCount() };
+    const acknowledged = new Set(queue.slice(0, sent).map((point) => `${point.errandId}:${point.clientPointId}`));
+    const remaining = (await readQueue()).filter((point) => !acknowledged.has(`${point.errandId}:${point.clientPointId}`));
+    if (remaining.length > 0) {
+      await storageAdapter.setJSON(LOCATION_QUEUE_KEY, remaining);
+    } else {
+      await storageAdapter.remove(LOCATION_QUEUE_KEY);
+    }
+    return { sent, remaining: remaining.length };
+  });
 }
 
 // Called on logout so one rider's unsent trail can never be uploaded under the
 // next rider to sign in on the same device.
 export async function clearLocationQueue(): Promise<void> {
-  await storageAdapter.remove(LOCATION_QUEUE_KEY);
+  generation += 1;
+  await mutate(() => storageAdapter.remove(LOCATION_QUEUE_KEY));
 }

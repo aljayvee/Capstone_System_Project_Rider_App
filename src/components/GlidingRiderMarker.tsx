@@ -3,27 +3,43 @@ import { Marker } from 'react-native-maps';
 import type { MapCoordinate } from '../utils/coords';
 import { bearingBetween, metresBetween } from '../utils/routeGeometry';
 import { headingDelta } from '../utils/navigationCamera';
-import { RiderMotion } from '../utils/riderMotion';
+import { RiderMotion, type RiderMotionFrame } from '../utils/riderMotion';
 
-const RIDER_PUCK = require('../../assets/rider-motorcycle.png');
+// A blue arrow pointing north; the marker turns it to the rider's heading.
+// Source and export: assets/rider-arrow.svg, scripts/export-rider-arrow.mjs.
+const RIDER_ARROW = require('../../assets/rider-arrow.png');
+
+const isHeading = (deg: number | null | undefined): deg is number =>
+  typeof deg === 'number' && Number.isFinite(deg) && deg >= 0;
 
 interface Props {
   target: MapCoordinate | null;
   route: MapCoordinate[] | null;
   headingDeg?: number | null;
+  /**
+   * On the road, the arrow reads its heading from the road just ahead of where
+   * it is drawn, every frame, so it turns through a bend as it rides it.
+   * False while the heading given is the rider's own to follow instead (the
+   * phone's compass, stopped or walking). Off the road it is always the one given.
+   */
+  followRoad?: boolean;
   speedMps?: number | null;
   recordedAt?: number;
   stationary?: boolean;
   active?: boolean;
-  /** Native camera follows this visual sample, never a second GPS tween. */
-  onPositionChange?: (coordinate: MapCoordinate, rotation: number) => void;
+  /**
+   * Native camera follows this visual sample, never a second GPS tween.
+   * Returning true asks for another frame: the camera is still settling
+   * (its zoom) though the arrow has come to rest.
+   */
+  onPositionChange?: (coordinate: MapCoordinate, rotation: number) => boolean | void;
 }
 
 /** One frame loop owns position and rotation. React only mounts/reseeds the pin. */
 export default function GlidingRiderMarker(props: Props) {
   const { target, headingDeg, recordedAt, speedMps, stationary, active = true } = props;
   const [seed, setSeed] = useState(target);
-  const initialRotation = useRef(typeof headingDeg === 'number' && Number.isFinite(headingDeg) && headingDeg >= 0 ? headingDeg : 0);
+  const initialRotation = useRef(isHeading(headingDeg) ? headingDeg : 0);
   const rotation = useRef(initialRotation.current);
   const markerRef = useRef<React.ComponentRef<typeof Marker> | null>(null);
   const motion = useRef(new RiderMotion());
@@ -39,9 +55,14 @@ export default function GlidingRiderMarker(props: Props) {
       frameRef.current = requestAnimationFrame(() => drawRef.current());
     }
   };
+  /** The heading asked of the arrow: the road under it where it follows one, else the one given. */
+  const askedHeading = (sample: RiderMotionFrame | null): number | null => {
+    if (latest.current.followRoad !== false && sample?.roadHeading != null) return sample.roadHeading;
+    return isHeading(latest.current.headingDeg) ? latest.current.headingDeg : null;
+  };
   const turning = () => {
-    const wanted = latest.current.headingDeg;
-    return typeof wanted === 'number' && Number.isFinite(wanted) && wanted >= 0 && Math.abs(headingDelta(rotation.current, wanted)) > 0.1;
+    const wanted = askedHeading(motion.current.sample(performance.now()));
+    return wanted !== null && Math.abs(headingDelta(rotation.current, wanted)) > 0.1;
   };
   drawRef.current = () => {
     frameRef.current = null;
@@ -51,10 +72,9 @@ export default function GlidingRiderMarker(props: Props) {
     const dt = previousFrame.current === null ? 1 / 60 : Math.max(0, (now - previousFrame.current) / 1000);
     previousFrame.current = now;
     const previous = previousPosition.current;
-    let wanted = latest.current.headingDeg;
-    if (!(typeof wanted === 'number' && wanted >= 0 && Number.isFinite(wanted))) {
-      wanted = previous && metresBetween(previous, sample.coordinate) > 0.01 ? bearingBetween(previous, sample.coordinate) : rotation.current;
-    }
+    // With neither a road nor a heading given, the way it is actually moving.
+    const wanted = askedHeading(sample)
+      ?? (previous && metresBetween(previous, sample.coordinate) > 0.01 ? bearingBetween(previous, sample.coordinate) : rotation.current);
     // Time-based shortest-arc smoothing; heading changes never write a second,
     // conflicting native rotation. Response is the same at 30/60/90 Hz.
     const delta = headingDelta(rotation.current, wanted);
@@ -63,8 +83,8 @@ export default function GlidingRiderMarker(props: Props) {
     markerRef.current?.setCoordinates(sample.coordinate);
     markerRef.current?.setNativeProps({ rotation: normalized });
     previousPosition.current = sample.coordinate;
-    latest.current.onPositionChange?.(sample.coordinate, normalized);
-    if (sample.moving || Math.abs(headingDelta(rotation.current, wanted)) > 0.1) schedule();
+    const cameraSettling = latest.current.onPositionChange?.(sample.coordinate, normalized) === true;
+    if (sample.moving || cameraSettling || Math.abs(headingDelta(rotation.current, wanted)) > 0.1) schedule();
     else previousFrame.current = null;
   };
 
@@ -76,7 +96,7 @@ export default function GlidingRiderMarker(props: Props) {
       return;
     }
     // A newly mounted pin has no visible previous orientation to animate from.
-    if (!seed && typeof headingDeg === 'number' && Number.isFinite(headingDeg) && headingDeg >= 0) {
+    if (!seed && isHeading(headingDeg)) {
       initialRotation.current = headingDeg;
       rotation.current = headingDeg;
     }
@@ -99,7 +119,7 @@ export default function GlidingRiderMarker(props: Props) {
       previousFrame.current = null;
     } else if (motion.current.sample(performance.now())?.moving || turning()) schedule();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, headingDeg, !!target]);
+  }, [active, headingDeg, props.followRoad, !!target]);
 
   useEffect(() => () => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -113,7 +133,7 @@ export default function GlidingRiderMarker(props: Props) {
       anchor={{ x: 0.5, y: 0.5 }}
       flat
       rotation={initialRotation.current}
-      image={RIDER_PUCK}
+      image={RIDER_ARROW}
       title="You"
     />
   );

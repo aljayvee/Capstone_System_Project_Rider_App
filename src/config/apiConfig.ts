@@ -360,19 +360,21 @@ export const riderApiService = {
     }
   },
 
-  // Uploads a batch of buffered GPS breadcrumb points. Returns false on ANY
-  // failure so the queue keeps them and retries — losing the trail silently is
-  // exactly the failure this whole mechanism exists to prevent.
+  // Keep transient failures for retry; discard permanently rejected batches.
   //
   // A 4xx other than 429 is not retryable (bad payload, errand no longer
   // trackable); those are dropped so one poisoned batch cannot block the queue
   // forever.
+  async markPinpointArrived(errandId: string, pinpointId: number): Promise<void> {
+    await apiClient.patch(`/errands/${errandId}/pinpoints/${pinpointId}/arrived`);
+  },
+
   async uploadTrackBatch(errandId: string, points: unknown[]): Promise<boolean> {
     try {
       await apiClient.post(`/errands/${errandId}/track`, { points });
       return true;
     } catch (err: any) {
-      const status = err?.response?.status;
+      const status = err?.status ?? err?.response?.status;
       if (status && status >= 400 && status < 500 && status !== 429) {
         console.warn(`Track batch rejected (${status}) — dropping to unblock the queue.`);
         return true;

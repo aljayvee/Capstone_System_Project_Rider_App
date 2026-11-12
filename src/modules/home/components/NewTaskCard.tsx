@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, ScrollView } from 'react-native';
 import { Clock, Store, MapPin, User } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, scaledFontSize, moderateScale } from '../../../config/theme';
 import { SlideToConfirm } from '../../../components/SlideToConfirm';
@@ -8,6 +8,7 @@ import { Errand, MergedErrand } from '../../../types/rider';
 import { formatEarnings } from '../../../utils/earnings';
 import { merchantCategoryLabel } from '../../../services/merchantCategory';
 import { HomeColors } from '../homeTheme';
+import { ScreenLayout, ScreenSpacing } from '../../../config/screenLayout';
 
 interface NewTaskCardProps {
   errand: MergedErrand | Errand;
@@ -121,33 +122,57 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
         </View>
       </View>
 
-      <View style={styles.earningsRow}>
-        <Text style={styles.earningsLabel} maxFontSizeMultiplier={1.25}>You earn</Text>
-        <Text style={styles.earningsAmount} maxFontSizeMultiplier={1.25}>{earnings}</Text>
-      </View>
-
-      {/* Connected Route Itinerary Timeline (Zero Nested Cards) */}
-      <View style={styles.itineraryContainer}>
-        {/* Customer Stop */}
-        <View style={styles.timelineItem}>
-          <View style={styles.timelineIndicator}>
-            <View style={styles.timelineDotNavy}>
-              <User size={12} color={Colors.textWhite} />
-            </View>
-            <View style={styles.timelineLine} />
-          </View>
-          <View style={styles.timelineContent}>
-            <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Customer</Text>
-            <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
-              {errand.customer || 'Customer'}
-            </Text>
-          </View>
+      <ScrollView
+        testID={`home-offer-details-${errand.id}`}
+        style={styles.details}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.detailsContent}
+      >
+        <View style={styles.earningsRow}>
+          <Text style={styles.earningsLabel} maxFontSizeMultiplier={1.25}>You earn</Text>
+          <Text style={styles.earningsAmount} maxFontSizeMultiplier={1.25}>{earnings}</Text>
         </View>
 
-        {/* Store Stops */}
-        {pinpoints.length > 0 ? (
-          pinpoints.map((p, idx) => (
-            <View key={p.id || idx} style={styles.timelineItem}>
+        {/* Connected Route Itinerary Timeline (Zero Nested Cards) */}
+        <View style={styles.itineraryContainer}>
+          {/* Customer Stop */}
+          <View style={styles.timelineItem}>
+            <View style={styles.timelineIndicator}>
+              <View style={styles.timelineDotNavy}>
+                <User size={12} color={Colors.textWhite} />
+              </View>
+              <View style={styles.timelineLine} />
+            </View>
+            <View style={styles.timelineContent}>
+              <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Customer</Text>
+              <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
+                {errand.customer || 'Customer'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Store Stops */}
+          {pinpoints.length > 0 ? (
+            pinpoints.map((p, idx) => (
+              <View key={p.id || idx} style={styles.timelineItem}>
+                <View style={styles.timelineIndicator}>
+                  <View style={styles.timelineDotRed}>
+                    <Store size={12} color={Colors.textWhite} />
+                  </View>
+                  <View style={styles.timelineLine} />
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>
+                    Store {idx + 1}
+                  </Text>
+                  <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
+                    {p.storeName}
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.timelineItem}>
               <View style={styles.timelineIndicator}>
                 <View style={styles.timelineDotRed}>
                   <Store size={12} color={Colors.textWhite} />
@@ -155,65 +180,48 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
                 <View style={styles.timelineLine} />
               </View>
               <View style={styles.timelineContent}>
-                <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>
-                  Store {idx + 1}
-                </Text>
+                <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Store</Text>
                 <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
-                  {p.storeName}
+                  {storeKind ?? 'Not pinned yet'}
                 </Text>
               </View>
             </View>
-          ))
-        ) : (
+          )}
+
+          {/* Drop-off Stop */}
           <View style={styles.timelineItem}>
             <View style={styles.timelineIndicator}>
-              <View style={styles.timelineDotRed}>
-                <Store size={12} color={Colors.textWhite} />
+              <View style={styles.timelineDotGreen}>
+                <MapPin size={12} color={Colors.textWhite} />
               </View>
-              <View style={styles.timelineLine} />
             </View>
             <View style={styles.timelineContent}>
-              <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Store</Text>
+              <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Drop-off</Text>
               <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
-                {storeKind ?? 'Not pinned yet'}
+                {errand.address}
               </Text>
             </View>
           </View>
-        )}
-
-        {/* Drop-off Stop */}
-        <View style={styles.timelineItem}>
-          <View style={styles.timelineIndicator}>
-            <View style={styles.timelineDotGreen}>
-              <MapPin size={12} color={Colors.textWhite} />
-            </View>
-          </View>
-          <View style={styles.timelineContent}>
-            <Text style={styles.timelineRole} maxFontSizeMultiplier={1.25}>Drop-off</Text>
-            <Text style={styles.timelineTitle} maxFontSizeMultiplier={1.25}>
-              {errand.address}
-            </Text>
-          </View>
         </View>
-      </View>
 
-      {feeDetails ? <View style={styles.feeDetails}>{feeDetails}</View> : null}
+        {feeDetails ? <View style={styles.feeDetails}>{feeDetails}</View> : null}
+      </ScrollView>
 
-      {/* ACTION CONTROLS */}
-      <View style={styles.actionContainer}>
+      {/* Always visible below the details viewport, above the navigation dock. */}
+      <View style={styles.actionContainer} testID={`home-offer-actions-${errand.id}`}>
         <SlideToConfirm
           label={isAccepting ? 'Accepting…' : 'Slide to accept'}
           onSlideComplete={onAccept}
-          disabled={isAccepting}
+          disabled={isAccepting || secondsRemaining <= 0}
         />
 
         <TouchableOpacity
           style={styles.declineButton}
           accessibilityRole="button"
-          accessibilityState={{ disabled: isAccepting }}
+          accessibilityState={{ disabled: isAccepting || secondsRemaining <= 0 }}
           accessibilityLabel="Decline this offer"
           onPress={onDecline}
-          disabled={isAccepting}
+          disabled={isAccepting || secondsRemaining <= 0}
         >
           <Text style={styles.declineText} maxFontSizeMultiplier={1.25}>Decline</Text>
         </TouchableOpacity>
@@ -224,12 +232,15 @@ export function NewTaskCard({ errand, onAccept, onDecline, onExpire, isAccepting
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
+    flex: 1,
     backgroundColor: Colors.bgWhite,
-    borderWidth: 1,
-    borderColor: HomeColors.divider,
-    marginVertical: Spacing.xs,
+  },
+  details: {
+    flex: 1,
+  },
+  detailsContent: {
+    paddingTop: Spacing.sm,
+    paddingBottom: moderateScale(16, 0.5),
   },
   timerBarContainer: {
     height: 5,
@@ -241,7 +252,9 @@ const styles = StyleSheet.create({
     backgroundColor: HomeColors.accent,
   },
   header: {
-    padding: moderateScale(20, 0.5),
+    flexShrink: 0,
+    paddingHorizontal: ScreenSpacing.horizontal,
+    paddingVertical: ScreenSpacing.top,
     backgroundColor: Colors.bgWhite,
   },
   headerTopRow: {
@@ -370,9 +383,8 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   actionContainer: {
-    padding: moderateScale(20, 0.5),
-    backgroundColor: Colors.bgWhite,
-    gap: Spacing.sm,
+    ...ScreenLayout.actionDock,
+    borderTopColor: HomeColors.divider,
   },
   feeDetails: { paddingHorizontal: moderateScale(20, 0.5) },
   declineButton: {

@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import {
@@ -439,20 +440,18 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgApp },
     header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: Spacing.xs,
+      ...ScreenLayout.header,
+      backgroundColor: colors.card,
+      borderBottomColor: colors.border,
     },
     iconButton: { width: TOUCH_TARGET, height: TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
-    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    title: { fontFamily: FontFamily.bold, fontSize: scaledFontSize(17), color: colors.textDark },
+    titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 6 },
+    title: { flexShrink: 1, fontFamily: FontFamily.bold, fontSize: scaledFontSize(20, 0.35), color: colors.textDark },
     unreadPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: BorderRadius.full, backgroundColor: colors.primary },
     unreadPillText: { fontFamily: FontFamily.bold, fontSize: scaledFontSize(12), color: colors.onPrimary },
     headerAction: { minHeight: TOUCH_TARGET, paddingHorizontal: Spacing.sm, justifyContent: 'center' },
-    headerActionText: { fontFamily: FontFamily.semibold, fontSize: scaledFontSize(14), color: colors.primaryStrong },
-    body: { flex: 1, paddingHorizontal: Spacing.lg },
+    headerActionText: { fontFamily: FontFamily.semibold, fontSize: scaledFontSize(14), color: colors.primaryStrong, textAlign: 'center' },
+    body: { ...ScreenLayout.frame, flex: 1, paddingHorizontal: ScreenSpacing.horizontal, paddingTop: ScreenSpacing.top },
     searchBar: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -465,16 +464,16 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.card,
     },
     searchInput: { flex: 1, fontFamily: FontFamily.regular, fontSize: scaledFontSize(15), color: colors.textDark, padding: 0 },
-    clearButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+    clearButton: { ...ScreenLayout.iconButton },
     filterSection: { paddingVertical: Spacing.sm },
     filterList: { gap: 6 },
     chip: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      minHeight: 40,
+      minHeight: TOUCH_TARGET,
       paddingHorizontal: 12,
-      borderRadius: BorderRadius.full,
+      borderRadius: BorderRadius.md,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.card,
@@ -485,7 +484,7 @@ const makeStyles = (colors: ThemeColors) =>
     chipTextActive: { color: colors.onNavy, fontFamily: FontFamily.bold },
     sortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
     sortSummary: { fontFamily: FontFamily.regular, fontSize: scaledFontSize(12), color: colors.textGray },
-    sortButton: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 40 },
+    sortButton: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: TOUCH_TARGET },
     sortButtonText: { fontFamily: FontFamily.semibold, fontSize: scaledFontSize(13), color: colors.textDark },
     sortMenu: {
       borderWidth: 1,
@@ -517,7 +516,7 @@ const makeStyles = (colors: ThemeColors) =>
     inlineErrorText: { flex: 1, fontFamily: FontFamily.medium, fontSize: scaledFontSize(13), color: colors.danger },
     inlineErrorAction: { fontFamily: FontFamily.bold, fontSize: scaledFontSize(13), color: colors.danger, paddingHorizontal: 4 },
     skeletonGap: { marginTop: 8 },
-    listContent: { paddingBottom: Spacing.huge * 2 },
+    listContent: { paddingBottom: ScreenSpacing.bottom },
     listContentEmpty: { flexGrow: 1 },
     sectionHeader: {
       fontFamily: FontFamily.semibold,
@@ -545,7 +544,7 @@ const makeStyles = (colors: ThemeColors) =>
     actionChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: BorderRadius.full, backgroundColor: colors.primarySurface },
     actionChipText: { fontFamily: FontFamily.bold, fontSize: scaledFontSize(12), color: colors.primaryStrong },
     metaText: { flex: 1, fontFamily: FontFamily.regular, fontSize: scaledFontSize(12), color: colors.textLight },
-    markRead: { width: 40, height: 32, alignItems: 'center', justifyContent: 'center' },
+    markRead: { ...ScreenLayout.iconButton },
     stateFrame: { alignItems: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.xxl, gap: 6 },
     stateTitle: { fontFamily: FontFamily.bold, fontSize: scaledFontSize(16), color: colors.textDark, marginTop: Spacing.xs, textAlign: 'center' },
     stateBody: { fontFamily: FontFamily.regular, fontSize: scaledFontSize(13), color: colors.textGray, textAlign: 'center', lineHeight: 19 },

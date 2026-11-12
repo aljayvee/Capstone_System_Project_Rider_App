@@ -59,7 +59,9 @@ describe('GPS calibration screen', () => {
   it('shows a preparation modal before asking for permission or starting GPS', async () => {
     const view = await render(<GpsCalibrationScreen />);
     await flush();
-    await fireEvent.press(view.getByTestId('gps-calibration-start'));
+    const actionDock = view.getByTestId('gps-calibration-actions');
+    expect(within(view.getByTestId('gps-calibration-details')).queryByTestId('gps-calibration-start')).toBeNull();
+    await fireEvent.press(within(actionDock).getByTestId('gps-calibration-start'));
     await flush();
 
     expect(view.getByText('Ready to calibrate?')).toBeTruthy();

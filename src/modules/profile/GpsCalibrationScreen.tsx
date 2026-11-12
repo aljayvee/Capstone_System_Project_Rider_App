@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import Svg, { Circle, Line } from 'react-native-svg';
@@ -302,7 +303,7 @@ export default function GpsCalibrationScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView testID="gps-calibration-details" style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
         <ProviderRows provider={provider} onTurnOn={turnOnLocationAccuracy} turningOn={turningOn} />
 
         {phase === 'intro' && (
@@ -330,7 +331,6 @@ export default function GpsCalibrationScreen() {
                 Not checked on this phone yet. Your pin holds still within {formatMeters(lockRadius)} until you run it.
               </Text>
             )}
-            <PrimaryButton label="Start calibration" icon="start" onPress={() => setShowStartModal(true)} testID="gps-calibration-start" />
           </View>
         )}
 
@@ -342,7 +342,7 @@ export default function GpsCalibrationScreen() {
         )}
 
         {phase === 'blocked' && blocked && (
-          <View style={[styles.section, styles.errorSection]}>
+          <View style={styles.section}>
             <View style={styles.inlineRow}>
               <CircleX size={20} color={Colors.danger} />
               <Text style={styles.sectionTitle} maxFontSizeMultiplier={1.15}>
@@ -360,19 +360,6 @@ export default function GpsCalibrationScreen() {
                   ? 'Turn on Location. Android asks you to confirm.'
                   : 'Something on the phone refused the request. Close other GPS apps and try again.'}
             </Text>
-            {blocked === 'location_off' ? (
-              <PrimaryButton
-                label={turningOn ? 'Waiting for Android' : 'Turn on Location'}
-                icon="none"
-                disabled={turningOn}
-                onPress={async () => {
-                  await turnOnLocationAccuracy();
-                  if (mountedRef.current) setShowStartModal(true);
-                }}
-              />
-            ) : (
-              <PrimaryButton label="Try again" icon="again" onPress={() => setShowStartModal(true)} />
-            )}
           </View>
         )}
 
@@ -401,14 +388,6 @@ export default function GpsCalibrationScreen() {
               <TargetPlot samples={plot.samples} pin={plot.pin} lockRadius={lockRadius} />
             )}
             {shownReport && <Stats report={shownReport} />}
-            <TouchableOpacity
-              onPress={cancel}
-              style={styles.secondaryBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Stop the calibration"
-            >
-              <Text style={styles.secondaryText} maxFontSizeMultiplier={1.15}>Stop</Text>
-            </TouchableOpacity>
           </View>
         )}
 
@@ -435,10 +414,43 @@ export default function GpsCalibrationScreen() {
                 Nothing was changed. Your pin still holds still within {formatMeters(lockRadius)}.
               </Text>
             )}
-            <PrimaryButton label="Run again" icon="again" onPress={() => setShowStartModal(true)} />
           </View>
         )}
       </ScrollView>
+
+      {phase !== 'starting' && (
+        <View style={styles.actionDock} testID="gps-calibration-actions">
+          {phase === 'intro' && (
+            <PrimaryButton label="Start calibration" icon="start" onPress={() => setShowStartModal(true)} testID="gps-calibration-start" />
+          )}
+          {phase === 'blocked' && blocked && (blocked === 'location_off' ? (
+            <PrimaryButton
+              label={turningOn ? 'Waiting for Android' : 'Turn on Location'}
+              icon="none"
+              disabled={turningOn}
+              onPress={async () => {
+                await turnOnLocationAccuracy();
+                if (mountedRef.current) setShowStartModal(true);
+              }}
+            />
+          ) : (
+            <PrimaryButton label="Try again" icon="again" onPress={() => setShowStartModal(true)} />
+          ))}
+          {phase === 'running' && (
+            <TouchableOpacity
+              onPress={cancel}
+              style={styles.secondaryBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Stop the calibration"
+            >
+              <Text style={styles.secondaryText} maxFontSizeMultiplier={1.15}>Stop</Text>
+            </TouchableOpacity>
+          )}
+          {phase === 'done' && report && (
+            <PrimaryButton label="Run again" icon="again" onPress={() => setShowStartModal(true)} />
+          )}
+        </View>
+      )}
 
       <Modal
         visible={showStartModal}
@@ -760,17 +772,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgGray,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.bgWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    ...ScreenLayout.header,
   },
   backBtn: {
     minWidth: 48,
@@ -779,27 +781,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: scaledFontSize(FontSizes.lg, 0.20),
-    fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    ...ScreenLayout.headerTitle,
   },
   scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.lg,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    ...ScreenLayout.content,
+    gap: ScreenSpacing.section,
+  },
+  actionDock: {
+    ...ScreenLayout.actionDock,
   },
   section: {
-    backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
     gap: Spacing.md,
-  },
-  errorSection: {
-    borderColor: Colors.dangerBg,
   },
   centered: {
     alignItems: 'center',
@@ -987,14 +979,10 @@ const styles = StyleSheet.create({
     color: Colors.textGray,
   },
   primaryBtn: {
+    ...ScreenLayout.primaryButton,
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
     gap: Spacing.sm,
-    minHeight: 48,
   },
   primaryText: {
     flexShrink: 1,
@@ -1004,12 +992,8 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold as any,
   },
   secondaryBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...ScreenLayout.primaryButton,
     backgroundColor: Colors.primarySurface,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    minHeight: 48,
   },
   secondaryText: {
     color: Colors.primary,

@@ -2,8 +2,9 @@
   "expo": {
     "name": "Sugo Rider",
     "slug": "RiderMobileApp",
-    "version": "1.1.0",
+    "version": "1.1.4",
     "orientation": "portrait",
+    "scheme": "sugorider",
     "primaryColor": "#1E3A5F",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -64,7 +65,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/android-icon-foreground.png",
+          "icon": "./assets/notification-icon.png",
           "color": "#DC2626"
         }
       ],
@@ -86,7 +87,7 @@
         "expo-channel-name": "production"
       }
     },
-    "runtimeVersion": "1.1.0",
+    "runtimeVersion": "1.1.4",
     "owner": "astrowarden",
     "extra": {
       "eas": {

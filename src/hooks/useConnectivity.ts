@@ -3,6 +3,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { storageAdapter } from "../adapters/storageAdapter";
 import { riderApiService } from "../config/apiConfig";
 import { flushLocationQueue } from "../services/locationQueue";
+import { flushArrivalQueue } from "../services/arrivalQueue";
 import { flushActionQueue, type StaleActionReport } from "../services/actionQueue";
 
 const PENDING_INCIDENT_KEY = "@sugo_rider_pending_connectivity_incident";
@@ -65,6 +66,8 @@ export function useConnectivity(riderId?: number, errandId?: string): UseConnect
     // lifecycle actions first (they change what the errand IS), then the
     // breadcrumb (which only describes where the rider was).
     const flushOfflineWork = async () => {
+      // Arrival reports are independent of both lifecycle and breadcrumb queues.
+      void flushArrivalQueue().catch(() => {});
       try {
         const { stale } = await flushActionQueue();
         if (stale.length > 0) setStaleActions((prev) => [...prev, ...stale]);
@@ -101,7 +104,10 @@ export function useConnectivity(riderId?: number, errandId?: string): UseConnect
       }
     });
 
-    return () => unsubscribe();
+    const arrivalRetry = setInterval(() => {
+      if (riderIdRef.current && wasConnectedRef.current) void flushArrivalQueue().catch(() => {});
+    }, 30_000);
+    return () => { unsubscribe(); clearInterval(arrivalRetry); };
   }, []);
 
   return {

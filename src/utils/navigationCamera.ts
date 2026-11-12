@@ -130,7 +130,7 @@ export function navigationZoom(speedMps: number | null | undefined): number {
  * bare map behind the start of its own line, and the gap snapped shut when the
  * next fix landed: the flicker at the head of the route. Starting the line
  * about a second's travel behind the fix keeps it running under the dot the
- * whole time. The puck covers this much of it at navigation zoom.
+ * whole time. The arrow covers this much of it at navigation zoom.
  */
 export function lineTrailMeters(speedMps: number | null | undefined): number {
   const speed = typeof speedMps === 'number' && speedMps > 0 ? speedMps : 0;
@@ -164,6 +164,25 @@ export function steadyNavigationZoom(previousZoom: number | null, speedMps: numb
   while (band + 1 < ZOOM_BANDS.length && speed > ZOOM_BANDS[band + 1].enterAbove) band++;
   while (band > 0 && speed < ZOOM_BANDS[band].leaveBelow) band--;
   return ZOOM_BANDS[band].zoom;
+}
+
+/** Zoom levels per second the chase camera moves at between speed bands: half a level in about a second. */
+export const ZOOM_GLIDE_PER_SECOND = 0.4;
+
+/**
+ * The chase zoom one frame on, moving toward its band's zoom at a steady rate.
+ *
+ * The bands are half a zoom level apart, and the camera used to take the new
+ * one outright on the frame the speed crossed into it: the whole map jumped a
+ * size as the rider pulled away or slowed for a junction. It now eases there
+ * over about a second, as a navigation camera does.
+ */
+export function glideZoom(current: number | null, target: number, dtSeconds: number): number {
+  if (current == null) return target;
+  if (!(dtSeconds > 0)) return current;
+  const step = ZOOM_GLIDE_PER_SECOND * dtSeconds;
+  const gap = target - current;
+  return Math.abs(gap) <= step ? target : current + Math.sign(gap) * step;
 }
 
 /**

@@ -7,6 +7,7 @@ import { useRegisterPushToken } from '../hooks/useRegisterPushToken';
 import { useStoreArrival, type StoreArrivalState } from '../hooks/useStoreArrival';
 import { useOfferReminder } from '../hooks/useOfferReminder';
 import { useRiderAuth } from './RiderAuthContext';
+import { reportStoreArrival } from '../services/arrivalQueue';
 
 interface RiderMissionContextValue extends UseRiderMissionReturn {
   riderLocation: RiderOwnLocation | null;
@@ -71,10 +72,15 @@ export const RiderMissionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     location: riderLocation,
     currentStatus: mission.currentStatus,
     isActive: mission.phase === 'active' && mission.isMissionAccepted,
-    onArrived: () => {
-      // Guard: arrival can only move Traveling -> At Store or Delivering -> Delivered
-      // Never allow auto-arrival to trigger status advancement while already At Store
-      if (mission.currentStatus === 'Traveling' || mission.currentStatus === 'Delivering') {
+    onArrived: async (stop) => {
+      if (working && stop.id > 0 && mission.currentStatus === 'Traveling') {
+        await reportStoreArrival(working.id, stop.id);
+      }
+      // Guard: arrival only ever moves Traveling -> At Store. Never At Store
+      // (already inside), and never Delivering -> Delivered: only the rider's
+      // "I've handed it over" completes a delivery (useStoreArrival does not
+      // arrive at the door; this holds even if it ever did).
+      if (mission.currentStatus === 'Traveling') {
         mission.advanceStatus();
       }
     },

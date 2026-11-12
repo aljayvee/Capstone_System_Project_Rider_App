@@ -1,0 +1,19 @@
+<!-- Source of rider-arrow.png / @2x / @3x (56 dp): the rider's own position on the map.
+     A blue navigation arrow pointing north (0 deg); the map turns the marker to
+     the rider's heading. The arrow's centre of area sits on the image centre,
+     which is the marker's anchor and the point it turns about.
+     Export: node scripts/export-rider-arrow.mjs -->
+<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
+  <defs>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.7"/>
+    </filter>
+  </defs>
+  <!-- Ground shadow, centred under the arrow so it turns with it cleanly. -->
+  <path d="M28 6 L45 43 L28 35.5 L11 43 Z" fill="#0B132B" fill-opacity="0.4" stroke="#0B132B" stroke-opacity="0.4" stroke-width="5" stroke-linejoin="round" filter="url(#soft)"/>
+  <!-- White edge: keeps the arrow apart from the blue delivery line under it. -->
+  <path d="M28 6 L45 43 L28 35.5 L11 43 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5" stroke-linejoin="round"/>
+  <!-- The arrow, then its lit left face over it (no seam along the fold). -->
+  <path d="M28 6 L45 43 L28 35.5 L11 43 Z" fill="#1D4ED8"/>
+  <path d="M28 6 L28 35.5 L11 43 Z" fill="#3B82F6"/>
+</svg>

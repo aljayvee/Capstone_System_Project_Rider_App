@@ -68,6 +68,7 @@ export function RequestItemsPanel({
   const sections = requestSections(errand);
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
   const [itemStatuses, setItemStatuses] = React.useState<Record<string, ItemFulfillmentStatus>>({});
+  const savingItems = React.useRef(new Set<string>());
   const [pendingConfirmation, setPendingConfirmation] = React.useState<PendingItemConfirmation | null>(null);
 
   // Synchronize itemStatuses from server-provided itemEntries whenever the errand updates.
@@ -129,7 +130,7 @@ export function RequestItemsPanel({
 
   const totalLinesCount = visibleSectionsWithIndex.reduce((acc, { section }) => acc + section.lines.length, 0);
 
-  const setStatusForItem = (
+  const setStatusForItem = async (
     key: string,
     itemId: number | undefined,
     currentItemStatus: ItemFulfillmentStatus,
@@ -137,13 +138,21 @@ export function RequestItemsPanel({
   ) => {
     // Once checked/cancelled out, it cannot be unchecked or rechecked by the rider.
     // It only becomes available again if modified by the dispatcher.
-    if (readOnly || isOnTheWayToCustomer || currentItemStatus !== 'PENDING') {
+    if (readOnly || isOnTheWayToCustomer || currentItemStatus !== 'PENDING' || savingItems.current.has(key)) {
       return;
     }
-    setItemStatuses((prev) => ({ ...prev, [key]: nextStatus }));
+    savingItems.current.add(key);
+    let saved = true;
     if (errand?.id && itemId && Number.isInteger(itemId) && itemId > 0) {
-      void riderApiService.updateItemFulfillmentStatus(errand.id, itemId, nextStatus);
+      saved = await riderApiService.updateItemFulfillmentStatus(errand.id, itemId, nextStatus).catch(() => false);
     }
+    savingItems.current.delete(key);
+    if (!saved) {
+      Alert.alert('Item not saved', 'Could not save the item status. Try marking it again before taking a receipt photo.');
+      return;
+    }
+    // Keep the receipt gate closed until the server has acknowledged the mark.
+    setItemStatuses((prev) => ({ ...prev, [key]: nextStatus }));
   };
 
   const handleItemPress = (
@@ -172,7 +181,7 @@ export function RequestItemsPanel({
   const handleConfirmStatusChange = () => {
     if (!pendingConfirmation) return;
     const { key, itemId, currentStatus: curr, targetStatus } = pendingConfirmation;
-    setStatusForItem(key, itemId, curr, targetStatus);
+    void setStatusForItem(key, itemId, curr, targetStatus);
     setPendingConfirmation(null);
   };
 
@@ -230,11 +239,18 @@ export function RequestItemsPanel({
             // until the rider's geofence has targeted or already reached it.
             // Sections with no pinpoint (legacy free-text errands) carry no
             // location data at all, so there's nothing to gate them on.
+            // Being the store the rider is heading to is not being there: while
+            // still Traveling the list is shown for reference only. It used to
+            // unlock the moment the errand was accepted, so items could be
+            // marked bought (and saved on the server) from the road.
+            const isVisited =
+              section.pinpointId != null && visitedPinpointIds.includes(section.pinpointId);
             const isLocked =
               readOnly ||
+              (currentStatus === 'Traveling' && !isVisited) ||
               (section.pinpointId != null &&
                 section.pinpointId !== activeStoreTargetId &&
-                !visitedPinpointIds.includes(section.pinpointId));
+                !isVisited);
 
             const sectionStatuses = section.lines.map((_, lineIdx) => {
               const entry = section.itemEntries?.[lineIdx];
@@ -420,7 +436,9 @@ export function RequestItemsPanel({
                           );
                           return;
                         }
-                        onUpload?.(section, originalIndex);
+                        onUpload?.({ ...section, itemEntries: section.itemEntries?.map((entry, lineIdx) => ({
+                          ...entry, fulfillmentStatus: itemStatuses[getItemKey(entry, originalIndex, lineIdx)] ?? entry.fulfillmentStatus,
+                        })) }, originalIndex);
                       }}
                       style={[
                         styles.uploadButton,
@@ -470,7 +488,9 @@ export function RequestItemsPanel({
                           );
                           return;
                         }
-                        onNoReceipt?.(section, originalIndex);
+                        onNoReceipt?.({ ...section, itemEntries: section.itemEntries?.map((entry, lineIdx) => ({
+                          ...entry, fulfillmentStatus: itemStatuses[getItemKey(entry, originalIndex, lineIdx)] ?? entry.fulfillmentStatus,
+                        })) }, originalIndex);
                       }}
                       style={[
                         styles.noReceiptButton,

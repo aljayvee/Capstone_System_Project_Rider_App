@@ -556,6 +556,43 @@ describe('the 3D camera and the map padding', () => {
     expect(handle().setCamera.mock.calls.at(-1)[0]).toMatchObject({ center: rider, pitch: 60 });
   });
 
+  it('lets the arrow read its heading from the road under it', async () => {
+    await render(<LiveErrandMap {...base} riderLocation={{ ...still, speed: 6 }} />);
+    expect(mockGliderProps.followRoad).toBe(true);
+  });
+
+  it('eases the zoom to a new speed band over the following frames instead of jumping', async () => {
+    let clock = 5000;
+    jest.spyOn(performance, 'now').mockImplementation(() => clock);
+    const view = await render(<LiveErrandMap {...base} bottomInset={180} />);
+    // Placed for a rider standing still: the closest band.
+    expect(handle().setCamera.mock.calls.at(-1)[0]).toMatchObject({ zoom: 18.5 });
+
+    // Riding at town speed now, which is the next band out.
+    await act(async () => {
+      await view.rerender(<LiveErrandMap {...base} riderLocation={{ ...still, speed: 8 }} bottomInset={180} />);
+    });
+    const zooms: number[] = [];
+    let settling: boolean | void = true;
+    for (let i = 0; i < 200 && settling; i++) {
+      clock += 16;
+      await act(async () => {
+        settling = mockGliderProps.onPositionChange!(rider, 30);
+      });
+      zooms.push(handle().setCamera.mock.calls.at(-1)[0].zoom);
+    }
+    expect(settling).toBe(false);
+    expect(zooms.at(-1)).toBe(18);
+    // Many small steps, each further out than the last, none of them a jump.
+    expect(zooms.length).toBeGreaterThan(40);
+    expect(zooms[1]).toBeLessThan(18.5);
+    expect(zooms[1]).toBeGreaterThan(18.4);
+    for (let i = 1; i < zooms.length; i++) {
+      expect(zooms[i]).toBeLessThanOrEqual(zooms[i - 1]);
+      expect(zooms[i - 1] - zooms[i]).toBeLessThan(0.02);
+    }
+  });
+
   it('waits for the first fix, then sets the camera at once', async () => {
     const view = await render(<LiveErrandMap {...base} riderLocation={null} bottomInset={180} />);
     expect(handle().setCamera).not.toHaveBeenCalled();

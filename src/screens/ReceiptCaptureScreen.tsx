@@ -19,6 +19,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Camera, Zap, ZapOff, RefreshCw, Check, X } from 'lucide-react-native';
 import { Colors, FontSizes, FontWeights, Spacing, BorderRadius } from '../config/theme';
 import { SlideToConfirm } from '../components/SlideToConfirm';
+import { ScreenLayout, ScreenSpacing } from '../config/screenLayout';
 import { formatPeso } from '../utils/format';
 import {
   captureAndUpload,
@@ -688,9 +689,9 @@ export default function ReceiptCaptureScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bgGray, padding: Spacing.lg, gap: Spacing.md },
+  container: { ...ScreenLayout.frame, flex: 1, backgroundColor: Colors.bgGray, paddingHorizontal: ScreenSpacing.horizontal, paddingVertical: ScreenSpacing.top, gap: Spacing.md },
   confirmScroll: { gap: Spacing.md, paddingBottom: Spacing.md },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
+  centered: { ...ScreenLayout.content, flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md },
   heading: { fontSize: FontSizes.xl, fontWeight: FontWeights.bold as any, color: Colors.textDark },
   cameraWrap: { flex: 1, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.viewfinder },
   camera: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -768,7 +769,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgWhite,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    minHeight: 40,
+    minHeight: 48,
     justifyContent: 'center',
   },
   presetChipActive: {
@@ -795,18 +796,13 @@ const styles = StyleSheet.create({
     color: Colors.textDark,
     minHeight: 48,
   },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  actions: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   grow: { flex: 1 },
   primaryBtn: {
+    ...ScreenLayout.primaryButton,
     flexDirection: 'row',
     backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: Spacing.sm,
-    minHeight: 48,
   },
   primaryBtnText: {
     // flexShrink: in its row a long CTA otherwise kept its one-line width and
@@ -858,10 +854,11 @@ const styles = StyleSheet.create({
   sheetRoot: { flex: 1 },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlayDark },
   sheet: {
+    ...ScreenLayout.frame,
     backgroundColor: Colors.bgWhite,
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
-    padding: Spacing.lg,
+    padding: ScreenSpacing.horizontal,
     gap: Spacing.md,
   },
   sheetTitle: { fontSize: FontSizes.lg, fontWeight: FontWeights.bold as any, color: Colors.textDark },

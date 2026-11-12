@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Switch, View, Text, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,7 +11,7 @@ import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import { useRiderAuth } from '../../context/RiderAuthContext';
 import type { AuthedStackParamList } from '../../navigation/AuthedNavigator';
 import { riderApiService } from '../../config/apiConfig';
-import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
+import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale } from '../../config/theme';
 import { ProfileColors } from './profileTheme';
 
 /** The server's cap, mirrored here so a rider is told before the upload, not after. */
@@ -26,7 +27,6 @@ export default function ProfileScreen() {
   const { riderProfile, phase, refresh } = useRiderMissionContext();
   const { logout, isOnline, toggleShiftStatus } = useRiderAuth();
   const navigation = useNavigation<StackNavigationProp<AuthedStackParamList>>();
-  const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   const pencilSize = NAME_FONT_SIZE * Math.min(fontScale, 1.2) * 1.01;
   const nameWords = riderProfile?.name.trim().split(/\s+/) ?? [];
@@ -145,10 +145,8 @@ export default function ProfileScreen() {
     <SafeAreaView edges={['top']} style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md },
-        ]}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
       >
         <Text style={styles.pageTitle} accessibilityRole="header" maxFontSizeMultiplier={1.25}>Profile</Text>
 
@@ -292,22 +290,15 @@ const styles = StyleSheet.create({
     backgroundColor: ProfileColors.background,
   },
   scrollContent: {
-    paddingHorizontal: moderateScale(20, 0.5),
-    paddingTop: moderateScale(12, 0.5),
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
-    paddingBottom: moderateScale(110, 0.20),
+    ...ScreenLayout.content,
   },
   centerState: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   pageTitle: {
-    fontSize: scaledFontSize(FontSizes.xxl, 0.35),
-    fontWeight: FontWeights.bold,
-    color: Colors.navy,
-    marginBottom: moderateScale(24, 0.5),
+    ...ScreenLayout.pageTitle,
+    marginBottom: ScreenSpacing.section,
   },
   identityRow: {
     flexDirection: 'row',

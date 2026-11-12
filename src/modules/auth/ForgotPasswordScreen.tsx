@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -39,7 +40,6 @@ import {
   TOUCH_TARGET,
   moderateScale,
   scaledFontSize,
-  MAX_CONTENT_WIDTH,
 } from '../../config/theme';
 import {
   riderPasswordReset,
@@ -349,9 +349,10 @@ export const ForgotPasswordScreen = () => {
         >
           <ArrowLeft size={22} color={Colors.textDark} strokeWidth={2.3} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} accessibilityRole="header">
+        <Text style={styles.headerTitle} accessibilityRole="header" maxFontSizeMultiplier={1.25}>
           Reset password
         </Text>
+        <View style={styles.backButton} />
       </View>
 
       {/* keyboard-controller's view: React Native's own cannot see the keyboard
@@ -360,7 +361,7 @@ export const ForgotPasswordScreen = () => {
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + ScreenSpacing.bottom }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -556,10 +557,7 @@ const styles = StyleSheet.create({
   flexShrink: { flexShrink: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingBottom: Spacing.xs,
+    ...ScreenLayout.header,
   },
   backButton: {
     minWidth: TOUCH_TARGET,
@@ -568,17 +566,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: scaledFontSize(FontSizes.md, 0.2),
-    fontWeight: FontWeights.bold,
-    color: Colors.textDark,
-    marginLeft: Spacing.xs,
+    ...ScreenLayout.headerTitle,
   },
   content: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.lg,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    ...ScreenLayout.content,
   },
   title: {
     fontSize: scaledFontSize(FontSizes.xl, 0.2),
@@ -650,10 +641,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.55 },
   primaryButtonFill: {
-    minHeight: moderateScale(52, 0.2),
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
+    ...ScreenLayout.primaryButton,
   },
   primaryButtonText: {
     flexShrink: 1,

@@ -1,12 +1,13 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenLayout, ScreenSpacing } from '../../config/screenLayout';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronLeft, Info } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import { riderApiService } from '../../config/apiConfig';
-import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
+import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize } from '../../config/theme';
 
 interface FieldErrors {
   firstName?: string;
@@ -117,7 +118,7 @@ export default function EditProfileScreen() {
           keeps Save above the keyboard and shrinks the form, which scrolls
           the focused field back into view. */}
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           {formError && (
             <View style={styles.formError}>
               <Info size={16} color={Colors.danger} />
@@ -236,17 +237,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.bgWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    ...ScreenLayout.header,
   },
   backBtn: {
     minWidth: 48,
@@ -255,17 +246,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: scaledFontSize(FontSizes.lg, 0.20),
-    fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    ...ScreenLayout.headerTitle,
   },
   scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.lg,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
-    paddingBottom: moderateScale(40, 0.20),
+    ...ScreenLayout.content,
+    gap: ScreenSpacing.section,
   },
   formError: {
     flexDirection: 'row',
@@ -290,11 +275,6 @@ const styles = StyleSheet.create({
     color: Colors.textDark,
   },
   groupContainer: {
-    backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
     gap: Spacing.md,
   },
   field: {
@@ -324,22 +304,11 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.semibold as any,
   },
   actionDock: {
-    backgroundColor: Colors.bgWhite,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    ...ScreenLayout.actionDock,
   },
   saveBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...ScreenLayout.primaryButton,
     backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    minHeight: 48,
   },
   saveBtnBusy: {
     opacity: 0.7,

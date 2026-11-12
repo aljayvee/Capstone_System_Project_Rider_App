@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { ChevronsRight } from 'lucide-react-native';
-import { Colors, FontSizes, FontWeights, BorderRadius } from '../config/theme';
+import { Colors, FontSizes, FontWeights, scaledFontSize } from '../config/theme';
 
 export interface SlideToConfirmProps {
   label: string;
@@ -87,7 +87,15 @@ export function SlideToConfirm({
         disabled && styles.trackDisabled,
       ]}
     >
-      <Animated.Text style={[styles.label, labelStyle, { color: thumbColor }]}>{label}</Animated.Text>
+      <Animated.Text
+        style={[styles.label, labelStyle, { left: height + 8, color: thumbColor }]}
+        maxFontSizeMultiplier={1.25}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+      >
+        {label}
+      </Animated.Text>
       <GestureDetector gesture={pan}>
         <Animated.View
           style={[
@@ -111,6 +119,7 @@ export function SlideToConfirm({
 const styles = StyleSheet.create({
   track: {
     width: '100%',
+    flexShrink: 0,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -120,8 +129,10 @@ const styles = StyleSheet.create({
   },
   label: {
     position: 'absolute',
-    alignSelf: 'center',
-    fontSize: FontSizes.md,
+    // Keep the resting label clear of the thumb, including on compact cards.
+    right: 8,
+    textAlign: 'center',
+    fontSize: scaledFontSize(FontSizes.md, 0.35),
     fontWeight: FontWeights.bold as any,
   },
   thumb: {

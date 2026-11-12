@@ -76,6 +76,29 @@ const OUTSIDE_ACCURACY_FACTOR = 2;
 /** A locked fix must also have moved at least this far for Doppler speed alone to count. */
 const MIN_DOPPLER_DISPLACEMENT_METERS = 3;
 /**
+ * Distance the Doppler speed itself says was covered between consecutive
+ * moving fixes, before it releases the pin without waiting for the position to
+ * clear half the lock radius: the two speeds' average, times the time between.
+ *
+ * A rider pulling away shows 2 m/s and more from the first second, but takes
+ * two or three seconds to get half the lock radius from where they stood, and
+ * the pin used to wait for that on two fixes in a row: it let go three to five
+ * seconds late, the map sat still, and then hurried 10 to 20 m to catch up.
+ * Two fixes a second apart averaging 3 m/s are a rider moving, not a still
+ * phone's speed noise, which stays under about 1.5 m/s.
+ */
+export const UNLOCK_DOPPLER_TRAVEL_METERS = 3;
+/** The time between two fixes counts for at most this long, so a gap does not turn two readings into a journey. */
+const MAX_DOPPLER_TRAVEL_SECONDS = 2;
+/**
+ * How far apart the courses of two consecutive moving fixes may be and still
+ * count as one journey. A rider pulling away keeps going the way they were
+ * going a second ago, even turning out of a parking space; a stray speed
+ * reading on a still phone comes with a course that points anywhere, so two in
+ * a row agree only one time in three.
+ */
+export const UNLOCK_COURSE_AGREEMENT_DEG = 60;
+/**
  * A fix this many times further out than the ordinary "outside" distance
  * counts as travel whatever the phone says its speed is. The fallback for a
  * phone that reports a speed of 0 whether or not it is moving, which would
@@ -224,6 +247,13 @@ export class GpsStabilizer {
   private anchor: { x: number; y: number } | null = null;
   private stillStreak = 0;
   private dopplerStreak = 0;
+  // Consecutive fixes at a moving Doppler speed on one steady course, whatever
+  // their position; the distance that speed covers between them
+  // (UNLOCK_DOPPLER_TRAVEL_METERS); and the latest one's speed and course.
+  private speedStreak = 0;
+  private speedTravel = 0;
+  private speedLast = 0;
+  private speedCourse: number | null = null;
   private outsideStreak = 0;
   private impossibleStreak = 0;
   private heading: number | null = null;
@@ -262,6 +292,9 @@ export class GpsStabilizer {
     this.anchor = null;
     this.stillStreak = 0;
     this.dopplerStreak = 0;
+    this.speedStreak = 0;
+    this.speedTravel = 0;
+    this.speedCourse = null;
     this.outsideStreak = 0;
     this.impossibleStreak = 0;
     this.heading = null;
@@ -332,11 +365,23 @@ export class GpsStabilizer {
       // a second after the last is a reflection, not a journey.
       const leapt = dt >= GAP_SECONDS && accuracy <= 20 && fromAnchor > Math.max(50, 3 * accuracy);
 
+      // Pulling away. The Doppler speed shows it from the first second, long
+      // before the position has cleared half the lock radius, so the speed's
+      // own distance is counted too: consecutive moving fixes on one steady
+      // course whose speed adds up to real travel, with the latest at least a
+      // little way from the spot.
+      this.notePullingAway(doppler, raw.headingDeg, dt);
+      const pulledAway =
+        this.speedStreak >= UNLOCK_AFTER_FIXES &&
+        this.speedTravel >= UNLOCK_DOPPLER_TRAVEL_METERS &&
+        fromAnchor >= MIN_DOPPLER_DISPLACEMENT_METERS;
+
       this.dopplerStreak = dopplerSaysMoving ? this.dopplerStreak + 1 : 0;
       this.outsideStreak = outside ? this.outsideStreak + 1 : 0;
 
       if (
         leapt ||
+        pulledAway ||
         this.dopplerStreak >= UNLOCK_AFTER_FIXES ||
         this.outsideStreak >= UNLOCK_BY_POSITION_FIXES
       ) {
@@ -396,6 +441,9 @@ export class GpsStabilizer {
     this.anchor = null;
     this.stillStreak = 0;
     this.dopplerStreak = 0;
+    this.speedStreak = 0;
+    this.speedTravel = 0;
+    this.speedCourse = null;
     this.outsideStreak = 0;
     this.impossibleStreak = 0;
     if (validHeading(raw.headingDeg) && validSpeed(raw.speedMps) && raw.speedMps >= HEADING_MIN_SPEED_MPS) {
@@ -411,6 +459,9 @@ export class GpsStabilizer {
     this.x.v = 0;
     this.y.v = 0;
     this.dopplerStreak = 0;
+    this.speedStreak = 0;
+    this.speedTravel = 0;
+    this.speedCourse = null;
     this.outsideStreak = 0;
     this.clearSettle();
   }
@@ -425,11 +476,42 @@ export class GpsStabilizer {
     this.anchor = null;
     this.stillStreak = 0;
     this.dopplerStreak = 0;
+    this.speedStreak = 0;
+    this.speedTravel = 0;
+    this.speedCourse = null;
     this.outsideStreak = 0;
     this.clearSettle();
     if (validHeading(raw.headingDeg) && validSpeed(raw.speedMps) && raw.speedMps >= HEADING_MIN_SPEED_MPS) {
       this.heading = raw.headingDeg;
     }
+  }
+
+  /**
+   * Counts this fix toward a rider pulling away, while locked.
+   *
+   * It counts when the phone reports a moving speed and a course. A fix that
+   * continues the last one's course extends the run, and adds the distance
+   * the two speeds cover between them. One on another course starts a new run
+   * of its own, since it may be the first true fix after a stray one: with no
+   * distance yet, because nothing says how long it has been moving. Anything
+   * else ends the run.
+   */
+  private notePullingAway(doppler: number | null, headingDeg: number | null | undefined, dt: number): void {
+    if (doppler === null || doppler < MOVING_SPEED_MPS || !validHeading(headingDeg)) {
+      this.speedStreak = 0;
+      this.speedTravel = 0;
+    this.speedCourse = null;
+      this.speedCourse = null;
+      return;
+    }
+    const turned =
+      this.speedCourse === null ? 0 : Math.abs(((headingDeg - this.speedCourse) % 360 + 540) % 360 - 180);
+    const sameJourney = this.speedStreak > 0 && turned <= UNLOCK_COURSE_AGREEMENT_DEG;
+    const between = ((this.speedLast + doppler) / 2) * Math.min(dt, MAX_DOPPLER_TRAVEL_SECONDS);
+    this.speedStreak = sameJourney ? this.speedStreak + 1 : 1;
+    this.speedTravel = sameJourney ? this.speedTravel + between : 0;
+    this.speedLast = doppler;
+    this.speedCourse = headingDeg;
   }
 
   private settle(zx: number, zy: number, accuracy: number): void {

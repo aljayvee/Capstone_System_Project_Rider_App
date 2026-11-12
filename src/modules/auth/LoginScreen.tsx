@@ -8,13 +8,15 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
-  useWindowDimensions,
   Animated,
   StatusBar,
   Keyboard,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenLayout } from '../../config/screenLayout';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import {
@@ -24,18 +26,26 @@ import {
   EyeOff,
   ShieldAlert,
   AlertCircle,
-  Bike,
   ArrowRight,
-  MailCheck,
   CircleCheck,
+  ShieldCheck,
+  MessageSquareText,
+  Mail,
+  ChevronRight,
+  Info,
+  TimerOff,
 } from 'lucide-react-native';
 import type { RootStackParamList } from '../../../App';
-import { useRiderAuth } from '../../context/RiderAuthContext';
+import { useRiderAuth, isChallengeExpired } from '../../context/RiderAuthContext';
 import { TacticalGridBackground } from '../../components/TacticalGridBackground';
-import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, Gradients, useResponsive, moderateScale, scaledFontSize, MAX_CONTENT_WIDTH } from '../../config/theme';
+import { Colors, FontSizes, FontWeights, Spacing, BorderRadius, Gradients, useResponsive, moderateScale, scaledFontSize } from '../../config/theme';
+
+// The Sugo scooter mark, white on transparent (scripts/export-brand-icons.mjs); tintColor recolours it.
+const SUGO_MARK = require('../../../assets/brand/sugo-mark-white.png');
 
 export const LoginScreen = () => {
-  const { login, pendingChallenge, verifyLoginOtp, resendLoginOtp, cancelChallenge } = useRiderAuth();
+  const { login, pendingChallenge, verifyLoginOtp, verifyLoginSms, sendLoginEmailCode, cancelChallenge } =
+    useRiderAuth();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'Login'>>();
   const route = useRoute<RouteProp<RootStackParamList, 'Login'>>();
   const { height: screenHeight, isCompact, isTablet } = useResponsive();
@@ -82,11 +92,17 @@ export const LoginScreen = () => {
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
   const [restrictedMessage, setRestrictedMessage] = useState<string | null>(null);
 
-  // First-login email verification (see PendingChallenge in RiderAuthContext)
+  // Sign-in check: first login, or a phone with no recent MFA (see
+  // PendingChallenge in RiderAuthContext)
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isResending, setIsResending] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isSmsChecking, setIsSmsChecking] = useState(false);
+  // Neutral, not an error: the rider closed the SMS page and can retry.
+  const [smsNotice, setSmsNotice] = useState<string | null>(null);
+  // The challenge itself ran out; the only way on is a fresh sign-in.
+  const [challengeExpired, setChallengeExpired] = useState(false);
 
   // Micro-interaction Shake Animations
   const shakeUsername = useRef(new Animated.Value(0)).current;
@@ -166,6 +182,18 @@ export const LoginScreen = () => {
     }
   };
 
+  // One place decides what a failed check means: an expired sign-in swaps the
+  // modal to "start over", anything else is shown where the rider can retry.
+  const showChallengeError = (err: any, fallback: string) => {
+    if (isChallengeExpired(err)) {
+      setChallengeExpired(true);
+      setOtpError(null);
+      setSmsNotice(null);
+      return;
+    }
+    setOtpError(err?.message || fallback);
+  };
+
   const handleVerifyOtp = async () => {
     if (isSubmittingRef.current) return;
     const code = otpCode.trim();
@@ -177,11 +205,12 @@ export const LoginScreen = () => {
     Keyboard.dismiss();
     isSubmittingRef.current = true;
     setOtpError(null);
+    setSmsNotice(null);
     setIsVerifying(true);
     try {
       await verifyLoginOtp(code);
     } catch (err: any) {
-      setOtpError(err?.message || 'Incorrect verification code.');
+      showChallengeError(err, 'Incorrect verification code.');
       setOtpCode('');
     } finally {
       isSubmittingRef.current = false;
@@ -189,31 +218,69 @@ export const LoginScreen = () => {
     }
   };
 
-  const handleResendOtp = async () => {
+  // First send from the picker and "Resend code" are the same request.
+  const handleSendEmailCode = async () => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setOtpError(null);
-    setIsResending(true);
+    setSmsNotice(null);
+    setIsSendingEmail(true);
     try {
-      await resendLoginOtp();
+      await sendLoginEmailCode();
       setOtpCode('');
     } catch (err: any) {
-      setOtpError(err?.message || 'Could not send a new code.');
+      showChallengeError(err, 'Could not send a code. Please try again.');
     } finally {
       isSubmittingRef.current = false;
-      setIsResending(false);
+      setIsSendingEmail(false);
+    }
+  };
+
+  const handleSmsCheck = async () => {
+    if (isSubmittingRef.current) return;
+    Keyboard.dismiss();
+    isSubmittingRef.current = true;
+    setOtpError(null);
+    setSmsNotice(null);
+    setIsSmsChecking(true);
+    try {
+      const outcome = await verifyLoginSms();
+      if (outcome === 'cancelled') {
+        setSmsNotice('The SMS check closed before it finished. Try again, or get a code by email.');
+      }
+    } catch (err: any) {
+      showChallengeError(err, 'We could not confirm your number. Try again, or use email instead.');
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSmsChecking(false);
     }
   };
 
   const handleCancelChallenge = () => {
     setOtpCode('');
     setOtpError(null);
+    setSmsNotice(null);
+    setChallengeExpired(false);
     setPassword('');
     cancelChallenge();
   };
 
+  const challengeBusy = isVerifying || isSendingEmail || isSmsChecking;
+  const offersSms = !!pendingChallenge?.factors.includes('SMS');
+  const offersEmail = !!pendingChallenge?.factors.includes('EMAIL');
+  const smsDestination = pendingChallenge?.phoneHint
+    ? `the number ending ${pendingChallenge.phoneHint}`
+    : pendingChallenge?.maskedPhone || 'your registered mobile number';
+  const emailDestination = pendingChallenge?.maskedEmail || 'your registered email';
+  const pickerIntro =
+    pendingChallenge?.reason === 'NEW_DEVICE'
+      ? 'This phone has not signed in to your account in the last 30 days. Choose where we send your sign-in code.'
+      : pendingChallenge?.reason === 'FIRST_LOGIN'
+        ? 'This is the first sign-in on your account. Choose where we send your sign-in code.'
+        : 'Choose where we send your sign-in code.';
+
   return (
-    <View style={styles.rootContainer}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.rootContainer}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.bgGray} />
 
       {/* Clean White Tactical Vector Grid Background */}
@@ -254,17 +321,24 @@ export const LoginScreen = () => {
                   },
                 ]}
               >
-                <Bike
-                  size={isSmallScreen ? 34 : 42}
-                  color={Colors.textWhite}strokeWidth={2.3}
+                <Image
+                  source={SUGO_MARK}
+                  style={[styles.brandMark, { width: isSmallScreen ? 44 : 52 }]}
+                  resizeMode="contain"
+                  accessible={false}
                 />
               </LinearGradient>
             </View>
 
             {/* Brand Pill */}
             <View style={styles.brandPill}>
-              <Bike size={14} color={Colors.primary}strokeWidth={2.4} />
-              <Text style={styles.brandPillText}>SUGO EXPRESS</Text>
+              <Image
+                source={SUGO_MARK}
+                style={[styles.brandMark, { width: 20, tintColor: Colors.primary }]}
+                resizeMode="contain"
+                accessible={false}
+              />
+              <Text style={styles.brandPillText}>SUGO RIDER</Text>
             </View>
 
             {/* Portal Title & Subtitle */}
@@ -490,7 +564,8 @@ export const LoginScreen = () => {
         </View>
       </Modal>
 
-      {/* FIRST-LOGIN EMAIL VERIFICATION (one-time, on a newly created account) */}
+      {/* SIGN-IN CHECK: first login on a new account, or a phone with no
+          passed check in the last 30 days. SMS (portal page) or email code. */}
       <Modal
         visible={!!pendingChallenge}
         transparent
@@ -503,11 +578,22 @@ export const LoginScreen = () => {
         {/* Was behavior={undefined} on Android: no avoidance at all, so the
             code field sat under the number pad. */}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.otpIconBadge}>
-                <MailCheck size={36} color={Colors.success}strokeWidth={2.2} />
-              </View>
+          <SafeAreaView edges={['top', 'bottom']} style={styles.modalOverlay}>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {challengeExpired ? (
+                <View style={styles.modalIconBadge}>
+                  <TimerOff size={36} color={Colors.primary} strokeWidth={2.2} />
+                </View>
+              ) : (
+                <View style={styles.otpIconBadge}>
+                  <ShieldCheck size={36} color={Colors.success} strokeWidth={2.2} />
+                </View>
+              )}
 
               {/* Only the seeded web admin can ever be in PROFILE_SETUP, and an
                   OWNER is turned away by the rider role check before a challenge
@@ -521,15 +607,114 @@ export const LoginScreen = () => {
                     Management Portal before it can be used here.
                   </Text>
                 </>
+              ) : challengeExpired ? (
+                <>
+                  <Text style={styles.modalTitle}>Sign-in timed out</Text>
+                  <Text style={styles.modalSubtitle}>Start over to continue</Text>
+                  <Text style={styles.modalBodyText} testID="mfa-expired-message">
+                    For your security, a sign-in check only lasts a few minutes. Sign in again with
+                    your username and password.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.modalCloseBtn}
+                    onPress={handleCancelChallenge}
+                    accessibilityRole="button"
+                    accessibilityLabel="Start over"
+                    activeOpacity={0.85}
+                    testID="mfa-start-over"
+                  >
+                    <Text style={styles.modalCloseBtnText}>Start over</Text>
+                  </TouchableOpacity>
+                </>
+              ) : !pendingChallenge?.emailCodeSent ? (
+                <>
+                  <Text style={styles.modalTitle}>Confirm it's you</Text>
+                  <Text style={styles.otpSubtitle}>Sign-in check</Text>
+                  <Text style={[styles.modalBodyText, styles.mfaIntroText]}>{pickerIntro}</Text>
+
+                  <View style={styles.mfaOptionList}>
+                    {offersSms ? (
+                      <TouchableOpacity
+                        style={[styles.mfaOption, challengeBusy && !isSmsChecking && styles.otpBtnDisabled]}
+                        onPress={handleSmsCheck}
+                        disabled={challengeBusy}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Text a code to ${smsDestination}`}
+                        accessibilityState={{ disabled: challengeBusy, busy: isSmsChecking }}
+                        testID="mfa-option-sms"
+                      >
+                        <View style={styles.mfaOptionIcon}>
+                          <MessageSquareText size={20} color={Colors.primary} strokeWidth={2.2} />
+                        </View>
+                        <View style={styles.mfaOptionTextCol}>
+                          <Text style={styles.mfaOptionTitle}>
+                            {isSmsChecking ? 'Opening SMS check...' : 'Text me a code'}
+                          </Text>
+                          <Text style={styles.mfaOptionDetail} numberOfLines={1}>
+                            To {smsDestination}
+                          </Text>
+                        </View>
+                        {isSmsChecking ? (
+                          <ActivityIndicator size="small" color={Colors.primary} />
+                        ) : (
+                          <ChevronRight size={18} color={Colors.textGray} strokeWidth={2.2} />
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+
+                    {offersEmail ? (
+                      <TouchableOpacity
+                        style={[styles.mfaOption, challengeBusy && !isSendingEmail && styles.otpBtnDisabled]}
+                        onPress={handleSendEmailCode}
+                        disabled={challengeBusy}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Email a code to ${emailDestination}`}
+                        accessibilityState={{ disabled: challengeBusy, busy: isSendingEmail }}
+                        testID="mfa-option-email"
+                      >
+                        <View style={styles.mfaOptionIcon}>
+                          <Mail size={20} color={Colors.primary} strokeWidth={2.2} />
+                        </View>
+                        <View style={styles.mfaOptionTextCol}>
+                          <Text style={styles.mfaOptionTitle}>
+                            {isSendingEmail ? 'Sending code...' : 'Email me a code'}
+                          </Text>
+                          <Text style={styles.mfaOptionDetail} numberOfLines={1}>
+                            To {emailDestination}
+                          </Text>
+                        </View>
+                        {isSendingEmail ? (
+                          <ActivityIndicator size="small" color={Colors.primary} />
+                        ) : (
+                          <ChevronRight size={18} color={Colors.textGray} strokeWidth={2.2} />
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  {smsNotice ? (
+                    <View style={styles.mfaNoticeRow} accessibilityLiveRegion="polite" testID="mfa-sms-notice">
+                      <Info size={14} color={Colors.info} strokeWidth={2.2} />
+                      <Text style={styles.mfaNoticeText}>{smsNotice}</Text>
+                    </View>
+                  ) : null}
+
+                  {otpError ? (
+                    <View style={styles.otpErrorRow} accessibilityLiveRegion="polite">
+                      <AlertCircle size={14} color={Colors.primary} />
+                      <Text style={styles.otpErrorText} testID="mfa-error">{otpError}</Text>
+                    </View>
+                  ) : null}
+                </>
               ) : (
                 <>
-                  <Text style={styles.modalTitle}>Verify Your Email</Text>
-                  <Text style={styles.otpSubtitle}>One-time account check</Text>
+                  <Text style={styles.modalTitle}>Confirm it's you</Text>
+                  <Text style={styles.otpSubtitle}>Email code</Text>
                   <Text style={styles.modalBodyText}>
                     We sent a 6-digit code to{' '}
-                    <Text style={styles.otpEmail}>
-                      {pendingChallenge?.maskedEmail || 'your registered email'}
-                    </Text>
+                    <Text style={styles.otpEmail}>{emailDestination}</Text>
                     . Enter it below to finish signing in.
                   </Text>
 
@@ -547,24 +732,34 @@ export const LoginScreen = () => {
                     textContentType="oneTimeCode"
                     autoComplete="sms-otp"
                     autoFocus
-                    editable={!isVerifying}
+                    editable={!challengeBusy}
+                    accessibilityLabel="6-digit email code"
+                    testID="mfa-code-input"
                   />
 
                   {otpError ? (
-                    <View style={styles.otpErrorRow}>
+                    <View style={styles.otpErrorRow} accessibilityLiveRegion="polite">
                       <AlertCircle size={14} color={Colors.primary}/>
-                      <Text style={styles.otpErrorText}>{otpError}</Text>
+                      <Text style={styles.otpErrorText} testID="mfa-error">{otpError}</Text>
+                    </View>
+                  ) : null}
+
+                  {smsNotice ? (
+                    <View style={styles.mfaNoticeRow} accessibilityLiveRegion="polite" testID="mfa-sms-notice">
+                      <Info size={14} color={Colors.info} strokeWidth={2.2} />
+                      <Text style={styles.mfaNoticeText}>{smsNotice}</Text>
                     </View>
                   ) : null}
 
                   <TouchableOpacity
-                    style={[styles.otpVerifyBtn, isVerifying && styles.otpBtnDisabled]}
+                    style={[styles.otpVerifyBtn, challengeBusy && styles.otpBtnDisabled]}
                     accessibilityRole="button"
-                    accessibilityState={{ disabled: isVerifying, busy: isVerifying }}
+                    accessibilityState={{ disabled: challengeBusy, busy: isVerifying }}
                     accessibilityLabel={isVerifying ? 'Verifying the code' : 'Verify the code'}
                     onPress={handleVerifyOtp}
-                    disabled={isVerifying}
+                    disabled={challengeBusy}
                     activeOpacity={0.85}
+                    testID="mfa-verify"
                   >
                     {isVerifying ? (
                       <ActivityIndicator color={Colors.textWhite}size="small" />
@@ -574,30 +769,51 @@ export const LoginScreen = () => {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={handleResendOtp}
-                    disabled={isResending || isVerifying}
+                    onPress={handleSendEmailCode}
+                    disabled={challengeBusy}
                     activeOpacity={0.7}
                     style={styles.otpResendBtn}
                     accessibilityRole="button"
-                    accessibilityLabel={isResending ? 'Sending a new code' : 'Send the code again'}
+                    accessibilityLabel={isSendingEmail ? 'Sending a new code' : 'Send the code again'}
+                    testID="mfa-resend"
                   >
                     <Text style={styles.otpResendText}>
-                      {isResending ? 'Sending...' : 'Resend code'}
+                      {isSendingEmail ? 'Sending...' : 'Resend code'}
                     </Text>
                   </TouchableOpacity>
+
+                  {offersSms ? (
+                    <TouchableOpacity
+                      onPress={handleSmsCheck}
+                      disabled={challengeBusy}
+                      activeOpacity={0.7}
+                      style={styles.otpResendBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Text a code to ${smsDestination} instead`}
+                      accessibilityState={{ disabled: challengeBusy, busy: isSmsChecking }}
+                      testID="mfa-sms-instead"
+                    >
+                      <Text style={styles.mfaAltText}>
+                        {isSmsChecking ? 'Opening SMS check...' : 'Text me a code instead'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </>
               )}
 
-              <TouchableOpacity onPress={handleCancelChallenge}
-              accessibilityRole="button"
-              accessibilityLabel="Use a different account" activeOpacity={0.7}>
-                <Text style={styles.otpCancelText}>Use a different account</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              {!challengeExpired ? (
+                <TouchableOpacity onPress={handleCancelChallenge}
+                disabled={isSmsChecking}
+                accessibilityRole="button"
+                accessibilityLabel="Use a different account" activeOpacity={0.7}>
+                  <Text style={styles.otpCancelText}>Use a different account</Text>
+                </TouchableOpacity>
+              ) : null}
+            </ScrollView>
+          </SafeAreaView>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -607,12 +823,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgGray,
   },
   scrollContainer: {
+    ...ScreenLayout.content,
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
   },
   heroHeader: {
     alignItems: 'center',
@@ -633,6 +846,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.bgWhite,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  brandMark: {
+    aspectRatio: 1.5,
   },
   brandPill: {
     flexDirection: 'row',
@@ -807,7 +1023,7 @@ const styles = StyleSheet.create({
   },
   loginButtonContainer: {
     marginTop: Spacing.sm,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
     overflow: 'hidden',
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
@@ -819,10 +1035,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   loginButtonGradient: {
-    minHeight: moderateScale(52, 0.20),
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
+    ...ScreenLayout.primaryButton,
   },
   loginBtnContent: {
     flexDirection: 'row',
@@ -850,14 +1063,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: Spacing.xl,
   },
+  modalScroll: {
+    width: '100%',
+    maxWidth: 380,
+    maxHeight: '100%',
+    flexGrow: 0,
+    flexShrink: 1,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.bgWhite,
+  },
   modalContent: {
     width: '100%',
     maxWidth: 380,
     backgroundColor: Colors.bgWhite,
-    borderRadius: BorderRadius.xxl,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.xxl,
+    padding: Spacing.xl,
     alignItems: 'center',
     elevation: 12,
     shadowColor: Colors.shadow,
@@ -987,6 +1209,72 @@ const styles = StyleSheet.create({
   },
   otpResendText: {
     color: Colors.success,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontWeight: FontWeights.bold,
+  },
+  mfaIntroText: {
+    marginBottom: Spacing.lg,
+  },
+  mfaOptionList: {
+    width: '100%',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  mfaOption: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    minHeight: 64,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.bgWhite,
+    borderWidth: 1.2,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
+  },
+  mfaOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.dangerBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mfaOptionTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mfaOptionTitle: {
+    color: Colors.textDark,
+    fontSize: scaledFontSize(FontSizes.base, 0.20),
+    fontWeight: FontWeights.bold,
+  },
+  mfaOptionDetail: {
+    color: Colors.textGray,
+    fontSize: scaledFontSize(FontSizes.sm, 0.20),
+    fontWeight: FontWeights.medium,
+    marginTop: 2,
+  },
+  mfaNoticeRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
+    backgroundColor: Colors.infoSubtle,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  mfaNoticeText: {
+    color: Colors.info,
+    fontSize: scaledFontSize(FontSizes.xs, 0.20),
+    fontWeight: FontWeights.semibold,
+    flexShrink: 1,
+  },
+  mfaAltText: {
+    color: Colors.primary,
     fontSize: scaledFontSize(FontSizes.sm, 0.20),
     fontWeight: FontWeights.bold,
   },

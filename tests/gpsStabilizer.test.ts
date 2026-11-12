@@ -180,6 +180,121 @@ describe('GpsStabilizer moving off and riding', () => {
     expect(out[out.length - 1].speedMps).toBeGreaterThan(3);
   });
 
+  /** A phone locked exactly on BASE, so what releases it is the fixes that follow and nothing else. */
+  function lockedOnBase(): GpsStabilizer {
+    const stabilizer = new GpsStabilizer();
+    feed(stabilizer, Array.from({ length: 15 }, (_, i) => at(0, 0, { accuracyMeters: 6, speedMps: 0.3, timestamp: i * 1000 })));
+    expect(stabilizer.current()!.locked).toBe(true);
+    return stabilizer;
+  }
+
+  it('lets go on the second moving fix, while the rider is still inside half the lock radius', () => {
+    // Pulling away north at 2 m/s²: 1 m out at 2 m/s after one second, 4 m out
+    // at 4 m/s after two. The pin used to wait until they were 6 m out on two
+    // fixes in a row, which is the fourth second.
+    const stabilizer = lockedOnBase();
+    const departing = [1, 2, 3, 4].map((t) =>
+      at(0, t * t, { speedMps: 2 * t, headingDeg: 0, accuracyMeters: 6, timestamp: (14 + t) * 1000 })
+    );
+    const out = feed(stabilizer, departing);
+    expect(out.map((fix) => fix.locked)).toEqual([true, false, false, false]);
+    // Let go where the rider is, already moving their way.
+    expect(distanceMeters(out[1], at(0, 4))).toBeLessThan(0.5);
+    expect(out[1].speedMps).toBeGreaterThan(3);
+    expect(out[1].headingDeg).toBe(0);
+  });
+
+  it('is not released by one stray speed reading', () => {
+    const stabilizer = lockedOnBase();
+    const out = feed(stabilizer, [
+      at(3, 2, { speedMps: 3.4, headingDeg: 140, accuracyMeters: 6, timestamp: 15_000 }),
+      at(2, -1, { speedMps: 0.4, headingDeg: 20, accuracyMeters: 6, timestamp: 16_000 }),
+      at(-1, 3, { speedMps: 0.2, headingDeg: 300, accuracyMeters: 6, timestamp: 17_000 }),
+    ]);
+    expect(out.every((fix) => fix.locked)).toBe(true);
+  });
+
+  it('is not released by two stray speed readings that point different ways', () => {
+    // Fast enough and far enough apart to add up, but one says south-east and
+    // the next north-west: not one journey.
+    const stabilizer = lockedOnBase();
+    const out = feed(stabilizer, [
+      at(3, -2, { speedMps: 3, headingDeg: 140, accuracyMeters: 6, timestamp: 15_000 }),
+      at(-3, 3, { speedMps: 3, headingDeg: 310, accuracyMeters: 6, timestamp: 16_000 }),
+      at(1, 1, { speedMps: 0.3, headingDeg: 40, accuracyMeters: 6, timestamp: 17_000 }),
+    ]);
+    expect(out.every((fix) => fix.locked)).toBe(true);
+  });
+
+  it('is not released by two readings whose speed does not add up to real travel', () => {
+    // Just over the moving speed, the same way, a second apart, 3 m from the
+    // spot: 2.1 m between them, where a rider pulling away covers 3 and more.
+    const stabilizer = lockedOnBase();
+    const out = feed(stabilizer, [
+      at(0, 3, { speedMps: 2.1, headingDeg: 0, accuracyMeters: 6, timestamp: 15_000 }),
+      at(0, 3.5, { speedMps: 2.1, headingDeg: 5, accuracyMeters: 6, timestamp: 16_000 }),
+    ]);
+    expect(out.every((fix) => fix.locked)).toBe(true);
+  });
+
+  it('still holds a phone whose speed noise reaches just under the moving speed', () => {
+    // Worse than the budget phones measured (0.5 to 1.5 m/s): up to 1.9 m/s,
+    // each reading with a course of its own, while the position drifts. A good
+    // fix, so only the speed could be what releases it.
+    for (let seed = 1; seed <= 20; seed++) {
+      const { gaussian, uniform } = rng(100 + seed);
+      let ex = gaussian() * 2.5;
+      let ey = gaussian() * 2.5;
+      const fixes = Array.from({ length: 300 }, (_, i) => {
+        ex = 0.9 * ex + Math.sqrt(1 - 0.81) * 2.5 * gaussian();
+        ey = 0.9 * ey + Math.sqrt(1 - 0.81) * 2.5 * gaussian();
+        return at(ex, ey, { accuracyMeters: 4, speedMps: uniform() * 1.9, headingDeg: uniform() * 360, timestamp: i * 1000 });
+      });
+      // Speed noise this high makes the pin slower to lock (it wants three
+      // quiet readings in a row). The point here is that once locked, it holds.
+      const out = feed(new GpsStabilizer(), fixes);
+      const lockedAt = out.findIndex((fix) => fix.locked);
+      expect(lockedAt).toBeGreaterThanOrEqual(0);
+      expect(out.slice(lockedAt).filter((fix) => !fix.locked)).toHaveLength(0);
+    }
+  });
+
+  it('lets a pulling-away rider go within three seconds on nine phones in ten', () => {
+    // 200 phones stopped for 30 s with drifting GPS error, then away at 2 m/s².
+    // Fixes a second apart, landing wherever in that second the phone happens to be.
+    const delays: number[] = [];
+    for (let seed = 1; seed <= 200; seed++) {
+      const { gaussian, uniform } = rng(500 + seed);
+      const phase = uniform();
+      let ex = gaussian() * 5;
+      let ey = gaussian() * 5;
+      const stabilizer = new GpsStabilizer();
+      let released = NaN;
+      for (let i = 0; i < 45 && Number.isNaN(released); i++) {
+        const sinceStart = i + phase - 30;
+        const speed = Math.min(8, 2 * Math.max(0, sinceStart));
+        const travelled = sinceStart <= 0 ? 0 : sinceStart < 4 ? sinceStart * sinceStart : 16 + 8 * (sinceStart - 4);
+        ex = 0.9 * ex + Math.sqrt(1 - 0.81) * 5 * gaussian();
+        ey = 0.9 * ey + Math.sqrt(1 - 0.81) * 5 * gaussian();
+        const verdict = stabilizer.push(
+          at(ex, travelled + ey, {
+            accuracyMeters: 7,
+            speedMps: speed < 0.3 ? uniform() * 1.1 : Math.max(0, speed + 0.3 * gaussian()),
+            headingDeg: speed > 0.5 ? (8 * gaussian() + 360) % 360 : uniform() * 360,
+            timestamp: Math.round((i + phase) * 1000),
+          })
+        );
+        if (verdict.kind !== 'reject' && sinceStart > 0 && !verdict.fix.locked) released = sinceStart;
+      }
+      delays.push(released);
+    }
+    const sorted = delays.filter((d) => !Number.isNaN(d)).sort((a, b) => a - b);
+    expect(sorted).toHaveLength(200);
+    // Two agreeing fixes a second apart cannot come sooner than this; it was 3.5 s and 4.7 s.
+    expect(sorted[100]).toBeLessThan(2.7);
+    expect(sorted[180]).toBeLessThan(3.1);
+  });
+
   it('moves at once after a long gap far away, without waiting for a second fix', () => {
     const stabilizer = new GpsStabilizer();
     feed(stabilizer, stillPhone(10, { sigma: 3, accuracy: 6, seed: 6 }));

@@ -1,12 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useRiderDoubleTapBackToExit } from '../../hooks/useRiderBackHandler';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { Navigation, ChevronRight } from 'lucide-react-native';
+import { Navigation, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
 import { useRiderAuth } from '../../context/RiderAuthContext';
 import type { AuthedStackParamList, MainTabParamList } from '../../navigation/AuthedNavigator';
@@ -19,6 +19,7 @@ import { WaybillModal } from '../../components/WaybillModal';
 import { OfflineCard, WaitingCard, NewTaskCard, CompletedCard, DeclineModal } from './components';
 import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, FontFamily, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
 import { HomeColors } from './homeTheme';
+import { ScreenLayout } from '../../config/screenLayout';
 
 type HomeScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Home'>,
@@ -29,7 +30,7 @@ type HomeScreenNavigationProp = CompositeNavigationProp<
  * The decision screen: what has been offered, and whether to take it.
  *
  * Everything a rider does after saying yes now lives on the dedicated full-screen
- * Task view. When an errand is accepted, a floating action button appears on Home
+ * Task view. When an errand is accepted, a navigation button appears on Home
  * allowing quick re-entry into navigation.
  */
 export default function HomeScreen() {
@@ -37,8 +38,8 @@ export default function HomeScreen() {
   const { isOnline } = useRiderAuth();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const maintenanceNotice = useMaintenanceNotice();
-  const insets = useSafeAreaInsets();
-  const [actionDockHeight, setActionDockHeight] = React.useState(0);
+  const [selectedOfferId, setSelectedOfferId] = React.useState<string | null>(null);
+  const [declineOfferId, setDeclineOfferId] = React.useState<string | null>(null);
 
   // Only while Home is the screen in front. Home stays mounted under every
   // pushed screen (Notifications, Task, ErrandDetails), and without this its
@@ -60,6 +61,9 @@ export default function HomeScreen() {
     refresh,
     setShowWaybill,
   } = mission;
+  const selectedOfferIndex = Math.max(0, offeredErrands.findIndex((offer) => offer.id === selectedOfferId));
+  const showOffers = !isOffline && phase !== 'loading' && phase !== 'error'
+    && !(phase === 'completed' && errand) && offeredErrands.length > 0;
 
   // Accepting means the rider is about to start driving, so the map is the next
   // thing they need. Navigation lives here rather than in useRiderMission so the
@@ -77,7 +81,8 @@ export default function HomeScreen() {
     [mission, navigation]
   );
 
-  const handleDecline = React.useCallback(() => {
+  const handleDecline = React.useCallback((offerId: string) => {
+    setDeclineOfferId(offerId);
     mission.setShowDeclineModal(true);
   }, [mission]);
 
@@ -121,30 +126,7 @@ export default function HomeScreen() {
       );
     }
 
-    if (offeredErrands.length === 0) return <WaitingCard hasActiveErrand={mission.isMissionAccepted} isOnDuty={isOnline} />;
-
-    // One card per offer rather than one merged card. A rider offered two
-    // errands was previously shown a single blended one and had to accept or
-    // decline both together, with a fee figure that was the sum of two jobs.
-    return (
-      <>
-        <Text style={styles.offersHeading} accessibilityRole="header" maxFontSizeMultiplier={1.25}>
-          {offeredErrands.length === 1 ? 'Your offer' : `${offeredErrands.length} errands offered to you`}
-        </Text>
-        {offeredErrands.map((offer) => (
-          <View key={offer.id} style={styles.offerBlock}>
-            <NewTaskCard
-              errand={offer}
-              onAccept={() => handleAccept(offer.id)}
-              onDecline={handleDecline}
-              onExpire={() => mission.expireOffer(offer.id)}
-              isAccepting={mission.isAccepting}
-              feeDetails={<FeeBreakdownPanel errand={offer} variant="offer" />}
-            />
-          </View>
-        ))}
-      </>
-    );
+    return <WaitingCard hasActiveErrand={mission.isMissionAccepted} isOnDuty={isOnline} />;
   };
 
   return (
@@ -154,23 +136,74 @@ export default function HomeScreen() {
           confirmation they never saw. */}
       <StatusBanner banner={mission.banner} onDismiss={mission.dismissBanner} />
       <MaintenanceNoticeBanner notice={maintenanceNotice} />
-      <ScrollView
-        testID="home-scroll"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: 72 + Math.max(insets.bottom, Spacing.sm) + Spacing.md + (mission.isMissionAccepted ? actionDockHeight + Spacing.md : 0) },
-        ]}
-      >
-        {renderBody()}
-      </ScrollView>
+      {showOffers ? (
+        <View style={styles.offerWorkspace}>
+          {offeredErrands.length > 1 && (
+            <View style={styles.offerSelector}>
+              <TouchableOpacity
+                style={styles.offerArrow}
+                accessibilityRole="button"
+                accessibilityLabel="Previous offer"
+                accessibilityState={{ disabled: selectedOfferIndex === 0 || mission.isAccepting }}
+                disabled={selectedOfferIndex === 0 || mission.isAccepting}
+                onPress={() => setSelectedOfferId(offeredErrands[selectedOfferIndex - 1].id)}
+              >
+                <ChevronLeft size={22} color={selectedOfferIndex === 0 ? Colors.textLight : Colors.navy} />
+              </TouchableOpacity>
+              <Text style={styles.offersHeading} maxFontSizeMultiplier={1.25} accessibilityLiveRegion="polite">
+                Offer {selectedOfferIndex + 1} of {offeredErrands.length}
+              </Text>
+              <TouchableOpacity
+                style={styles.offerArrow}
+                accessibilityRole="button"
+                accessibilityLabel="Next offer"
+                accessibilityState={{ disabled: selectedOfferIndex === offeredErrands.length - 1 || mission.isAccepting }}
+                disabled={selectedOfferIndex === offeredErrands.length - 1 || mission.isAccepting}
+                onPress={() => setSelectedOfferId(offeredErrands[selectedOfferIndex + 1].id)}
+              >
+                <ChevronRight size={22} color={selectedOfferIndex === offeredErrands.length - 1 ? Colors.textLight : Colors.navy} />
+              </TouchableOpacity>
+            </View>
+          )}
+          {/* Keep all countdowns mounted while showing one complete offer.
+              Each offer retains its own slider and acceptance callback. */}
+          {offeredErrands.map((offer, index) => (
+            <View
+              key={offer.id}
+              style={index === selectedOfferIndex ? styles.offerPage : styles.hiddenOffer}
+              accessibilityElementsHidden={index !== selectedOfferIndex}
+              importantForAccessibility={index === selectedOfferIndex ? 'auto' : 'no-hide-descendants'}
+            >
+              <NewTaskCard
+                errand={offer}
+                onAccept={() => handleAccept(offer.id)}
+                onDecline={() => handleDecline(offer.id)}
+                onExpire={() => mission.expireOffer(offer.id)}
+                isAccepting={mission.isAccepting}
+                feeDetails={<FeeBreakdownPanel errand={offer} variant="offer" />}
+              />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <ScrollView
+          testID="home-scroll"
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {renderBody()}
+        </ScrollView>
+      )}
 
       <DeclineModal
         visible={mission.showDeclineModal}
         reason={mission.declineReason}
         setReason={mission.setDeclineReason}
         onClose={() => mission.setShowDeclineModal(false)}
-        onSubmit={mission.declineMission}
+        onSubmit={() => {
+          if (declineOfferId) void mission.declineMission(declineOfferId);
+        }}
       />
       {errand && (
         <WaybillModal
@@ -180,14 +213,11 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* The navigation action has its own space above the tab bar. */}
+      {/* A sibling of the scroll viewport, so offers never pass behind it.
+          The navigator already reserves the tab bar and bottom safe area. */}
       {mission.isMissionAccepted && (
         <View
-          style={[styles.taskDock, { bottom: Math.max(insets.bottom, Spacing.sm) + 64 + Spacing.md }]}
-          onLayout={(event) => {
-            const next = Math.round(event.nativeEvent.layout.height);
-            setActionDockHeight((previous) => previous === next ? previous : next);
-          }}
+          style={styles.taskDock}
           testID="home-task-dock"
         >
           <TouchableOpacity
@@ -217,13 +247,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: HomeColors.background,
   },
+  scroll: {
+    flex: 1,
+  },
   scrollContent: {
-    padding: moderateScale(20, 0.5),
+    ...ScreenLayout.content,
     gap: moderateScale(20, 0.5),
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
-    paddingBottom: moderateScale(110, 0.20),
   },
   centerState: {
     alignItems: 'center',
@@ -255,19 +284,39 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold as any,
     color: Colors.navy,
   },
-  offerBlock: {
-    marginBottom: moderateScale(12, 0.5),
+  offerWorkspace: {
+    flex: 1,
+    backgroundColor: HomeColors.surface,
+  },
+  offerPage: {
+    flex: 1,
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+  },
+  hiddenOffer: {
+    display: 'none',
+  },
+  offerSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: moderateScale(12, 0.5),
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+    flexShrink: 0,
+  },
+  offerArrow: {
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   taskDock: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    paddingVertical: moderateScale(12, 0.5),
-    paddingHorizontal: moderateScale(20, 0.5),
+    ...ScreenLayout.actionDock,
     backgroundColor: HomeColors.surface,
-    borderTopWidth: 1,
     borderTopColor: HomeColors.divider,
-    zIndex: 50,
   },
   navigationButton: {
     width: '100%',

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenLayout } from '../../config/screenLayout';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { ChevronLeft, ReceiptText, ImageOff } from 'lucide-react-native';
 import { useRiderMissionContext } from '../../context/RiderMissionContext';
@@ -9,7 +10,7 @@ import { Badge } from '../../components/Badge';
 import { EmptyState } from '../../components/EmptyState';
 import { riderApiService, type ProofImageMeta } from '../../config/apiConfig';
 import { requestSections } from '../../services/requestSections';
-import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale, MAX_CONTENT_WIDTH } from '../../config/theme';
+import { Colors, Spacing, BorderRadius, FontSizes, FontWeights, scaledFontSize, moderateScale } from '../../config/theme';
 import { formatErrandId } from '../../utils/formatErrandId';
 import { formatPeso, formatTimestamp } from '../../utils/format';
 
@@ -126,7 +127,7 @@ export default function ErrandDetailsScreen() {
           hint="It may still be in progress, or it belongs to another rider."
         />
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
           {/* 1. Errand Overview */}
           <View style={styles.sectionBlock}>
             <View style={styles.summaryTop}>
@@ -329,17 +330,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgGray,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.bgWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    ...ScreenLayout.header,
   },
   backBtn: {
     minWidth: 48,
@@ -348,16 +339,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: scaledFontSize(FontSizes.lg, 0.20),
-    fontWeight: FontWeights.bold as any,
-    color: Colors.textDark,
+    ...ScreenLayout.headerTitle,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: moderateScale(110, 0.20),
-    maxWidth: MAX_CONTENT_WIDTH,
-    width: '100%',
-    alignSelf: 'center',
+    ...ScreenLayout.content,
   },
   sectionBlock: {
     paddingVertical: Spacing.lg,
